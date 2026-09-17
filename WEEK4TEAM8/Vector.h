@@ -226,3 +226,12 @@ struct FVertexSimple
 
 	FVector GetPosition() const { return FVector(x, y, z); }
 };
+
+
+struct FVertexPNCT
+{
+	FVector Position;
+	FVector Normal;
+	FVector4 Color;
+	FVector2 UV;
+};

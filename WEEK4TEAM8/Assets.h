@@ -29,18 +29,30 @@ private:
 	std::filesystem::path FilePath;
 };
 
+struct FStaticMeshSection
+{
+	uint32 StartIndex = 0;
+	uint32 IndexCount = 0;
+	int32  MaterialIndex = 0;
+	FString MaterialName;
+};
+
 class FStaticMeshAsset : public FAsset
 {
 public:
 	FStaticMeshAsset() = default;
 	FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount);
 	FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount);
+	FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexPNCT* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount, const TArray<FStaticMeshSection>& InSections, const FString& InPathFileName);
 
 	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetVertexBuffer() const { return VertexBuffer; }
 	inline uint32 GetVertexCount() const { return VertexCount; }
 	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetIndexBuffer() const { return IndexBuffer; }
 	inline uint32 GetIndexCount() const { return IndexCount; }
 	inline const FAABB& GetLocalBoundingBox() const { return BoundingBox; }
+	inline const TArray<FStaticMeshSection>& GetSections() const { return Sections; }
+	inline const FString& GetFilePathName() const { return FilePathName; }
+	inline uint32 GetVertexStride() const { return VertexStride; }
 
 private:
 	Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer;
@@ -49,6 +61,9 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer;
 	uint32 IndexCount;
 
+	uint32 VertexStride = sizeof(FVertexSimple);
+	TArray<FStaticMeshSection> Sections;
+	FString FilePathName;
 	FAABB BoundingBox;
 };
 
