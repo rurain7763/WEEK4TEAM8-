@@ -5,14 +5,17 @@
 #include "Renderer.h"
 #include "FFontManager.h"
 #include "MathUtility.h"
+#include "FObjImporter.h"
+#include "Serializers.h"
+#include "FAssetManager.h"
 
-FString FFileAssetSource::ReadFileToString() const
+TSharedPtr<FArchive> FFileAssetSource::CreateArchive()
 {
-	return FileManager.ReadFileToString(FilePath);
+	return MakeShared<FWindowsBinReader>(FilePath);
 }
 
-FStaticMeshAsset::FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount)
-	: FAsset(InAssetName, EAssetType::StaticMesh)
+FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount)
+	: FAsset(InAssetID, InAssetName, EAssetType::StaticMesh)
 	, VertexCount(InVertexCount)
 {
 	VertexBuffer = InRenderer.CreateVertexBuffer(InVertices, InVertexCount);
@@ -24,13 +27,16 @@ FStaticMeshAsset::FStaticMeshAsset(const FName& InAssetName, URenderer& InRender
 	}
 }
 
-FStaticMeshAsset::FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount)
-	: FAsset(InAssetName, EAssetType::StaticMesh)
+FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount)
+	: FAsset(InAssetID, InAssetName, EAssetType::StaticMesh)
 	, VertexCount(InVertexCount)
-	, IndexCount(InIndexCount)
 {
 	VertexBuffer = InRenderer.CreateVertexBuffer(InVertices, InVertexCount);
-	IndexBuffer = InRenderer.CreateIndexBuffer(InIndices, InIndexCount);
+	
+	Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer = InRenderer.CreateIndexBuffer(InIndices, InIndexCount);
+	SubMeshIndexBuffers.Add(IndexBuffer);
+	SubMeshIndexCounts.Add(InIndexCount);
+
 	for (uint32 i = 0; i < InIndexCount; ++i)
 	{
 		const FVertexSimple& Vertex = InVertices[InIndices[i]];
@@ -38,19 +44,93 @@ FStaticMeshAsset::FStaticMeshAsset(const FName& InAssetName, URenderer& InRender
 	}
 }
 
-TSharedPtr<FAsset> FTexture2DAssetLoader::LoadAsset(const FName& AssetName, FAssetSource& AssetSource)
+FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMesh& InStaticMesh)
+	: FAsset(InAssetID, InAssetName, EAssetType::StaticMesh)
 {
-	FFileAssetSource& FileSource = static_cast<FFileAssetSource&>(AssetSource);
-	FString FileContent = FileSource.ReadFileToString();
-
-	int32 Width, Height, Channels;
-	stbi_uc* ImageData = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(FileContent.CStr()), FileContent.Len(), &Width, &Height, &Channels, 4);
-
-	if (!ImageData)
+	TArray<FVertexSimple> Vertices;
+	for (int32 i = 0; i < InStaticMesh.Positions.Num(); ++i)
 	{
-		UE_LOG_ERROR("Failed to load texture asset: %s", AssetName.ToString().CStr());
-		return nullptr;
+		FVertexSimple& Vertex = Vertices.Emplace();
+
+		Vertex.x = InStaticMesh.Positions[i].x;
+		Vertex.y = InStaticMesh.Positions[i].y;
+		Vertex.z = InStaticMesh.Positions[i].z;
+		Vertex.r = 1.0f;
+		Vertex.g = 1.0f;
+		Vertex.b = 1.0f;
+		Vertex.a = 1.0f;
+		Vertex.u = InStaticMesh.TexCoords[i].X;
+		Vertex.v = 1.0f - InStaticMesh.TexCoords[i].Y; // 텍스처 좌표의 Y축을 뒤집음
 	}
+
+	VertexBuffer = InRenderer.CreateVertexBuffer(Vertices.Data(), Vertices.Num());
+	VertexCount = Vertices.Num();
+
+	for (const FMeshSection& Section : InStaticMesh.MeshSections)
+	{
+		Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer = InRenderer.CreateIndexBuffer(Section.Indices.Data(), Section.Indices.Num());
+		SubMeshIndexBuffers.Add(IndexBuffer);
+		SubMeshIndexCounts.Add(Section.Indices.Num());
+
+		for (uint32 i = 0; i < Section.Indices.Num(); ++i)
+		{
+			const FVector& Position = InStaticMesh.Positions[Section.Indices[i]];
+			BoundingBox.ExpandToInclude(Position);
+		}
+	}
+}
+
+TSharedPtr<FAsset> FStaticMeshAssetLoader::LoadAsset(const FGuid& AssetID, const FName& AssetName, FArchive& Ar)
+{
+	TArray<FVector> Positions;
+	TArray<FVector> Normals;
+	TArray<FVector2> TexCoords;
+	TArray<FMeshSection> MeshSections;
+
+	Ar << Positions;
+	Ar << Normals;
+	Ar << TexCoords;
+	Ar << MeshSections;
+
+	TArray<FVertexSimple> Vertices;
+	for (int32 i = 0; i < Positions.Num(); ++i)
+	{
+		FVertexSimple& Vertex = Vertices.Emplace();
+
+		Vertex.x = Positions[i].x;
+		Vertex.y = Positions[i].y;
+		Vertex.z = Positions[i].z;
+		Vertex.r = 1.0f;
+		Vertex.g = 1.0f;
+		Vertex.b = 1.0f;
+		Vertex.a = 1.0f;
+		Vertex.u = TexCoords[i].X;
+		Vertex.v = 1.0f - TexCoords[i].Y; // 텍스처 좌표의 Y축을 뒤집음
+	}
+
+	FStaticMesh StaticMesh;
+	StaticMesh.Positions = Positions;
+	StaticMesh.Normals = Normals;
+	StaticMesh.TexCoords = TexCoords;
+	StaticMesh.MeshSections = MeshSections;
+	
+	return MakeShared<FStaticMeshAsset>(AssetID, AssetName, Renderer, StaticMesh);
+}
+
+void FStaticMeshAssetLoader::UnloadAsset(TSharedPtr<FAsset> Asset)
+{
+	// NOTE: Nothing to do for now
+}
+
+TSharedPtr<FAsset> FTexture2DAssetLoader::LoadAsset(const FGuid& AssetID, const FName& AssetName, FArchive& Ar)
+{
+	int32 Width, Height, Channels;
+	TArray<uint8> ImageData;
+
+	Ar << Width;
+	Ar << Height;
+	Ar << Channels;
+	Ar << ImageData;
 
 	D3D11_TEXTURE2D_DESC TextureDesc = {};
 	TextureDesc.Width = Width;
@@ -65,7 +145,7 @@ TSharedPtr<FAsset> FTexture2DAssetLoader::LoadAsset(const FName& AssetName, FAss
 	TextureDesc.MiscFlags = 0;
 	TextureDesc.MipLevels = 1;
 
-	Microsoft::WRL::ComPtr<ID3D11Texture2D> Texture = Renderer.CreateTexture2D(TextureDesc, ImageData);
+	Microsoft::WRL::ComPtr<ID3D11Texture2D> Texture = Renderer.CreateTexture2D(TextureDesc, ImageData.Data());
 	
 	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
 	SRVDesc.Format = TextureDesc.Format;
@@ -75,9 +155,7 @@ TSharedPtr<FAsset> FTexture2DAssetLoader::LoadAsset(const FName& AssetName, FAss
 
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> SRV = Renderer.CreateShaderResourceView(Texture, &SRVDesc);
 
-	stbi_image_free(ImageData);
-
-	return MakeShared<FTexture2DAsset>(AssetName, Texture, SRV);
+	return MakeShared<FTexture2DAsset>(AssetID, AssetName, Texture, SRV);
 }
 
 void FTexture2DAssetLoader::UnloadAsset(TSharedPtr<FAsset> Asset)
@@ -85,15 +163,19 @@ void FTexture2DAssetLoader::UnloadAsset(TSharedPtr<FAsset> Asset)
 	// NOTE: Nothing to do for now
 }
 
-TSharedPtr<FAsset> FFontAssetLoader::LoadAsset(const FName& AssetName, FAssetSource& AssetSource)
+TSharedPtr<FAsset> FFontAssetLoader::LoadAsset(const FGuid& AssetID, const FName& AssetName, FArchive& Ar)
 {
-	FFileAssetSource& FileSource = static_cast<FFileAssetSource&>(AssetSource);
-	FString FileContent = FileSource.ReadFileToString();
+	TArray<int8> FileData;
+	if (!TryReadToBytes(Ar, FileData))
+	{
+		UE_LOG_ERROR("Failed to read font asset: %s", AssetName.ToString().CStr());
+		return nullptr;
+	}
 	
 	FT_Library Library = FontManager.GetLibrary();
 
 	FT_Face Face;
-	FT_Error Err = FT_New_Memory_Face(Library, reinterpret_cast<const FT_Byte*>(FileContent.CStr()), FileContent.Len(), 0, &Face);
+	FT_Error Err = FT_New_Memory_Face(Library, reinterpret_cast<const FT_Byte*>(FileData.Data()), FileData.Num(), 0, &Face);
 	if (Err)
 	{
 		UE_LOG_ERROR("Failed to load font asset: %s", AssetName.ToString().CStr());
@@ -108,7 +190,7 @@ TSharedPtr<FAsset> FFontAssetLoader::LoadAsset(const FName& AssetName, FAssetSou
 		return nullptr;
 	}
 
-	return MakeShared<FFontAsset>(AssetName, Face, std::move(FileContent));
+	return MakeShared<FFontAsset>(AssetID, AssetName, Face, std::move(FileData));
 }
 
 void FFontAssetLoader::UnloadAsset(TSharedPtr<FAsset> Asset)
@@ -139,8 +221,8 @@ void FFontAtlasAsset::UpdateRegion(uint32 Left, uint32 Top, uint32 Right, uint32
 	Renderer.GetDeviceContext()->UpdateSubresource(Texture.Get(), 0, &DestBox, Data, RowPitch, 0);
 }
 
-FFontAtlasAsset::FFontAtlasAsset(const FName& InAssetName, URenderer& InRenderer, TSharedPtr<FFontAsset>& InFontAsset, uint32 InWidth, uint32 InHeight, uint32 InPaddingW, uint32 InPaddingH)
-	: FTexture2DAsset(InAssetName, EAssetType::FontAtlas, nullptr, nullptr)
+FFontAtlasAsset::FFontAtlasAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, TSharedPtr<FFontAsset>& InFontAsset, uint32 InWidth, uint32 InHeight, uint32 InPaddingW, uint32 InPaddingH)
+	: FTexture2DAsset(InAssetID, InAssetName, EAssetType::FontAtlas, nullptr, nullptr)
 	, Renderer(InRenderer)
 	, FontAsset(InFontAsset)
 	, FontAtlas(MakeShared<FFontAtlas>(InFontAsset->GetFace(), InWidth, InHeight, InPaddingW, InPaddingH))
@@ -181,8 +263,8 @@ bool FFontAtlasAsset::HandleAddGlyph(FFontAtlas& FontAtlas, const FFontGlyph& In
 	return true;
 }
 
-FSpriteAtlasAsset::FSpriteAtlasAsset(const FName& InAssetName, URenderer& InRenderer, const TSharedPtr<FTexture2DAsset>& InSource, uint32 InCols, uint32 InRows, uint32 InFrameCount)
-	: FTexture2DAsset(InAssetName, EAssetType::SpriteAtlas,
+FSpriteAtlasAsset::FSpriteAtlasAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const TSharedPtr<FTexture2DAsset>& InSource, uint32 InCols, uint32 InRows, uint32 InFrameCount)
+	: FTexture2DAsset(InAssetID, InAssetName, EAssetType::SpriteAtlas,
 		InSource ? InSource->GetTexture() : Microsoft::WRL::ComPtr<ID3D11Texture2D>(),
 		InSource ? InSource->GetSRV() : Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>())
 	, Renderer(InRenderer)
@@ -215,8 +297,8 @@ FSpriteAtlasAsset::FSpriteAtlasAsset(const FName& InAssetName, URenderer& InRend
 	}
 }
 
-FSpriteAtlasAsset::FSpriteAtlasAsset(const FName& InAssetName, URenderer& InRenderer, const TSharedPtr<FTexture2DAsset>& InSource, const TArray<FVector4>& InFrameSubUVs)
-	: FTexture2DAsset(InAssetName, EAssetType::SpriteAtlas,
+FSpriteAtlasAsset::FSpriteAtlasAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const TSharedPtr<FTexture2DAsset>& InSource, const TArray<FVector4>& InFrameSubUVs)
+	: FTexture2DAsset(InAssetID, InAssetName, EAssetType::SpriteAtlas,
 		InSource ? InSource->GetTexture() : Microsoft::WRL::ComPtr<ID3D11Texture2D>(),
 		InSource ? InSource->GetSRV() : Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>())
 	, Renderer(InRenderer)
@@ -239,4 +321,39 @@ const FVector4& FSpriteAtlasAsset::GetFrameSubUV(int32 FrameIndex) const
 	}
 
 	return FrameSubUVs[static_cast<uint32>(FrameIndex)];
+}
+
+TSharedPtr<FTexture2DAsset> FMaterialAsset::GetDiffuseTexture() const
+{
+	return FAssetManager::Get().GetAssetAs<FTexture2DAsset>(DiffuseTexture, true);
+}
+
+TSharedPtr<FTexture2DAsset> FMaterialAsset::GetSpecularTexture() const
+{
+	return FAssetManager::Get().GetAssetAs<FTexture2DAsset>(SpecularTexture, true);
+}
+
+TSharedPtr<FTexture2DAsset> FMaterialAsset::GetNormalTexture() const
+{
+	return FAssetManager::Get().GetAssetAs<FTexture2DAsset>(NormalTexture, true);
+}
+
+TSharedPtr<FAsset> FMaterialAssetLoader::LoadAsset(const FGuid& AssetID, const FName& AssetName, FArchive& Ar)
+{
+	FVector AmbientColor, DiffuseColor, SpecularColor;
+	FGuid DiffuseTexture, SpecularTexture, NormalTexture;
+
+	Ar << AmbientColor;
+	Ar << DiffuseColor;
+	Ar << SpecularColor;
+	Ar << DiffuseTexture;
+	Ar << SpecularTexture;
+	Ar << NormalTexture;
+
+	return MakeShared<FMaterialAsset>(AssetID, AssetName, AmbientColor, DiffuseColor, SpecularColor, DiffuseTexture, SpecularTexture, NormalTexture);
+}
+
+void FMaterialAssetLoader::UnloadAsset(TSharedPtr<FAsset> Asset)
+{
+	// NOTE: Nothing to do for now
 }

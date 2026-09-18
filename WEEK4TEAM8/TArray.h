@@ -3,7 +3,7 @@
 
 #include <cassert>
 #include <vector>
-
+#include <initializer_list>
 #include "Core.h"
 
 template<typename T>
@@ -11,7 +11,18 @@ class TArray
 {
 public:
 	TArray() = default;
+	TArray(std::initializer_list<T> InitList)
+		: mDatas(InitList)
+	{
+	}
+
 	~TArray() = default;
+
+	TArray(const TArray&) = default;
+	TArray& operator=(const TArray&) = default;
+
+	TArray(TArray&&) noexcept = default;
+	TArray& operator=(TArray&&) noexcept = default;
 
 	T& operator[](uint32 index);
 	const T& operator[](uint32 index) const;
@@ -34,7 +45,13 @@ public:
 	void SetNum(int32 NewNum, bool bAllowShrinking = true);
 
 	uint32 Add(const T& data);
-	uint32 Emplace(const T& data);
+
+	template <typename... TArg>
+	T& Emplace(TArg&&... args)
+	{
+		return mDatas.emplace_back(std::forward<TArg>(args)...);
+	}
+
 	uint32 Insert(const T& data, uint32 index);
 	void Reserve(uint32 Number);
 
@@ -163,14 +180,6 @@ inline uint32 TArray<T>::Add(const T& data)
 	mDatas.push_back(data);
 
 	return static_cast<uint32>(mDatas.size()) - 1;
-}
-
-template<typename T>
-inline uint32 TArray<T>::Emplace(const T& data)
-{
-	mDatas.emplace_back(data);
-
-	return mDatas.size() - 1;
 }
 
 template<typename T>
