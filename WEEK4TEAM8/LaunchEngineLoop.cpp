@@ -104,6 +104,27 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 	//	cubeActor->AddComponent(cubeComonent);
 	//	mSceneManager.GetCurrentWorld()->AddActor(cubeActor);
 	//}
+
+	//test obj
+	AActor* ObjActor = FObjectFactory::ConstructObject<AActor>();
+	UStaticMeshComponent* MeshComp = FObjectFactory::ConstructObject<UStaticMeshComponent>();
+
+	MeshComp->Initialize(FVector(0.f, 0.f, 0.f), FRotator(0.f, 0.f, 0.f), FVector(1.f, 1.f, 1.f));
+
+	TSharedPtr<FStaticMeshAsset> LoadedMesh = mAssetManager->GetAssetAs<FStaticMeshAsset>(FName("ObjMesh"));
+	MeshComp->SetStaticMesh(LoadedMesh);
+
+	TSharedPtr<FTexture2DAsset> LoadedTexture = mAssetManager->GetAssetAs<FTexture2DAsset>(FName("ObjTexture"), true);
+	//MeshComp->UPrimitiveComponent::SetTexture(0, LoadedTexture);
+	for (int32 i = 0; i < 5; ++i)
+	{
+		FString KeyName = std::format("SubTex_{}", i);
+		TSharedPtr<FTexture2DAsset> Tex = mAssetManager->GetAssetAs<FTexture2DAsset>(FName(KeyName), true);
+		MeshComp->SetTexture(i, Tex);
+	}
+
+	ObjActor->AddRootSceneComponent(MeshComp);
+	mSceneManager->GetCurrentWorld()->AddActor(ObjActor);
 }
 
 void FEngineLoop::InitAssetManager()
@@ -154,11 +175,32 @@ void FEngineLoop::InitAssetManager()
 	TSharedPtr<FFontAtlasAsset> FontAtlasAsset = MakeShared<FFontAtlasAsset>(FName("TestFontAtlas"), *renderer, TestFontAsset, 512, 512, 2, 2);
 	mAssetManager->RegisterAsset(FontAtlasAsset);
 
-	FObjImporter Importer;
-	TSharedPtr<FStaticMeshAsset> MyMesh = Importer.Import("MyMesh", *renderer, "Assets/cube.obj");
-	if (MyMesh)
+	/*TSharedPtr<FFileAssetSource> ObjTextureAssetSource = MakeShared<FFileAssetSource>(*mFileManager, "Obj/11803_Airplane_tail_diff.jpg");
+	mAssetManager->RegisterAsset(FName("ObjTexture"), TextureLoader, ObjTextureAssetSource);*/
+	//mAssetManager->RegisterAsset(FName("Obj/texture.png"), TextureLoader, CubeObjTextureAssetSource);
+
+	// LaunchEngineLoop.cpp - InitAssetManager() 내부
+	const char* TexPaths[6] = {
+		"Obj/11803_Airplane_body_diff.jpg",
+		"Obj/11803_Airplane_tail_diff.jpg",
+		"Obj/11803_Airplane_wing_big_L_diff.jpg",
+		"Obj/11803_Airplane_wing_big_R_diff.jpg",
+		"Obj/11803_Airplane_wing_details_L_diff.jpg",
+		"Obj/11803_Airplane_wing_details_R_diff.jpg"
+	};
+
+	for (int32 i = 0; i < 6; ++i)
 	{
-		mAssetManager->RegisterAsset(MyMesh);
+		FString KeyName = std::format("SubTex_{}", i);
+		TSharedPtr<FFileAssetSource> Source = MakeShared<FFileAssetSource>(*mFileManager, TexPaths[i]);
+		mAssetManager->RegisterAsset(FName(KeyName), TextureLoader, Source);
+	}
+
+	FObjImporter Importer;
+	TSharedPtr<FStaticMeshAsset> CubeMesh = Importer.Import("ObjMesh", *renderer, "Obj/11803_Airplane_v1_l1.obj");
+	if (CubeMesh)
+	{
+		mAssetManager->RegisterAsset(CubeMesh);
 	}
 }
 

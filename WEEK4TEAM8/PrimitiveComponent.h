@@ -39,8 +39,10 @@ public:
 
 	inline const TSharedPtr<FStaticMeshAsset>& GetMesh() const { return mMeshAsset; }
 
-	inline void SetTexture(const TSharedPtr<FTexture2DAsset>& textureAsset) { mTextureAsset = textureAsset; }
-	inline const TSharedPtr<FTexture2DAsset>& GetTexture() const { return mTextureAsset; }
+	void SetTexture(const TSharedPtr<FTexture2DAsset>& textureAsset);
+	void SetTexture(int32 Slot, const TSharedPtr<FTexture2DAsset>& textureAsset);
+	//inline const TSharedPtr<FTexture2DAsset>& GetTexture() const { return mTextureAsset; }
+	TSharedPtr<FTexture2DAsset> GetTexture(int32 Slot = 0) const;
 
 	inline EPrimitive GetPrimitiveType() const { return mePrimitive; }
 
@@ -52,6 +54,7 @@ protected:
 	EPrimitive mePrimitive;
 	TSharedPtr<FStaticMeshAsset> mMeshAsset;
 	TSharedPtr<FTexture2DAsset> mTextureAsset;
+	TArray<TSharedPtr<FTexture2DAsset>> mTextureAssets;
 };
 
 

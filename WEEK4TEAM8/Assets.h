@@ -36,6 +36,17 @@ struct FStaticMeshSection
 	int32  MaterialIndex = 0;
 	FString MaterialName;
 };
+struct FObjMaterialInfo
+{
+	FString MaterialName;
+	FVector Ambient = { 1.0f,1.0f, 1.0f };
+	FVector Diffuse = { 1.0f,1.0f, 1.0f };
+	FVector Specular = { 1.0f,1.0f, 1.0f };
+	float Ns = 0.0f;
+	int32 illum = 0;
+	FString MaterialTexturePath;
+};
+
 
 class FStaticMeshAsset : public FAsset
 {
@@ -43,7 +54,7 @@ public:
 	FStaticMeshAsset() = default;
 	FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount);
 	FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount);
-	FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexPNCT* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount, const TArray<FStaticMeshSection>& InSections, const FString& InPathFileName);
+	FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexPNCT* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount, const TArray<FStaticMeshSection>& InSections, const TArray<FObjMaterialInfo>& InMaterialInfos,const FString& InPathFileName);
 
 	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetVertexBuffer() const { return VertexBuffer; }
 	inline uint32 GetVertexCount() const { return VertexCount; }
@@ -53,7 +64,7 @@ public:
 	inline const TArray<FStaticMeshSection>& GetSections() const { return Sections; }
 	inline const FString& GetFilePathName() const { return FilePathName; }
 	inline uint32 GetVertexStride() const { return VertexStride; }
-
+	inline const TArray<FObjMaterialInfo>& GetMaterialInfos() const{ return MaterialInfos; }
 private:
 	Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer;
 	uint32 VertexCount;
@@ -62,6 +73,7 @@ private:
 	uint32 IndexCount;
 
 	uint32 VertexStride = sizeof(FVertexSimple);
+	TArray<FObjMaterialInfo> MaterialInfos;
 	TArray<FStaticMeshSection> Sections;
 	FString FilePathName;
 	FAABB BoundingBox;

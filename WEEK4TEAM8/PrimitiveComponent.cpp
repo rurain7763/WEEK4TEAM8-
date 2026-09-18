@@ -94,12 +94,12 @@ void UPrimitiveComponent::Initialize(EPrimitive ePrimitive, FVector location, FR
 	FName MeshAssetName;
 	switch (mePrimitive)
 	{
-		case EPrimitive::EP_Sphere:		MeshAssetName = "SphereMesh"; break;
-		case EPrimitive::EP_Cube:		MeshAssetName = "CubeMesh"; break;
-		case EPrimitive::EP_Triangle:	MeshAssetName = "TriangleMesh"; break;
-		case EPrimitive::EP_GizmoArrow:	MeshAssetName = "GizmoArrowMesh"; break;
-		case EPrimitive::EP_Circle:		MeshAssetName = "CircleMesh"; break;
-		case EPrimitive::EP_Plane:		MeshAssetName = "PlaneMesh"; break;
+	case EPrimitive::EP_Sphere:		MeshAssetName = "SphereMesh"; break;
+	case EPrimitive::EP_Cube:		MeshAssetName = "CubeMesh"; break;
+	case EPrimitive::EP_Triangle:	MeshAssetName = "TriangleMesh"; break;
+	case EPrimitive::EP_GizmoArrow:	MeshAssetName = "GizmoArrowMesh"; break;
+	case EPrimitive::EP_Circle:		MeshAssetName = "CircleMesh"; break;
+	case EPrimitive::EP_Plane:		MeshAssetName = "PlaneMesh"; break;
 	}
 
 	mMeshAsset = FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(MeshAssetName);
@@ -139,6 +139,10 @@ void UPrimitiveComponent::DeserializeClass(const json::JSON& inJson)
 		if (AssetName.Len() > 0)
 		{
 			mTextureAsset = FAssetManager::Get().GetAssetAs<FTexture2DAsset>(FName(AssetName), true);
+			if (mTextureAsset)
+			{
+				SetTexture(0, mTextureAsset);
+			}
 		}
 		else
 		{
@@ -185,14 +189,14 @@ void UPrimitiveComponent::RestoreMeshAsset()
 void UPrimitiveComponent::Render(FRenderCollector& RenderCollector)
 {
 	if (FShowFlags::Get().IsEnabled(EShowFlag::Primitive))
-		RenderCollector.RenderInfos.Add({ mMeshAsset, mTextureAsset, mePrimitive, GetTransformMatrix().MakeMatrix(),{ mOwner->UUID, mOwner->InternalIndex }, FVector4(0, 0, 0, 0) });
+		RenderCollector.RenderInfos.Add({ mMeshAsset, mTextureAsset, mePrimitive, GetTransformMatrix().MakeMatrix(),{ mOwner->UUID, mOwner->InternalIndex }, FVector4(0, 0, 0, 0), mTextureAssets });
 }
 
 void UPrimitiveComponent::GetRenderInfos(TArray<FRenderInfo>* outRenderInfos) const
 {
 	assert(outRenderInfos);
 
-	outRenderInfos->Add({ mMeshAsset, mTextureAsset, mePrimitive, GetTransformMatrix().MakeMatrix(),{mOwner->UUID, mOwner->InternalIndex}, FVector4(0, 0, 0, 0)});
+	outRenderInfos->Add({ mMeshAsset, mTextureAsset, mePrimitive, GetTransformMatrix().MakeMatrix(),{ mOwner->UUID, mOwner->InternalIndex }, FVector4(0, 0, 0, 0), mTextureAssets});
 }
 
 void UPrimitiveComponent::RegisterPickTarget(FRenderCollector& RenderCollector)
@@ -261,6 +265,42 @@ bool UPrimitiveComponent::RayCastComponent(const FPickingRay& PickingRay, float&
 	}
 
 	return bHit;
+}
+
+void UPrimitiveComponent::SetTexture(const TSharedPtr<FTexture2DAsset>& textureAsset)
+{
+	mTextureAsset = textureAsset;
+	if (mTextureAssets.IsEmpty())
+	{
+		mTextureAssets.Add(textureAsset);
+	}
+	else
+	{
+		mTextureAssets[0] = textureAsset;
+	}
+}
+
+void UPrimitiveComponent::SetTexture(int32 Slot, const TSharedPtr<FTexture2DAsset>& textureAsset)
+{
+	if (Slot >= mTextureAssets.Num())
+	{
+		mTextureAssets.SetNum(Slot + 1);
+	}
+	mTextureAssets[Slot] = textureAsset;
+
+	if (Slot == 0)
+	{
+		mTextureAsset = textureAsset;
+	}
+}
+
+TSharedPtr<FTexture2DAsset> UPrimitiveComponent::GetTexture(int32 Slot) const
+{
+	if (mTextureAssets.Num() > Slot)
+	{
+		return mTextureAssets[Slot];
+	}
+	return nullptr;
 }
 
 

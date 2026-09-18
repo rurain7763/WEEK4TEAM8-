@@ -43,7 +43,7 @@ void URenderer::Create(HWND hWindow)
 	LinePipeline->SetShaderResource(0, LineStructuredBuffer->SRV);
 
 	PrimitivePipeline = CreateRenderPipeline();
-	PrimitivePipeline->SetRasterRizerState(D3D11_CULL_BACK, 0, {EViewModeIndex::VMI_Lit, EViewModeIndex::VMI_Wireframe});
+	PrimitivePipeline->SetRasterRizerState(D3D11_CULL_BACK, 0, { EViewModeIndex::VMI_Lit, EViewModeIndex::VMI_Wireframe });
 	PrimitivePipeline->SetShader("Assets/Shaders/Mesh.hlsl");
 	PrimitivePipeline->AddConstantBuffer<FConstants>();
 	PrimitivePipeline->AddConstantBuffer<FMatrix>();
@@ -289,7 +289,6 @@ void URenderer::Prepare(const FMatrix& ViewProjectionMatrix)
 	StencilOutlinePipeline->UpdateConstantBuffer(1, ViewProjectionMatrix);
 	QuadPipeline->UpdateConstantBuffer(1, ViewProjectionMatrix);
 }
-
 Microsoft::WRL::ComPtr<ID3D11Buffer> URenderer::CreateIndexBuffer(const uint32* Indices, UINT Count)
 {
 	D3D11_BUFFER_DESC IndexBufferDesc = {};
@@ -298,7 +297,7 @@ Microsoft::WRL::ComPtr<ID3D11Buffer> URenderer::CreateIndexBuffer(const uint32* 
 	IndexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 
 	D3D11_SUBRESOURCE_DATA IndexBufferSRD = { Indices };
-	
+
 	Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer;
 	Device->CreateBuffer(&IndexBufferDesc, &IndexBufferSRD, IndexBuffer.GetAddressOf());
 
@@ -410,7 +409,7 @@ void URenderer::BindPipeline(const TSharedPtr<FRenderPipeline>& Pipeline) const
 	DeviceContext->IASetInputLayout(Pipeline->InputLayout);
 	DeviceContext->VSSetShader(Pipeline->VertexShader, nullptr, 0);
 	DeviceContext->PSSetShader(Pipeline->PixelShader, nullptr, 0);
-	
+
 	if (Pipeline->ConstantBuffers.Num())
 	{
 		DeviceContext->VSSetConstantBuffers(0, Pipeline->ConstantBuffers.Num(), &Pipeline->ConstantBuffers[0]);
@@ -528,7 +527,7 @@ void URenderer::RenderHighlight(Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffe
 void URenderer::RenderQuad(const FRenderQuadInfo& Info) const
 {
 	QuadPipeline->ClearShaderResource();
-	
+
 	if (Info.TextureSRV)
 	{
 		QuadPipeline->SetShaderResource(0, Info.TextureSRV);
@@ -580,6 +579,44 @@ void URenderer::RenderPrimitiveIndexed(const TSharedPtr<FRenderPipeline>& Pipeli
 	UINT Offset = 0;
 	DeviceContext->IASetVertexBuffers(0, 1, VertexBuffer.GetAddressOf(), &Pipeline->Stride, &Offset);
 	DeviceContext->IASetIndexBuffer(IndexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+	DeviceContext->DrawIndexed(NumIndices, 0, 0);
+}
+
+void URenderer::RenderPrimitiveIndexed(const TSharedPtr<FRenderPipeline>& Pipeline, Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer, Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer, UINT NumIndices, const TArray<TSharedPtr<FTexture2DAsset>>& Textures, const TArray<FStaticMeshSection>& Sections) const
+{
+	UINT Offset = 0;
+	DeviceContext->IASetVertexBuffers(0, 1, VertexBuffer.GetAddressOf(), &Pipeline->Stride, &Offset);
+	DeviceContext->IASetIndexBuffer(IndexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+
+	if (Sections.Num() > 0)
+	{
+		for (const FStaticMeshSection& Section : Sections)
+		{
+			if (Section.IndexCount == 0) continue;
+
+			TSharedPtr<FTexture2DAsset> CurrentTexture = nullptr;
+			if (Section.MaterialIndex >= 0 && Section.MaterialIndex < Textures.Num() && Textures[Section.MaterialIndex])
+			{
+				CurrentTexture = Textures[Section.MaterialIndex];
+			}
+			else if (!Textures.IsEmpty() && Textures[0])
+			{
+				CurrentTexture = Textures[0];
+			}
+
+			if (CurrentTexture && CurrentTexture->GetSRV())
+			{
+				Pipeline->ClearShaderResource();
+				Pipeline->SetShaderResource(0, CurrentTexture->GetSRV());
+			}
+
+			BindPipeline(Pipeline);
+			DeviceContext->DrawIndexed(Section.IndexCount, Section.StartIndex, 0);
+		}
+		return;
+	}
+
+	BindPipeline(Pipeline);
 	DeviceContext->DrawIndexed(NumIndices, 0, 0);
 }
 
@@ -666,7 +703,8 @@ void URenderer::CreateDepthStencilBuffer()
 
 	D3D11_DEPTH_STENCIL_VIEW_DESC DsvDesc = {};
 	DsvDesc.Format = DepthTextureDesc.Format;
-	DsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
+	DsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	DsvDesc.Texture2D.MipSlice = 0;
 
 	Device->CreateDepthStencilView(DepthStencilBuffer, &DsvDesc, &DepthStencilView);
 }

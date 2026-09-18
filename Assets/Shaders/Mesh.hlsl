@@ -17,6 +17,7 @@ struct VS_INPUT
 	float4 position : POSITION;
 	float4 color : COLOR;
     float2 uv : TEXCOORD0;
+    float3 normal : NORMAL;
 };
 
 struct PS_INPUT
@@ -24,6 +25,7 @@ struct PS_INPUT
 	float4 position : SV_POSITION;
 	float4 color : COLOR;
     float2 uv : TEXCOORD0;
+    float3 normal : NORMAL;
 };
 
 Texture2D main_texture : register(t0);

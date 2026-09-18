@@ -5,6 +5,7 @@
 #include "Actor.h"
 #include "PrimitiveComponent.h"
 #include "UAtlasAnimationComponent.h"
+#include "UStaticMeshComponent.h"
 
 UObject* FObjectFactory::ConstructUnInitializedObject(const FClassInfo* classInfo)
 {
@@ -86,4 +87,5 @@ TMap<FString, std::function<const FClassInfo* ()>> FObjectFactory::mClassInfoMap
 	{"UText3DComponent", &UText3DComponent::GetClass },
 	{"UAtlasAnimationComponent", &UAtlasAnimationComponent::GetClass },
 	{"UWorld", &UWorld::GetClass },
+	{"UStaticMeshComponent", &UStaticMeshComponent::GetClass},
 };

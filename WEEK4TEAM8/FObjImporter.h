@@ -15,17 +15,7 @@ struct FObjInfo
     TArray<int32> NormalIndices;
     TArray<FString> Materials;
     FString MtlFileName;
-};
-
-struct FObjMaterialInfo
-{
-    FString MaterialName;
-    FVector Ambient = { 1.0f,1.0f, 1.0f };
-    FVector Diffuse = { 1.0f,1.0f, 1.0f };
-    FVector Specular = { 1.0f,1.0f, 1.0f };
-    float Ns = 0.0f;
-    int32 illum = 0;
-    FString MaterialTexturePath;
+    TArray<FStaticMeshSection> Sections;
 };
 
 struct FObjImporter

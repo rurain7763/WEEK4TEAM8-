@@ -27,6 +27,7 @@ struct FRenderInfo
 	FMatrix WorldTransformMatrix;
 	FObjectID ObejctID;
 	FVector4 Color;
+	TArray<TSharedPtr<FTexture2DAsset>> Textures;
 };
 
 struct FRenderQuadInfo

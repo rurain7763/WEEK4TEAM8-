@@ -52,6 +52,8 @@ public:
 	inline const T* Data() const { return mDatas.data(); }
 	inline T* Data() { return mDatas.data(); }
 
+	bool IsValidIndex(int32 index);
+
 	/*
 	int32 Find(const ElementType& Item) const;
 	template <typename Predicate>
@@ -250,6 +252,14 @@ inline void TArray<T>::RemoveLast()
 
 	mDatas.erase(mDatas.begin() + mDatas.size() - 1);
 
+}
+
+template<typename T>
+inline bool TArray<T>::IsValidIndex(int32 index)
+{
+	if (mDatas.size() > index)
+		return true;
+	return false;
 }
 
 

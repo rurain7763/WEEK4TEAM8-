@@ -11,6 +11,7 @@
 #include "FAssetManager.h"
 #include "FFontManager.h"
 #include "FComponentVisualizer.h"
+#include "UStaticMeshComponent.h"
 
 #include <d3d11.h>
 

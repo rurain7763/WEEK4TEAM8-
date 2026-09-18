@@ -51,12 +51,19 @@ TSharedPtr<FStaticMeshAsset> FObjImporter::BuildStaticMesh(
 		else
 			Normal = FVector(0.0f, 1.0f, 0.0f);
 
-		FVertexPNCT Vertex({
-			Position.x, Position.y, Position.z,
-			UV.X, UV.Y,
-			1.0f, 1.0f, 1.0f, 1.0f,
-			Normal.x, Normal.y, Normal.z
-			});
+		FVertexPNCT Vertex{};
+		Vertex.x = Position.x;
+		Vertex.y = Position.y;
+		Vertex.z = Position.z;
+		Vertex.r = 1.0f;
+		Vertex.g = 1.0f;
+		Vertex.b = 1.0f;
+		Vertex.a = 1.0f;
+		Vertex.u = UV.X;
+		Vertex.v = UV.Y;
+		Vertex.nx = Normal.x;
+		Vertex.ny = Normal.y;
+		Vertex.nz = Normal.z;
 
 		Vertices.Add(Vertex);
 		Indices.Add(static_cast<uint32>(i));
@@ -94,19 +101,16 @@ TSharedPtr<FStaticMeshAsset> FObjImporter::BuildStaticMesh(
 		ParseMTL(MtlFilePath, ParsedMaterials);
 	}
 
-	// 다중 메테리얼 지원 기능 추가 해야 함, 현재는 단일 메테리얼만 지원
-	TArray<FStaticMeshSection> Sections;
-	if (Indices.Num() > 0)
+	FString DefaultName = "Default";
+	TArray<FStaticMeshSection> FinalSections = InRawData.Sections;
+	if (FinalSections.Num() == 0 && Indices.Num() > 0)
 	{
 		FStaticMeshSection DefaultSection;
 		DefaultSection.StartIndex = 0;
 		DefaultSection.IndexCount = Indices.Num();
 		DefaultSection.MaterialIndex = 0;
-		if (ParsedMaterials.Num() > 0)
-		{
-			DefaultSection.MaterialName = ParsedMaterials[0].MaterialName;
-		}
-		Sections.Add(DefaultSection);
+		DefaultSection.MaterialName = DefaultName;
+		FinalSections.Add(DefaultSection);
 	}
 
 	TSharedPtr<FStaticMeshAsset> MeshAsset = MakeShared<FStaticMeshAsset>(
@@ -116,7 +120,8 @@ TSharedPtr<FStaticMeshAsset> FObjImporter::BuildStaticMesh(
 		static_cast<uint32>(Vertices.Num()),
 		Indices.Data(),
 		static_cast<uint32>(Indices.Num()),
-		Sections,
+		FinalSections,
+		ParsedMaterials,
 		FilePath
 	);
 
@@ -134,7 +139,7 @@ bool FObjImporter::ParseOBJ(const FString& FilePath, FObjInfo& OutRawData)
 	catch (const std::exception& e)
 	{
 		//로그 출력
-		UE_LOG("Failed To Read OBJ: %s, Erro: %s", FilePath, e.what());
+		UE_LOG("Failed To Read OBJ: %s, Erro: %s", FilePath.CStr(), e.what());
 		return false;
 	}
 
@@ -143,6 +148,9 @@ bool FObjImporter::ParseOBJ(const FString& FilePath, FObjInfo& OutRawData)
 
 	int32 TotalLen = FileContent.Len();
 	int32 Start = 0;
+
+	FString CurrentMaterialName = "Default";
+	uint32 CurrentSectionStart = 0;
 
 	while (Start < TotalLen)
 	{
@@ -213,25 +221,22 @@ bool FObjImporter::ParseOBJ(const FString& FilePath, FObjInfo& OutRawData)
 
 					FaceVertices.Add(FaceVertex);
 				}
-				if (FaceVertices.Num() == 3)
+
+				int N = FaceVertices.Num();
+
+				for (int i = 1;i < N - 1;++i)
 				{
-					for (int i = 0;i < 3;++i)
-					{
-						OutRawData.VertexIndices.Add(FaceVertices[i].V);
-						OutRawData.UVIndices.Add(FaceVertices[i].VT);
-						OutRawData.NormalIndices.Add(FaceVertices[i].VN);
-					}
-				}
-				else if (FaceVertices.Num() == 4)
-				{
-					const int32 QuadIndices[6] = { 0, 1, 2, 0, 2, 3 };
-					for (int i = 0; i < 6; ++i)
-					{
-						int32 idx = QuadIndices[i];
-						OutRawData.VertexIndices.Add(FaceVertices[idx].V);
-						OutRawData.UVIndices.Add(FaceVertices[idx].VT);
-						OutRawData.NormalIndices.Add(FaceVertices[idx].VN);
-					}
+					OutRawData.VertexIndices.Add(FaceVertices[0].V);
+					OutRawData.UVIndices.Add(FaceVertices[0].VT);
+					OutRawData.NormalIndices.Add(FaceVertices[0].VN);
+
+					OutRawData.VertexIndices.Add(FaceVertices[i].V);
+					OutRawData.UVIndices.Add(FaceVertices[i].VT);
+					OutRawData.NormalIndices.Add(FaceVertices[i].VN);
+
+					OutRawData.VertexIndices.Add(FaceVertices[i + 1].V);
+					OutRawData.UVIndices.Add(FaceVertices[i + 1].VT);
+					OutRawData.NormalIndices.Add(FaceVertices[i + 1].VN);
 				}
 			}
 			else if (Line.StartsWith(std::string_view("mtllib ")))
@@ -241,12 +246,33 @@ bool FObjImporter::ParseOBJ(const FString& FilePath, FObjInfo& OutRawData)
 			}
 			else if (Line.StartsWith(std::string_view("usemtl ")))
 			{
-				FString MaterialName(std::string_view(Line.CStr() + 7));
-				OutRawData.Materials.Add(MaterialName);
+				uint32 CurrentIndicesCount = static_cast<uint32>(OutRawData.VertexIndices.Num());
+				if (CurrentIndicesCount > CurrentSectionStart)
+				{
+					FStaticMeshSection Section;
+					Section.StartIndex = CurrentSectionStart;
+					Section.MaterialName = CurrentMaterialName;
+					Section.IndexCount = CurrentIndicesCount - CurrentSectionStart;
+					Section.MaterialIndex = OutRawData.Sections.Num();
+					OutRawData.Sections.Add(Section);
+				}
+				CurrentMaterialName = FString(std::string_view(Line.CStr() + 7));
+				CurrentSectionStart = CurrentIndicesCount;
 			}
 		}
 
 		Start = End + 1;
+	}
+
+	uint32 TotalIndicesCount = static_cast<uint32>(OutRawData.VertexIndices.Num());
+	if (TotalIndicesCount > CurrentSectionStart)
+	{
+		FStaticMeshSection Section;
+		Section.StartIndex = CurrentSectionStart;
+		Section.MaterialName = CurrentMaterialName;
+		Section.IndexCount = TotalIndicesCount - CurrentSectionStart;
+		Section.MaterialIndex = OutRawData.Sections.Num();
+		OutRawData.Sections.Add(Section);
 	}
 
 	return true;
@@ -263,7 +289,7 @@ bool FObjImporter::ParseMTL(const FString& MtlFilePath, TArray<FObjMaterialInfo>
 	catch (const std::exception& e)
 	{
 		//로그 출력
-		UE_LOG("Failed To Read MTL: %s, Erro: %s", MtlFilePath, e.what());
+		UE_LOG("Failed To Read MTL: %s, Erro: %s", MtlFilePath.CStr(), e.what());
 		return false;
 	}
 

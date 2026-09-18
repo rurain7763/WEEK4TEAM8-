@@ -105,9 +105,17 @@ void FGraphicsManager::Render()
 		TSharedPtr<FStaticMeshAsset> Asset = renderInfo.StaticMesh;
 
 		mMeshPipeline->ClearShaderResource();
-		mMeshPipeline->ClearSamplerState();
+		//mMeshPipeline->ClearSamplerState();
 
-		if (renderInfo.Texture)
+		TSharedPtr<FTexture2DAsset> TargetTexture = renderInfo.Texture;
+		if (!TargetTexture && !renderInfo.Textures.IsEmpty())
+		{
+			TargetTexture = renderInfo.Textures[0];
+		}
+
+		const bool bHasTexture = (TargetTexture && TargetTexture->GetSRV());
+
+		if (bHasTexture)
 		{
 			FConstants Constants{};
 			Constants.Matrix = renderInfo.WorldTransformMatrix;
@@ -118,10 +126,10 @@ void FGraphicsManager::Render()
 			mMeshPipeline->UpdateConstantBuffer(0, Constants);
 			mMeshPipeline->UpdateConstantBuffer(1, mViewUnifiedProjectionMatrix);
 
-			mMeshPipeline->SetShaderResource(0, renderInfo.Texture->GetSRV());
+			mMeshPipeline->SetShaderResource(0, TargetTexture->GetSRV());
 			mMeshPipeline->SetSamplerState(0, D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP);
 
-			mRenderer->RenderPrimitiveIndexed(mMeshPipeline, Asset->GetVertexBuffer(), Asset->GetIndexBuffer(), Asset->GetIndexCount());
+			mRenderer->RenderPrimitiveIndexed(mMeshPipeline, Asset->GetVertexBuffer(), Asset->GetIndexBuffer(), Asset->GetIndexCount(), renderInfo.Textures, Asset->GetSections());
 		}
 		else
 		{

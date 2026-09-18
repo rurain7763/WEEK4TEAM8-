@@ -29,24 +29,51 @@ FStaticMeshAsset::FStaticMeshAsset(const FName& InAssetName, URenderer& InRender
 	: FAsset(InAssetName, EAssetType::StaticMesh)
 	, VertexCount(InVertexCount)
 	, IndexCount(InIndexCount)
-	, VertexStride(sizeof(FVertexSimple))
+	, VertexStride(sizeof(FVertexPNCT))
 	, FilePathName("")
 {
-	VertexBuffer = InRenderer.CreateVertexBuffer(InVertices, InVertexCount);
-	IndexBuffer = InRenderer.CreateIndexBuffer(InIndices, InIndexCount);
-	for (uint32 i = 0; i < InIndexCount; ++i)
+
+	TArray<FVertexPNCT> ConvertedVertices;
+	ConvertedVertices.SetNum(InVertexCount);
+
+	for (uint32 i = 0; i < InVertexCount; ++i)
 	{
-		const FVertexSimple& Vertex = InVertices[InIndices[i]];
-		BoundingBox.ExpandToInclude(FVector(Vertex.x, Vertex.y, Vertex.z));
+		ConvertedVertices[i].x = InVertices[i].x;
+		ConvertedVertices[i].y = InVertices[i].y;
+		ConvertedVertices[i].z = InVertices[i].z;
+
+		ConvertedVertices[i].r = InVertices[i].r;
+		ConvertedVertices[i].g = InVertices[i].g;
+		ConvertedVertices[i].b = InVertices[i].b;
+		ConvertedVertices[i].a = InVertices[i].a;
+
+		ConvertedVertices[i].u = InVertices[i].u;
+		ConvertedVertices[i].v = InVertices[i].v;
+
+		ConvertedVertices[i].nx = 0.0f;
+		ConvertedVertices[i].ny = 1.0f;
+		ConvertedVertices[i].nz = 0.0f;
+
+		BoundingBox.ExpandToInclude(FVector(ConvertedVertices[i].x, ConvertedVertices[i].y, ConvertedVertices[i].z));
 	}
+
+	VertexBuffer = InRenderer.CreateVertexBuffer(ConvertedVertices.Data(), InVertexCount);
+	IndexBuffer = InRenderer.CreateIndexBuffer(InIndices, InIndexCount);
+
+	FStaticMeshSection DefaultSection;
+	DefaultSection.StartIndex = 0;
+	DefaultSection.IndexCount = InIndexCount;
+	DefaultSection.MaterialIndex = 0;
+	Sections.Add(DefaultSection);
 }
 
-FStaticMeshAsset::FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexPNCT* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount, const TArray<FStaticMeshSection>& InSections, const FString& InPathFileName)
+FStaticMeshAsset::FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexPNCT* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount, const TArray<FStaticMeshSection>& InSections, const TArray<FObjMaterialInfo>& InMaterialInfos, const FString& InPathFileName)
 	: FAsset(InAssetName, EAssetType::StaticMesh)
 	, VertexCount(InVertexCount)
 	, IndexCount(InIndexCount)
 	, VertexStride(sizeof(FVertexPNCT))
 	, Sections(InSections)
+	, MaterialInfos(InMaterialInfos)
 	, FilePathName(InPathFileName)
 {
 	VertexBuffer = InRenderer.CreateVertexBuffer(InVertices, InVertexCount);

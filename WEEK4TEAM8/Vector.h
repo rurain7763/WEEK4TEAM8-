@@ -191,6 +191,16 @@ typedef struct FVector4
 		w *= Scalar;
 	}
 
+	bool operator==(const FVector4& Other) const
+	{
+		return x == Other.x && y == Other.y && z == Other.z && w == Other.w;
+	}
+
+	bool operator!=(const FVector4& Other) const
+	{
+		return !(*this == Other);
+	}
+
 	//내적
 	inline static float dot(const FVector4& A, const FVector4& B)
 	{
@@ -231,7 +241,7 @@ struct FVertexSimple
 struct FVertexPNCT
 {
 	float x, y, z;
-	float nx, ny, nz;
 	float r, g, b, a;
 	float u, v;
+	float nx, ny, nz;
 };
