@@ -184,7 +184,10 @@ ConsoleWindow::ConsoleWindow()
 	Commands.push_back("HELP");
 	Commands.push_back("HISTORY");
 	Commands.push_back("CLEAR");
-	Commands.push_back("CLASSIFY");
+	//Commands.push_back("CLASSIFY");
+	Commands.push_back("STAT FPS");
+	Commands.push_back("STAT MEMORY");
+	Commands.push_back("STAT NONE");
 	AutoScroll = true;
 	ScrollToBottom = false;
 }
@@ -328,7 +331,22 @@ void ConsoleWindow::ExecCommand(const char* command_line)
 	{
 		int first = History.Size - 10;
 		for (int i = first > 0 ? first : 0; i < History.Size; i++)
+		{
 			UE_LOG("%3d: %s\n", i, History[i]);
+		}
+	}
+	else if (Stricmp(command_line, "STAT FPS") == 0)
+	{
+		bShowStatFPS = true;
+	}
+	else if (Stricmp(command_line, "STAT MEMORY") == 0)
+	{
+		bShowStatMemory = true;
+	}
+	else if (Stricmp(command_line, "STAT NONE") == 0)
+	{
+		bShowStatFPS = false;
+		bShowStatMemory = false;
 	}
 	else
 	{

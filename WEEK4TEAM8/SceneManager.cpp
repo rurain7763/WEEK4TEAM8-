@@ -149,6 +149,41 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 		}
 		ImGui::End();
 
+		ConsoleWindow& console = ConsoleWindow::Get();
+		if (console.bShowStatFPS || console.bShowStatMemory)
+		{
+			// Viewport 창 안쪽 좌상단에 붙는 입력을 받지 않는 오버레이 창
+			ImGui::SetNextWindowPos(ImVec2(mViewportX + 12.0f, mViewportY + 12.0f), ImGuiCond_Always);
+			ImGui::SetNextWindowBgAlpha(0.55f);
+
+			const ImGuiWindowFlags overlayFlags =
+				ImGuiWindowFlags_NoDecoration |
+				ImGuiWindowFlags_AlwaysAutoResize |
+				ImGuiWindowFlags_NoSavedSettings |
+				ImGuiWindowFlags_NoFocusOnAppearing |
+				ImGuiWindowFlags_NoNav |
+				ImGuiWindowFlags_NoInputs;
+
+			ImGui::Begin("##StatOverlay", nullptr, overlayFlags);
+			if (console.bShowStatFPS)
+			{
+				ImGui::TextColored(ImVec4(0.35f, 1.0f, 0.35f, 1.0f), "FPS: %.1f", guiReference.FrameTimer.GetFPS());
+				ImGui::Text("Frame: %.2f ms", guiReference.FrameTimer.GetDeltaTime() * 1000.0f);
+			}
+
+			if (console.bShowStatMemory)
+			{
+				if (console.bShowStatFPS)
+				{
+					ImGui::Separator();
+				}
+
+				ImGui::TextColored(ImVec4(0.35f, 0.8f, 1.0f, 1.0f), "Memory");
+				ImGui::Text("Allocations: %d", UEngineStatics::sTotalAllocationCount);
+				ImGui::Text("Allocated: %d bytes", UEngineStatics::sTotalAllocationBytes);
+			}
+			ImGui::End();
+		}
 		ImGui::PopStyleVar();
 	}
 

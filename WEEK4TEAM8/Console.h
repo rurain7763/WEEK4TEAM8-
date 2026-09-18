@@ -8,15 +8,21 @@ public:
 	bool bShowLog = true;
 	bool bShowWarn = true;
 	bool bShowError = true;
+
 	char InputBuf[256];
 	ImVector<const char*> Commands;
 	ImVector<char*> History;
+
 	int HistoryPos = -1;    // -1: new line, 0..History.Size-1 browsing history.
 	ImGuiTextFilter Filter;
 	bool AutoScroll = true;
 	bool ScrollToBottom;
 	int MaxLine = 256;
+
 	static constexpr float HEIGHT_RATIO = 0.3f;
+
+	bool bShowStatFPS = false;
+	bool bShowStatMemory = false;
 
 	void Process(float panelWidth);
 	static ConsoleWindow& Get() {
