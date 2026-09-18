@@ -7,6 +7,8 @@
 #include "Vector.h"
 #include "Matrix.h"
 #include "FAABB.h"
+#include "FObjImporter.h"
+#include "FGuid.h"
 #include "FMeshDescription.h"
 #include <d3d11.h>
 #include <wrl/client.h>
@@ -14,19 +16,29 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
-class FFileManager;
 class FFontManager;
 class URenderer;
+class FAssetManager;
+
+namespace BuiltInAssetID
+{
+	inline const FGuid CubeMesh(0xB17B0001, 0x00000000, 0x00000000, 0x00000001);
+	inline const FGuid SphereMesh(0xB17B0001, 0x00000000, 0x00000000, 0x00000002);
+	inline const FGuid PlaneMesh(0xB17B0001, 0x00000000, 0x00000000, 0x00000003);
+	inline const FGuid CircleMesh(0xB17B0001, 0x00000000, 0x00000000, 0x00000004);
+	inline const FGuid ConeMesh(0xB17B0001, 0x00000000, 0x00000000, 0x00000005);
+	inline const FGuid GizmoArrowMesh(0xB17B0001, 0x00000000, 0x00000000, 0x00000006);
+	inline const FGuid DefaultFont(0xB17B0001, 0x00000000, 0x00000000, 0x00000100);
+}
 
 class FFileAssetSource : public FAssetSource
 {
 public:
-	FFileAssetSource(FFileManager& InFileManager, const std::filesystem::path& InFilePath) : FileManager(InFileManager), FilePath(InFilePath) {}
+	FFileAssetSource(const std::filesystem::path& InFilePath) : FilePath(InFilePath) {}
 
-	FString ReadFileToString() const;
+	TSharedPtr<FArchive> CreateArchive() override;
 
 private:
-	FFileManager& FileManager;
 	std::filesystem::path FilePath;
 };
 
@@ -34,15 +46,17 @@ class FStaticMeshAsset : public FAsset
 {
 public:
 	FStaticMeshAsset() = default;
-	FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount);
-	FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount);
-	// Importer와 내장 Primitive 모두 같은 최종 정점 포맷으로 GPU에 올린다.
-	FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FStaticMeshBuildData& InBuildData);
+	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount);
+	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount);
+	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMesh& InStaticMesh);
 
 	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetVertexBuffer() const { return VertexBuffer; }
 	inline uint32 GetVertexCount() const { return VertexCount; }
-	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetIndexBuffer() const { return IndexBuffer; }
-	inline uint32 GetIndexCount() const { return IndexCount; }
+	inline uint32 GetSubMeshCount() const { return SubMeshIndexBuffers.Num(); }
+	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetIndexBuffer(uint32 SubMeshIndex) const { return SubMeshIndexBuffers[SubMeshIndex]; }
+	inline uint32 GetIndexCount(uint32 SubMeshIndex) const { return SubMeshIndexCounts[SubMeshIndex]; }
+	inline const TArray<Microsoft::WRL::ComPtr<ID3D11Buffer>>& GetSubMeshIndexBuffers() const { return SubMeshIndexBuffers; }
+	inline const TArray<uint32>& GetSubMeshIndexCounts() const { return SubMeshIndexCounts; }
 	inline const FAABB& GetLocalBoundingBox() const { return BoundingBox; }
 	inline const TArray<FStaticMeshSection>& GetSections() const { return Sections; }
 
@@ -57,12 +71,26 @@ private:
 	TArray<FStaticMeshSection> Sections;
 };
 
+class FStaticMeshAssetLoader : public FAssetLoader
+{
+public:
+	FStaticMeshAssetLoader(URenderer& InRenderer) : Renderer(InRenderer) {}
+	~FStaticMeshAssetLoader() = default;
+
+	virtual TSharedPtr<FAsset> LoadAsset(const FGuid& AssetID, const FName& AssetName, FArchive& Ar) override;
+	virtual void UnloadAsset(TSharedPtr<FAsset> Asset) override;
+	virtual EAssetType GetAssetType() const override { return EAssetType::StaticMesh; }
+
+private:
+	URenderer& Renderer;
+};
+
 class FTexture2DAsset : public FAsset
 {
 public:
 	FTexture2DAsset() = default;
-	FTexture2DAsset(const FName& InAssetName, Microsoft::WRL::ComPtr<ID3D11Texture2D> InTexture, Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> InSRV)
-		: FTexture2DAsset(InAssetName, EAssetType::Texture2D, InTexture, InSRV)
+	FTexture2DAsset(const FGuid& InAssetID, const FName& InAssetName, Microsoft::WRL::ComPtr<ID3D11Texture2D> InTexture, Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> InSRV)
+		: FTexture2DAsset(InAssetID, InAssetName, EAssetType::Texture2D, InTexture, InSRV)
 	{
 	}
 
@@ -75,8 +103,8 @@ public:
 	inline DXGI_FORMAT GetFormat() const { return Format; }
 
 protected:
-	FTexture2DAsset(const FName& InAssetName, EAssetType InAssetType, Microsoft::WRL::ComPtr<ID3D11Texture2D> InTexture, Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> InSRV)
-		: FAsset(InAssetName, InAssetType)
+	FTexture2DAsset(const FGuid& InAssetID, const FName& InAssetName, EAssetType InAssetType, Microsoft::WRL::ComPtr<ID3D11Texture2D> InTexture, Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> InSRV)
+		: FAsset(InAssetID, InAssetName, InAssetType)
 		, Texture(InTexture)
 		, SRV(InSRV)
 	{
@@ -106,7 +134,7 @@ public:
 	FTexture2DAssetLoader(URenderer& InRenderer) : Renderer(InRenderer) {}
 	~FTexture2DAssetLoader() = default;
 
-	virtual TSharedPtr<FAsset> LoadAsset(const FName& AssetName, FAssetSource& AssetSource) override;
+	virtual TSharedPtr<FAsset> LoadAsset(const FGuid& AssetID, const FName& AssetName, FArchive& Ar) override;
 	virtual void UnloadAsset(TSharedPtr<FAsset> Asset) override;
 	virtual EAssetType GetAssetType() const override { return EAssetType::Texture2D; }
 
@@ -118,10 +146,10 @@ class FFontAsset : public FAsset
 {
 public:
 	FFontAsset() = default;
-	FFontAsset(const FName& InAssetName, FT_Face InFace, FString&& InFileContent)
-		: FAsset(InAssetName, EAssetType::Font)
+	FFontAsset(const FGuid& InAssetID, const FName& InAssetName, FT_Face InFace, TArray<int8>&& InFileData)
+		: FAsset(InAssetID, InAssetName, EAssetType::Font)
 		, Face(InFace)
-		, FileContent(std::move(InFileContent))
+		, FileData(std::move(InFileData))
 	{
 	}
 
@@ -136,7 +164,7 @@ public:
 	inline FT_Face GetFace() const { return Face; }
 
 private:
-	FString FileContent;
+	TArray<int8> FileData;
 	FT_Face Face;
 };
 
@@ -146,7 +174,7 @@ public:
 	FFontAssetLoader(FFontManager& InFontManager) : FontManager(InFontManager) {}
 	~FFontAssetLoader() = default;
 
-	virtual TSharedPtr<FAsset> LoadAsset(const FName& AssetName, FAssetSource& AssetSource) override;
+	virtual TSharedPtr<FAsset> LoadAsset(const FGuid& AssetID, const FName& AssetName, FArchive& Ar) override;
 	virtual void UnloadAsset(TSharedPtr<FAsset> Asset) override;
 	virtual EAssetType GetAssetType() const override { return EAssetType::Font; }
 
@@ -157,7 +185,7 @@ private:
 class FFontAtlasAsset : public FTexture2DAsset, private FFontAtlasHandler
 {
 public:
-	FFontAtlasAsset(const FName& InAssetName, URenderer& InRenderer, TSharedPtr<FFontAsset>& InFontAsset, uint32 InWidth, uint32 InHeight, uint32 InPaddingW, uint32 InPaddingH);
+	FFontAtlasAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, TSharedPtr<FFontAsset>& InFontAsset, uint32 InWidth, uint32 InHeight, uint32 InPaddingW, uint32 InPaddingH);
 
 	inline TSharedPtr<FFontAtlas> GetFontAtlas() const { return FontAtlas; }
 	void UpdateRegion(uint32 Left, uint32 Top, uint32 Right, uint32 Bottom, const void* Data, uint32 RowPitch);
@@ -177,10 +205,10 @@ class FSpriteAtlasAsset : public FTexture2DAsset
 {
 public:
 	//Cols. Rows : 아틀라스 텍스쳐에 들어가있는 스프라이트 col x row
-	FSpriteAtlasAsset(const FName& InAssetName, URenderer& InRenderer, const TSharedPtr<FTexture2DAsset>& InSource, uint32 InCols, uint32 InRows, uint32 InFrameCount = 0);
+	FSpriteAtlasAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const TSharedPtr<FTexture2DAsset>& InSource, uint32 InCols, uint32 InRows, uint32 InFrameCount = 0);
 
 	//FrameSUbUV : (시작 UV.x, 시작 UV.y, width, height)
-	FSpriteAtlasAsset(const FName& InAssetName, URenderer& InRenderer, const TSharedPtr<FTexture2DAsset>& InSource, const TArray<FVector4>& InFrameSubUVs);
+	FSpriteAtlasAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const TSharedPtr<FTexture2DAsset>& InSource, const TArray<FVector4>& InFrameSubUVs);
 
 	inline int32 GetFrameCount() const { return FrameSubUVs.Num(); }
 	const FVector4& GetFrameSubUV(int32 FrameIndex) const;
@@ -189,4 +217,47 @@ protected:
 	URenderer& Renderer;
 private:
 	TArray<FVector4> FrameSubUVs;
+};
+
+class FMaterialAsset : public FAsset
+{
+public:
+	FMaterialAsset(const FGuid& InAssetID, const FName& InAssetName, const FVector& InAmbientColor, const FVector& InDiffuseColor, const FVector& InSpecularColor, const FGuid& InDiffuseTexture, const FGuid& InSpecularTexture, const FGuid& InNormalTexture)
+		: FAsset(InAssetID, InAssetName, EAssetType::Material)
+		, AmbientColor(InAmbientColor)
+		, DiffuseColor(InDiffuseColor)
+		, SpecularColor(InSpecularColor)
+		, DiffuseTexture(InDiffuseTexture)
+		, SpecularTexture(InSpecularTexture)
+		, NormalTexture(InNormalTexture)
+	{
+	}
+
+	inline bool HasDiffuseTexture() const { return DiffuseTexture.IsValid(); }
+	TSharedPtr<FTexture2DAsset> GetDiffuseTexture() const;
+
+	inline bool HasSpecularTexture() const { return SpecularTexture.IsValid(); }
+	TSharedPtr<FTexture2DAsset> GetSpecularTexture() const;
+
+	inline bool HasNormalTexture() const { return NormalTexture.IsValid(); }
+	TSharedPtr<FTexture2DAsset> GetNormalTexture() const;
+
+private:
+	FVector AmbientColor;
+	FVector DiffuseColor;
+	FVector SpecularColor;
+	FGuid DiffuseTexture;
+	FGuid SpecularTexture;
+	FGuid NormalTexture;
+};
+
+class FMaterialAssetLoader : public FAssetLoader
+{
+public:
+	FMaterialAssetLoader() = default;
+	~FMaterialAssetLoader() = default;
+
+	virtual TSharedPtr<FAsset> LoadAsset(const FGuid& AssetID, const FName& AssetName, FArchive& Ar) override;
+	virtual void UnloadAsset(TSharedPtr<FAsset> Asset) override;
+	virtual EAssetType GetAssetType() const override { return EAssetType::Material; }
 };
