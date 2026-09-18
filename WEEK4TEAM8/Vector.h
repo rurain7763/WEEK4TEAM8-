@@ -4,9 +4,13 @@
 
 struct FVector2
 {
-	float X;
-	float Y;
+	union
+	{
 
+		struct { float X, Y; };
+		float v[2];
+	};
+	
 	FVector2() : X(0), Y(0) {}
 	FVector2(float InX, float InY) : X(InX), Y(InY) {}
 
@@ -26,6 +30,9 @@ struct FVector2
 	FVector2 operator*(float Scalar) const { return { X * Scalar, Y * Scalar }; }
 	FVector2& operator*=(const FVector2& Other) { X *= Other.X; Y *= Other.Y; return *this; }
 	FVector2& operator/=(float Scalar) { X /= Scalar; Y /= Scalar; return *this; }
+
+	float& operator[](int32 Index) { return v[Index]; }
+	const float& operator[](int32 Index) const { return v[Index]; }
 
 	static float LengthSquared(const FVector2& A, const FVector2& B) 
 	{

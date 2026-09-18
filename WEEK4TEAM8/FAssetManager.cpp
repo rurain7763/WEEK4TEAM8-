@@ -1,91 +1,143 @@
 #include "FAssetManager.h"
 #include "LaunchEngineLoop.h"
+#include "Serializers.h"
 
 FAssetManager& FAssetManager::Get()
 {
 	return *GEngineLoop.GetAssetManager();
 }
 
-void FAssetManager::RegisterAsset(const FName& AssetName, const TSharedPtr<FAssetLoader>& AssetLoader, const TSharedPtr<FAssetSource>& AssetSource)
+void FAssetManager::RegisterAsset(const TSharedPtr<FAssetLoader>& AssetLoader, const TSharedPtr<FAssetSource>& AssetSource)
 {
-	if (AssetMetaInfoMap.Contains(AssetName) || LoadedAssets.Contains(AssetName))
+	TSharedPtr<FArchive> Archive = AssetSource->CreateArchive();
+
+	FAssetFileHeader Header;
+	*Archive << Header;
+
+	if (AssetMetaInfos.Contains(Header.AssetID))
 	{
 		return;
 	}
 
-	FAssetMetaInfo metaInfo;
-	metaInfo.AssetType = AssetLoader->GetAssetType();
-	metaInfo.AssetName = AssetName;
-	metaInfo.AssetLoader = AssetLoader;
-	metaInfo.AssetSource = AssetSource;
+	FAssetMetaInfo MetaInfo;
+	MetaInfo.AssetID = Header.AssetID;
+	MetaInfo.AssetType = AssetLoader->GetAssetType();
+	MetaInfo.AssetName = Header.AssetName;
+	MetaInfo.PayloadOffset = Archive->Tell();
+	MetaInfo.AssetLoader = AssetLoader;
+	MetaInfo.AssetSource = AssetSource;
 
-	AssetMetaInfoMap.Add(AssetName, metaInfo);
+	AssetMetaInfos.Add(MetaInfo.AssetID, MetaInfo);
+	NameToAssetID.Add(MetaInfo.AssetName, MetaInfo.AssetID);
+}
+
+void FAssetManager::RegisterAsset(const FGuid& AssetID, const FName& AssetName, const TSharedPtr<FAssetLoader>& AssetLoader, const TSharedPtr<FAssetSource>& AssetSource)
+{
+	if (NameToAssetID.Contains(AssetName))
+	{
+		return;
+	}
+
+	FAssetMetaInfo MetaInfo;
+	MetaInfo.AssetID = AssetID;
+	MetaInfo.AssetType = AssetLoader->GetAssetType();
+	MetaInfo.AssetName = AssetName;
+	MetaInfo.PayloadOffset = 0;
+	MetaInfo.AssetLoader = AssetLoader;
+	MetaInfo.AssetSource = AssetSource;
+
+	AssetMetaInfos.Add(MetaInfo.AssetID, MetaInfo);
+	NameToAssetID.Add(AssetName, MetaInfo.AssetID);
 }
 
 void FAssetManager::RegisterAsset(const TSharedPtr<FAsset>& Asset)
 {
 	const FName& AssetName = Asset->GetAssetName();
+	const FGuid& AssetID = Asset->GetAssetID();
 
-	if (AssetMetaInfoMap.Contains(AssetName) || LoadedAssets.Contains(AssetName))
+	if (NameToAssetID.Contains(AssetName) || AssetMetaInfos.Contains(AssetID))
 	{
 		return;
 	}
 
-	FAssetMetaInfo metaInfo;
-	metaInfo.AssetType = Asset->GetAssetType();
-	metaInfo.AssetName = AssetName;
-	metaInfo.AssetLoader = nullptr;
-	metaInfo.AssetSource = nullptr;
+	FAssetMetaInfo MetaInfo;
+	MetaInfo.AssetID = AssetID;
+	MetaInfo.AssetType = Asset->GetAssetType();
+	MetaInfo.AssetName = AssetName;
+	MetaInfo.PayloadOffset = 0;
+	MetaInfo.AssetLoader = nullptr;
+	MetaInfo.AssetSource = nullptr;
 
-	AssetMetaInfoMap.Add(AssetName, metaInfo);
-	LoadedAssets.Add(AssetName, Asset);
+	AssetMetaInfos.Add(AssetID, MetaInfo);
+	NameToAssetID.Add(AssetName, AssetID);
+	LoadedAssets.Add(AssetID, Asset);
 }
 
 void FAssetManager::UnregisterAsset(const FName& AssetName)
 {
-	if (LoadedAssets.Contains(AssetName))
+	FGuid* AssetIDPtr = NameToAssetID.Find(AssetName);
+	if (!AssetIDPtr)
 	{
-		UnloadAsset(AssetName);
+		return;
 	}
-	AssetMetaInfoMap.Remove(AssetName);
+
+	const FGuid AssetID = *AssetIDPtr;
+	UnloadAsset(AssetID);
+	AssetMetaInfos.Remove(AssetID);
+	NameToAssetID.Remove(AssetName);
 }
 
 void FAssetManager::UnloadAsset(const FName& AssetName)
 {
-	TSharedPtr<FAsset> asset = GetAsset(AssetName);
+	FGuid* AssetIDPtr = NameToAssetID.Find(AssetName);
+	if (AssetIDPtr)
+	{
+		UnloadAsset(*AssetIDPtr);
+	}
+}
+
+void FAssetManager::UnloadAsset(const FGuid& AssetID)
+{
+	TSharedPtr<FAsset> asset = GetAsset(AssetID);
 	if (asset)
 	{
-		TSharedPtr<FAssetLoader> assetLoader = AssetMetaInfoMap[AssetName].AssetLoader;
+		FAssetMetaInfo& MetaInfo = AssetMetaInfos[AssetID];
+		TSharedPtr<FAssetLoader> assetLoader = MetaInfo.AssetLoader;
 		if (assetLoader)
 		{
 			assetLoader->UnloadAsset(asset);
 		}
-		LoadedAssets.Remove(AssetName);
+		LoadedAssets.Remove(AssetID);
 	}
 }
 
 TSharedPtr<FAsset> FAssetManager::LoadAsset(const FName& AssetName)
 {
-	if (LoadedAssets.Contains(AssetName))
+	FGuid* AssetIDPtr = NameToAssetID.Find(AssetName);
+	return AssetIDPtr ? LoadAsset(*AssetIDPtr) : nullptr;
+}
+
+TSharedPtr<FAsset> FAssetManager::LoadAsset(const FGuid& AssetID)
+{
+	TSharedPtr<FAsset>* LoadedAssetPtr = LoadedAssets.Find(AssetID);
+	if (LoadedAssetPtr)
 	{
-		return LoadedAssets[AssetName];
+		return *LoadedAssetPtr;
 	}
 
-	if (!AssetMetaInfoMap.Contains(AssetName))
+	FAssetMetaInfo* MetaInfoPtr = AssetMetaInfos.Find(AssetID);
+	if (!MetaInfoPtr || !MetaInfoPtr->AssetLoader || !MetaInfoPtr->AssetSource)
 	{
 		return nullptr;
 	}
 
-	const FAssetMetaInfo& metaInfo = AssetMetaInfoMap[AssetName];
-	if (!metaInfo.AssetLoader || !metaInfo.AssetSource)
-	{
-		return nullptr;
-	}
+	TSharedPtr<FArchive> Archive = MetaInfoPtr->AssetSource->CreateArchive();
+	Archive->Seek(MetaInfoPtr->PayloadOffset);
 
-	TSharedPtr<FAsset> asset = metaInfo.AssetLoader->LoadAsset(AssetName, *metaInfo.AssetSource);
+	TSharedPtr<FAsset> asset = MetaInfoPtr->AssetLoader->LoadAsset(MetaInfoPtr->AssetID, MetaInfoPtr->AssetName, *Archive);
 	if (asset)
 	{
-		LoadedAssets.Add(AssetName, asset);
+		LoadedAssets.Add(MetaInfoPtr->AssetID, asset);
 	}
 
 	return asset;
@@ -93,14 +145,21 @@ TSharedPtr<FAsset> FAssetManager::LoadAsset(const FName& AssetName)
 
 TSharedPtr<FAsset> FAssetManager::GetAsset(const FName& AssetName, bool loadIfNotLoaded)
 {
-	if (LoadedAssets.Contains(AssetName))
+	FGuid* AssetIDPtr = NameToAssetID.Find(AssetName);
+	return AssetIDPtr ? GetAsset(*AssetIDPtr, loadIfNotLoaded) : nullptr;
+}
+
+TSharedPtr<FAsset> FAssetManager::GetAsset(const FGuid& AssetID, bool loadIfNotLoaded)
+{
+	TSharedPtr<FAsset>* LoadedAssetPtr = LoadedAssets.Find(AssetID);
+	if (LoadedAssetPtr)
 	{
-		return LoadedAssets[AssetName];
+		return *LoadedAssetPtr;
 	}
 
 	if (loadIfNotLoaded)
 	{
-		return LoadAsset(AssetName);
+		return LoadAsset(AssetID);
 	}
 
 	return nullptr;

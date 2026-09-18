@@ -6,35 +6,129 @@
 #include "FFontManager.h"
 #include "MathUtility.h"
 
+namespace
+{
+void CalculateNormals(FStaticMeshBuildData& MeshData)
+{
+	if (MeshData.Vertices.Num() == 0)
+	{
+		return;
+	}
+
+	for (FStaticMeshBuildVertex& Vertex : MeshData.Vertices)
+	{
+		Vertex.Normal = FVector(0.0f);
+	}
+
+	for (uint32 Index = 0; Index + 2 < static_cast<uint32>(MeshData.Indices.Num()); Index += 3)
+	{
+		const uint32 Index0 = MeshData.Indices[Index];
+		const uint32 Index1 = MeshData.Indices[Index + 1];
+		const uint32 Index2 = MeshData.Indices[Index + 2];
+
+		if (Index0 >= static_cast<uint32>(MeshData.Vertices.Num())
+			|| Index1 >= static_cast<uint32>(MeshData.Vertices.Num())
+			|| Index2 >= static_cast<uint32>(MeshData.Vertices.Num()))
+		{
+			continue;
+		}
+
+		const FVector& Position0 = MeshData.Vertices[Index0].Pos;
+		const FVector& Position1 = MeshData.Vertices[Index1].Pos;
+		const FVector& Position2 = MeshData.Vertices[Index2].Pos;
+
+		const FVector FaceNormal = FVector::cross(Position1 - Position0, Position2 - Position0);
+		MeshData.Vertices[Index0].Normal += FaceNormal;
+		MeshData.Vertices[Index1].Normal += FaceNormal;
+		MeshData.Vertices[Index2].Normal += FaceNormal;
+	}
+
+	for (FStaticMeshBuildVertex& Vertex : MeshData.Vertices)
+	{
+		if (Vertex.Normal.LengthSquared() > SMALL_NUMBER)
+		{
+			Vertex.Normal.Normalize();
+		}
+		else
+		{
+			Vertex.Normal = FVector(0.0f, 0.0f, 1.0f);
+		}
+	}
+}
+
+FStaticMeshBuildData BuildFromSimpleVertices(const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount)
+{
+	FStaticMeshBuildData BuildData;
+	BuildData.Vertices.Reserve(InVertexCount);
+	BuildData.Indices.Reserve(InIndexCount);
+
+	for (uint32 Index = 0; Index < InVertexCount; ++Index)
+	{
+		const FVertexSimple& Source = InVertices[Index];
+		BuildData.Vertices.Add({
+			FVector(Source.x, Source.y, Source.z),
+			FVector(0.0f),
+			FVector4(Source.r, Source.g, Source.b, Source.a),
+			FVector2(Source.u, Source.v)
+		});
+	}
+
+	if (InIndices && InIndexCount > 0)
+	{
+		for (uint32 Index = 0; Index < InIndexCount; ++Index)
+		{
+			BuildData.Indices.Add(InIndices[Index]);
+		}
+	}
+	else
+	{
+		for (uint32 Index = 0; Index < InVertexCount; ++Index)
+		{
+			BuildData.Indices.Add(Index);
+		}
+	}
+
+	CalculateNormals(BuildData);
+	return BuildData;
+}
+}
+
 FString FFileAssetSource::ReadFileToString() const
 {
 	return FileManager.ReadFileToString(FilePath);
 }
 
 FStaticMeshAsset::FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount)
-	: FAsset(InAssetName, EAssetType::StaticMesh)
-	, VertexCount(InVertexCount)
+	: FStaticMeshAsset(InAssetName, InRenderer, BuildFromSimpleVertices(InVertices, InVertexCount, nullptr, 0))
 {
-	VertexBuffer = InRenderer.CreateVertexBuffer(InVertices, InVertexCount);
-
-	for (uint32 i = 0; i < InVertexCount; ++i)
-	{
-		const FVertexSimple& Vertex = InVertices[i];
-		BoundingBox.ExpandToInclude(FVector(Vertex.x, Vertex.y, Vertex.z));
-	}
 }
 
-FStaticMeshAsset::FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount)
-	: FAsset(InAssetName, EAssetType::StaticMesh)
-	, VertexCount(InVertexCount)
-	, IndexCount(InIndexCount)
+FStaticMeshAsset::FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer,
+	const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount)
+	: FStaticMeshAsset(InAssetName, InRenderer, BuildFromSimpleVertices(InVertices, InVertexCount, InIndices, InIndexCount))
 {
-	VertexBuffer = InRenderer.CreateVertexBuffer(InVertices, InVertexCount);
-	IndexBuffer = InRenderer.CreateIndexBuffer(InIndices, InIndexCount);
-	for (uint32 i = 0; i < InIndexCount; ++i)
+
+}
+
+FStaticMeshAsset::FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FStaticMeshBuildData& InBuildData)
+	: FAsset(InAssetName, EAssetType::StaticMesh)
+	, VertexCount(static_cast<uint32>(InBuildData.Vertices.Num()))
+	, IndexCount(static_cast<uint32>(InBuildData.Indices.Num()))
+	, Sections(InBuildData.Sections)
+{
+	if (VertexCount > 0)
 	{
-		const FVertexSimple& Vertex = InVertices[InIndices[i]];
-		BoundingBox.ExpandToInclude(FVector(Vertex.x, Vertex.y, Vertex.z));
+		VertexBuffer = InRenderer.CreateVertexBuffer(InBuildData.Vertices.Data(), VertexCount);
+	}
+
+	if (IndexCount > 0)
+	{
+		IndexBuffer = InRenderer.CreateIndexBuffer(InBuildData.Indices.Data(), IndexCount);
+	}
+
+	for (const FStaticMeshBuildVertex& Vertex : InBuildData.Vertices)
+	{
+		BoundingBox.ExpandToInclude(Vertex.Pos);
 	}
 }
 

@@ -21,6 +21,11 @@
 #include "World.h"
 #include <FLogManager.h>
 #include "Assets.h"
+#include "FMeshDescription.h"
+#include "FStaticMeshBuilder.h"
+#include "FObjImporter.h"
+#include "UStaticMeshComponent.h"
+#include "FObjManager.h"
 
 void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 {
@@ -96,13 +101,24 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 
 	mSceneManager->NewScene();
 
-	//test code
-	//{
-	//	UCubeComponent* cubeComonent = FObjectFactory::ConstructObject<UCubeComponent>(FVector(0), FRotator(), FVector(1));
-	//	AActor* cubeActor = FObjectFactory::ConstructObject<AActor>();
-	//	cubeActor->AddComponent(cubeComonent);
-	//	mSceneManager.GetCurrentWorld()->AddActor(cubeActor);
-	//}
+	{
+		//test code
+		//{
+		//	UCubeComponent* cubeComonent = FObjectFactory::ConstructObject<UCubeComponent>(FVector(0), FRotator(), FVector(1));
+		//	AActor* cubeActor = FObjectFactory::ConstructObject<AActor>();
+		//	cubeActor->AddComponent(cubeComonent);
+		//	mSceneManager.GetCurrentWorld()->AddActor(cubeActor);
+		//}
+
+		AActor* ObjActor = FObjectFactory::ConstructObject<AActor>();
+		UStaticMeshComponent* ObjComponent = 
+			FObjectFactory::ConstructObject<UStaticMeshComponent>(FString("Assets/Meshes/TestTriangle.obj"),
+			FVector(0, 0, 0), FRotator(0, 0, 0), FVector(1, 1, 1));
+
+
+		ObjActor->AddComponent(ObjComponent);
+		mSceneManager->GetCurrentWorld()->AddActor(ObjActor);
+	}
 }
 
 void FEngineLoop::InitAssetManager()
@@ -110,6 +126,12 @@ void FEngineLoop::InitAssetManager()
 	mAssetManager = new FAssetManager();
 
 	URenderer* renderer = mGraphicsManager->GetRenderer();
+
+	FObjManager::Initialize(*renderer, *mFileManager);
+
+	FObjManager::LoadObjStaticMesh("Assets/Meshes/TestCube.obj");
+	FObjManager::LoadObjStaticMesh("Assets/Meshes/TestTriangle.obj");
+	FObjManager::LoadObjStaticMesh("Assets/Meshes/TestHexagonalPrism.obj");
 	
 	// Register built-in asset types
 	TSharedPtr<FStaticMeshAsset> cubeAsset = MakeShared<FStaticMeshAsset>(FName("CubeMesh"), *renderer, Cube_vertices, sizeof(Cube_vertices) / sizeof(FVertexSimple), Cube_indices, sizeof(Cube_indices) / sizeof(uint32));

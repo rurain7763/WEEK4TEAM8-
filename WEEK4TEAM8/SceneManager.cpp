@@ -31,6 +31,8 @@
 #include "Assets.h"
 #include "UTextComponent.h"
 #include "ShowFlags.h"
+#include "TObjectIterator.h"
+#include "UStaticMeshComponent.h"
 
 FSceneManager::FSceneManager()
 {
@@ -815,6 +817,48 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 			}
 		}
 
+		UStaticMeshComponent* StaticMeshComponent = nullptr;
+		for (UActorComponent* Component : mSelectedActor->GetComponents())
+		{
+			if (Component->IsA<UStaticMeshComponent>())
+			{
+				StaticMeshComponent = Component->Cast<UStaticMeshComponent>();
+
+				break;
+			}
+		}
+		if (StaticMeshComponent)
+		{
+			UStaticMesh* CurrentStaticMesh = StaticMeshComponent->GetStaticMesh();
+
+			const FString CurrentPath = CurrentStaticMesh
+				? CurrentStaticMesh->GetAssetPathFileName()
+				: "None";
+
+			if (ImGui::BeginCombo("Static Mesh", CurrentPath.CStr()))
+			{
+				for (TObjectIterator<UStaticMesh> It; It; ++It)
+				{
+					UStaticMesh* CandidateStaticMesh = *It;
+
+					const FString& CandidatePath = CandidateStaticMesh->GetAssetPathFileName();
+					const bool bIsSelected = CurrentStaticMesh == CandidateStaticMesh;
+
+					if (ImGui::Selectable(CandidatePath.CStr(), bIsSelected))
+					{
+						StaticMeshComponent->SetStaticMesh(CandidateStaticMesh);
+					}
+
+					if (bIsSelected)
+					{
+						ImGui::SetItemDefaultFocus();
+					}
+				}
+
+				ImGui::EndCombo();
+			}
+		}
+
 		USceneComponent* rootComponent = mSelectedActor->GetRootComponent();
 		if (rootComponent && rootComponent->IsA<UPrimitiveComponent>() && !rootComponent->IsA<UAtlasAnimationComponent>())
 		{
@@ -969,7 +1013,7 @@ void FSceneManager::NewScene()
 		delete mCurrentWorld;
 	}
 
-	UEngineStatics::SetNextUUID(0);
+	//UEngineStatics::SetNextUUID(0);
 	ResetSelectedActor();
 	mCurrentWorld = FObjectFactory::ConstructObject<UWorld>();
 }

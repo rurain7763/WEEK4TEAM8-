@@ -45,6 +45,13 @@ public:
 
 	FString(const FString& other);
 	FString& operator=(const FString& other);
+
+	FString& operator=(const std::string& str)
+	{
+		mData = str;
+		return *this;
+	}
+
 	FString& operator=(std::string_view str);
 	FString(FString&& other) noexcept;
 	FString& operator=(FString&& other) noexcept;
@@ -52,14 +59,14 @@ public:
 	using iterator = std::string::iterator;
 	using const_iterator = std::string::const_iterator;
 
-	iterator begin() { return mData->begin(); }
-	const_iterator begin() const { return mData->begin(); }
+	iterator begin() { return mData.begin(); }
+	const_iterator begin() const { return mData.begin(); }
 
-	iterator end() { return mData->end(); }
-	const_iterator end() const { return mData->end(); }
+	iterator end() { return mData.end(); }
+	const_iterator end() const { return mData.end(); }
 
-	inline operator std::string() const { return *mData; }
-	inline operator std::string_view() const { return *mData; }
+	inline operator std::string() const { return mData; }
+	inline operator std::string_view() const { return mData; }
 
 	FString& Append(std::string_view str);
 	FString& Append(const FString& str);
@@ -81,6 +88,7 @@ public:
 	bool Contains(const FString& subStr) const;
 
 	const char* CStr() const;
+	char* CStr();
 
 	bool EndsWith(std::string_view suffix) const;
 	bool EndsWith(const FString& suffix) const;
@@ -126,6 +134,12 @@ public:
 	bool StartsWith(std::string_view prefix) const;
 	bool StartsWith(const FString& prefix) const;
 
+	void Resize(int32 newSize);
+
+	bool IsEmpty() const;
+	
+	void Clear();
+
 	bool ToBool() const;
 
 	FString ToLower() const;
@@ -141,7 +155,7 @@ public:
 
 	const char* c_str() const noexcept;
 private:
-	std::unique_ptr<std::string> mData;
+	std::string mData;
 };
 
 template<>

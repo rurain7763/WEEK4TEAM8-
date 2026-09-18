@@ -89,7 +89,7 @@ struct FNamePool
 			FNameBlock ComparisonBlock = StoreString(ComparisonName);
 			FNameEntry NewEntry;
 			NewEntry.ComparisonBlock = ComparisonBlock;
-			ComparisonIndex = NameEntries.Emplace(NewEntry);
+			ComparisonIndex = NameEntries.Add(NewEntry);
 
 			TArray<int32>* EntryIndices = ComparisonNameMap.Find(Hash);
 			if (!EntryIndices)
@@ -111,7 +111,7 @@ struct FNamePool
 		{
 			FNameEntry& Entry = NameEntries[ComparisonIndex];
 			FNameBlock DisplayBlock = StoreString(DisplayName);
-			DisplayIndex = Entry.DisplayBlocks.Emplace(DisplayBlock);
+			DisplayIndex = Entry.DisplayBlocks.Add(DisplayBlock);
 		}
 
 		return DisplayIndex;

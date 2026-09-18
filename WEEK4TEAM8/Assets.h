@@ -7,6 +7,7 @@
 #include "Vector.h"
 #include "Matrix.h"
 #include "FAABB.h"
+#include "FMeshDescription.h"
 #include <d3d11.h>
 #include <wrl/client.h>
 #include <filesystem>
@@ -35,21 +36,25 @@ public:
 	FStaticMeshAsset() = default;
 	FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount);
 	FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount);
+	// Importer와 내장 Primitive 모두 같은 최종 정점 포맷으로 GPU에 올린다.
+	FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer, const FStaticMeshBuildData& InBuildData);
 
 	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetVertexBuffer() const { return VertexBuffer; }
 	inline uint32 GetVertexCount() const { return VertexCount; }
 	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetIndexBuffer() const { return IndexBuffer; }
 	inline uint32 GetIndexCount() const { return IndexCount; }
 	inline const FAABB& GetLocalBoundingBox() const { return BoundingBox; }
+	inline const TArray<FStaticMeshSection>& GetSections() const { return Sections; }
 
 private:
 	Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer;
-	uint32 VertexCount;
+	uint32 VertexCount = 0;
 
 	Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer;
-	uint32 IndexCount;
+	uint32 IndexCount = 0;
 
 	FAABB BoundingBox;
+	TArray<FStaticMeshSection> Sections;
 };
 
 class FTexture2DAsset : public FAsset

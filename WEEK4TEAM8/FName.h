@@ -22,10 +22,14 @@ struct FName
 	uint32 Number;
 };
 
-struct FNameHasher
+template <>
+struct std::hash<FName>
 {
 	std::size_t operator()(const FName& Name) const noexcept
 	{
-		return std::hash<int32>()(Name.ComparisonIndex) ^ std::hash<uint32>()(Name.Number);
+		std::size_t h1 = std::hash<int32>{}(Name.DisplayIndex);
+		std::size_t h2 = std::hash<int32>{}(Name.ComparisonIndex);
+		std::size_t h3 = std::hash<uint32>{}(Name.Number);
+		return h1 ^ (h2 << 1) ^ (h3 << 2);
 	}
 };

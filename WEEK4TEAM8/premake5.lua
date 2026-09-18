@@ -46,7 +46,8 @@ project "WEEK4TEAM8"
         "gdi32",
         "imm32",
         "user32",
-        "comdlg32"
+        "comdlg32",
+        "Ole32"
     }
 
     filter "configurations:Debug"

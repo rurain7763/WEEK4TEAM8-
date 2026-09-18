@@ -1,0 +1,27 @@
+{
+  "NextUUID" : 5,
+  "Version" : 0,
+  "World" : {
+    "ClassName" : "UWorld",
+    "Properties" : {
+      "UUID" : 2,
+      "mActors" : [{
+          "ClassName" : "AActor",
+          "Properties" : {
+            "UUID" : 3,
+            "mComponents" : [{
+                "ClassName" : "UStaticMeshComponent",
+                "Properties" : {
+                  "ObjStaticMeshAsset" : "Assets/Meshes/TestCube.obj",
+                  "UUID" : 4,
+                  "mRelativeLocation" : [0.000000, 0.000000, 0.000000],
+                  "mRelativeRotation" : [0.000000, 0.000000, 0.000000],
+                  "mRelativeScale3D" : [1.000000, 1.000000, 1.000000]
+                }
+              }],
+            "mRootComponentUUID" : -1
+          }
+        }]
+    }
+  }
+}

@@ -3,80 +3,121 @@
 #include <Windows.h>
 #include <commdlg.h>
 
+constexpr DWORD kPathBufferSize = 1024;
+
+HWND FNativeFileDialog::sOwnerWindow = nullptr;
+
 namespace
 {
-    constexpr DWORD kPathBufferSize = 32768;
-
-    OPENFILENAMEW MakeSceneDialog( HWND ownerWindow, wchar_t* pathBuffer, const std::filesystem::path& initialDirectory)
-    {
-        static constexpr wchar_t kSceneFilter[] =
-            L"Scene Files (*.Scene)\0*.Scene\0"
-            L"All Files (*.*)\0*.*\0";
-
-        OPENFILENAMEW dialog{};
-        dialog.lStructSize = sizeof(dialog);
-        dialog.hwndOwner = ownerWindow;
-        dialog.lpstrFile = pathBuffer;
-        dialog.nMaxFile = kPathBufferSize;
-        dialog.lpstrFilter = kSceneFilter;
-        dialog.nFilterIndex = 1;
-        dialog.lpstrInitialDir = initialDirectory.c_str();
-        dialog.lpstrDefExt = L"Scene";
-
-        return dialog;
-    }
+	std::wstring MakeFilterString(const TArray<FFileFilter>& filter)
+	{
+		std::wstring FullFilterString;
+		for (const auto& Filter : filter)
+		{
+			FullFilterString += Filter.Description;
+			FullFilterString.push_back(L'\0');
+			FullFilterString += Filter.Pattern;
+			FullFilterString.push_back(L'\0');
+		}
+		FullFilterString.push_back(L'\0');
+		return FullFilterString;
+	}
 }
 
-std::optional<std::filesystem::path> FNativeFileDialog::OpenScene(void* ownerWindow, const std::filesystem::path& initialDirectory)
+void FNativeFileDialog::Initialize(HWND OwnerWindow)
 {
-    wchar_t pathBuffer[kPathBufferSize]{};
+	sOwnerWindow = OwnerWindow;
+}
 
-    OPENFILENAMEW dialog = MakeSceneDialog(
-        static_cast<HWND>(ownerWindow),
-        pathBuffer,
-        initialDirectory);
+bool FNativeFileDialog::OpenFileDialog(const std::filesystem::path& initialDirectory, const TArray<FFileFilter>& filter, const std::wstring& defaultExtension, std::filesystem::path& outPath)
+{
+	wchar_t PathBuffer[kPathBufferSize]{};
 
-    dialog.Flags =
+	std::wstring FullFilterString = MakeFilterString(filter);
+
+    OPENFILENAMEW Dialog{};
+    Dialog.lStructSize = sizeof(Dialog);
+    Dialog.hwndOwner = sOwnerWindow;
+    Dialog.lpstrFile = PathBuffer;
+    Dialog.nMaxFile = kPathBufferSize;
+    Dialog.lpstrFilter = FullFilterString.c_str();
+    Dialog.nFilterIndex = 1;
+    Dialog.lpstrInitialDir = initialDirectory.c_str();
+    Dialog.lpstrDefExt = defaultExtension.c_str();
+    Dialog.Flags =
         OFN_EXPLORER |
         OFN_FILEMUSTEXIST |
         OFN_PATHMUSTEXIST |
         OFN_NOCHANGEDIR;
 
-    if (!GetOpenFileNameW(&dialog))
+    if(GetOpenFileNameW(&Dialog) != FALSE)
     {
-        // 취소 버튼도 여기로 들어오므로 오류로 취급하지 않는다.
-        return std::nullopt;
+        outPath = PathBuffer;
+        return true;
     }
-
-    return std::filesystem::path(pathBuffer);
+    else
+    {
+        return false;
+    }
 }
 
-std::optional<std::filesystem::path> FNativeFileDialog::SaveScene(void* ownerWindow, const std::filesystem::path& initialDirectory)
+bool FNativeFileDialog::SaveFileDialog(const std::filesystem::path& initialDirectory, const TArray<FFileFilter>& filter, const std::wstring& defaultExtension, std::filesystem::path& outPath)
 {
-    wchar_t pathBuffer[kPathBufferSize]{};
+	wchar_t PathBuffer[kPathBufferSize]{};
 
-    OPENFILENAMEW dialog = MakeSceneDialog(
-        static_cast<HWND>(ownerWindow),
-        pathBuffer,
-        initialDirectory);
+	std::wstring FullFilterString = MakeFilterString(filter);
 
-    dialog.Flags =
-        OFN_EXPLORER |
-        OFN_PATHMUSTEXIST |
-        OFN_OVERWRITEPROMPT |
-        OFN_NOCHANGEDIR;
+	OPENFILENAMEW Dialog{};
+	Dialog.lStructSize = sizeof(Dialog);
+	Dialog.hwndOwner = sOwnerWindow;
+	Dialog.lpstrFile = PathBuffer;
+	Dialog.nMaxFile = kPathBufferSize;
+	Dialog.lpstrFilter = FullFilterString.c_str();
+	Dialog.nFilterIndex = 1;
+	Dialog.lpstrInitialDir = initialDirectory.c_str();
+	Dialog.lpstrDefExt = defaultExtension.c_str();
+	Dialog.Flags =
+		OFN_EXPLORER |
+		OFN_PATHMUSTEXIST |
+		OFN_OVERWRITEPROMPT |
+		OFN_NOCHANGEDIR;
 
-    if (!GetSaveFileNameW(&dialog))
-    {
-        return std::nullopt;
-    }
-
-    std::filesystem::path selectedPath(pathBuffer);
-
-    if (selectedPath.extension().empty())
-    {
-        selectedPath.replace_extension(L".Scene");
-    }
-
-    return selectedPath;
+	if(GetSaveFileNameW(&Dialog) != FALSE)
+	{
+		outPath = PathBuffer;
+		return true;
+	}
+	else
+	{
+		return false;
+	}
 }
+
+std::optional<std::filesystem::path> FNativeFileDialog::OpenScene(const std::filesystem::path& initialDirectory)
+{
+	std::filesystem::path SelectedPath;
+
+	if (OpenFileDialog(initialDirectory, { FFileFilter{L"Scene Files (*.Scene)", L"*.Scene"}, FFileFilter{L"All Files (*.*)", L"*.*"} }, L"Scene", SelectedPath))
+	{
+        return SelectedPath;
+	}
+	else
+	{
+		return std::nullopt;
+	}
+}
+
+std::optional<std::filesystem::path> FNativeFileDialog::SaveScene(const std::filesystem::path& initialDirectory)
+{
+	std::filesystem::path SelectedPath;
+
+	if (SaveFileDialog(initialDirectory, { FFileFilter{L"Scene Files (*.Scene)", L"*.Scene"}, FFileFilter{L"All Files (*.*)", L"*.*"} }, L"Scene", SelectedPath))
+	{
+		return SelectedPath;
+	}
+	else
+	{
+		return std::nullopt;
+	}
+}
+

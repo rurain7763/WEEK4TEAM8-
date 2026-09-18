@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <d3dcompiler.h>
 #include "Renderer.h"
+#include "FMeshDescription.h"
 #include "TMap.h"
 
 FRenderPipeline::FRenderPipeline(ID3D11Device* InDevice, ID3D11DeviceContext* InDeviceContext, FSamplerStatePool* InSamplerStatePool, FDepthStencilStatePool* InDepthStencilStatePool, FBlendStatePool* InBlendStatePool)
@@ -163,6 +164,34 @@ void FRenderPipeline::SetShader(const FString& ShaderPath)
 
 	Device->CreateInputLayout(Layout, ARRAYSIZE(Layout), VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), &InputLayout);
 	Stride = sizeof(FVertexSimple);
+
+	VertexShaderCSO->Release();
+	PixelShaderCSO->Release();
+}
+
+void FRenderPipeline::SetStaticMeshShader(const FString& ShaderPath)
+{
+	std::wstring WShaderPath = Utf2Wide(ShaderPath);
+
+	ID3DBlob* VertexShaderCSO;
+	ID3DBlob* PixelShaderCSO;
+
+	D3DCompileFromFile(WShaderPath.c_str(), nullptr, nullptr, "mainVS", "vs_5_0", 0, 0, &VertexShaderCSO, nullptr);
+	Device->CreateVertexShader(VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), nullptr, &VertexShader);
+
+	D3DCompileFromFile(WShaderPath.c_str(), nullptr, nullptr, "mainPS", "ps_5_0", 0, 0, &PixelShaderCSO, nullptr);
+	Device->CreatePixelShader(PixelShaderCSO->GetBufferPointer(), PixelShaderCSO->GetBufferSize(), nullptr, &PixelShader);
+
+	D3D11_INPUT_ELEMENT_DESC Layout[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 40, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	};
+
+	Device->CreateInputLayout(Layout, ARRAYSIZE(Layout), VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), &InputLayout);
+	Stride = sizeof(FStaticMeshBuildVertex);
 
 	VertexShaderCSO->Release();
 	PixelShaderCSO->Release();

@@ -44,7 +44,7 @@ void URenderer::Create(HWND hWindow)
 
 	PrimitivePipeline = CreateRenderPipeline();
 	PrimitivePipeline->SetRasterRizerState(D3D11_CULL_BACK, 0, {EViewModeIndex::VMI_Lit, EViewModeIndex::VMI_Wireframe});
-	PrimitivePipeline->SetShader("Assets/Shaders/Mesh.hlsl");
+	PrimitivePipeline->SetStaticMeshShader("Assets/Shaders/StaticMeshShader.hlsl");
 	PrimitivePipeline->AddConstantBuffer<FConstants>();
 	PrimitivePipeline->AddConstantBuffer<FMatrix>();
 	PrimitivePipeline->SetSamplerState(0, D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP);
@@ -53,7 +53,7 @@ void URenderer::Create(HWND hWindow)
 	StencilMarkPipeline->SetRasterRizerState(D3D11_CULL_BACK);
 	StencilMarkPipeline->SetStencilState(false, false, D3D11_COMPARISON_ALWAYS, D3D11_STENCIL_OP_REPLACE, 1);
 	StencilMarkPipeline->SetBlendState(ERenderBlendMode::NoColorWrite);
-	StencilMarkPipeline->SetShader("Assets/Shaders/Mesh.hlsl");
+	StencilMarkPipeline->SetStaticMeshShader("Assets/Shaders/StaticMeshShader.hlsl");
 	StencilMarkPipeline->AddConstantBuffer<FConstants>();
 	StencilMarkPipeline->AddConstantBuffer<FMatrix>();
 
@@ -61,7 +61,7 @@ void URenderer::Create(HWND hWindow)
 	StencilOutlinePipeline->SetRasterRizerState(D3D11_CULL_BACK);
 	StencilOutlinePipeline->SetStencilState(false, false, D3D11_COMPARISON_NOT_EQUAL, D3D11_STENCIL_OP_KEEP, 1);
 	StencilOutlinePipeline->SetBlendState(ERenderBlendMode::Opaque);
-	StencilOutlinePipeline->SetShader("Assets/Shaders/Mesh.hlsl");
+	StencilOutlinePipeline->SetStaticMeshShader("Assets/Shaders/StaticMeshShader.hlsl");
 	StencilOutlinePipeline->AddConstantBuffer<FConstants>();
 	StencilOutlinePipeline->AddConstantBuffer<FMatrix>();
 
@@ -573,21 +573,22 @@ void URenderer::RenderPrimitive(Microsoft::WRL::ComPtr<ID3D11Buffer> Buffer, UIN
 	RenderPrimitive(PrimitivePipeline, Buffer, NumVertices);
 }
 
-void URenderer::RenderPrimitiveIndexed(const TSharedPtr<FRenderPipeline>& Pipeline, Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer, Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer, UINT NumIndices) const
+void URenderer::RenderPrimitiveIndexed(Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer, Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer, UINT NumIndices, const FMatrix& Model) const
+{
+	PrimitivePipeline->UpdateConstantBuffer(0, FConstants{ Model, FVector4(1.0f, 1.0f, 1.0f, 1.0f), 1 });
+
+	RenderPrimitiveIndexed(PrimitivePipeline, VertexBuffer, IndexBuffer, NumIndices);
+}
+
+void URenderer::RenderPrimitiveIndexed(const TSharedPtr<FRenderPipeline>& Pipeline, Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer,
+	Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer, UINT NumIndices, UINT StartIndex) const
 {
 	BindPipeline(Pipeline);
 
 	UINT Offset = 0;
 	DeviceContext->IASetVertexBuffers(0, 1, VertexBuffer.GetAddressOf(), &Pipeline->Stride, &Offset);
 	DeviceContext->IASetIndexBuffer(IndexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
-	DeviceContext->DrawIndexed(NumIndices, 0, 0);
-}
-
-void URenderer::RenderPrimitiveIndexed(Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer, Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer, UINT NumIndices, const FMatrix& Model) const
-{
-	PrimitivePipeline->UpdateConstantBuffer(0, FConstants{ Model, FVector4(1.0f, 1.0f, 1.0f, 1.0f), 1 });
-
-	RenderPrimitiveIndexed(PrimitivePipeline, VertexBuffer, IndexBuffer, NumIndices);
+	DeviceContext->DrawIndexed(NumIndices, StartIndex, 0);
 }
 
 void URenderer::RenderLine2D(const FVector2& Start, const FVector2& End, const FVector4& Color, float Thickness) const

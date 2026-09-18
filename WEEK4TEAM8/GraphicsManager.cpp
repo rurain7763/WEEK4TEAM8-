@@ -28,7 +28,7 @@ FGraphicsManager::FGraphicsManager(HWND hWindow) :
 	mMeshPipeline = mRenderer->CreateRenderPipeline();
 	mMeshPipeline->SetRasterRizerState(D3D11_CULL_BACK, 0, { EViewModeIndex::VMI_Lit, EViewModeIndex::VMI_Wireframe });
 	mMeshPipeline->SetDepthStencilState(true, true);
-	mMeshPipeline->SetShader("Assets/Shaders/Mesh.hlsl");
+	mMeshPipeline->SetStaticMeshShader("Assets/Shaders/StaticMeshShader.hlsl");
 	mMeshPipeline->AddConstantBuffer<FConstants>();
 	mMeshPipeline->AddConstantBuffer<FMatrix>();
 }
@@ -104,29 +104,31 @@ void FGraphicsManager::Render()
 	{
 		TSharedPtr<FStaticMeshAsset> Asset = renderInfo.StaticMesh;
 
+		if (!Asset)
+		{
+			continue;
+		}
+
 		mMeshPipeline->ClearShaderResource();
 		mMeshPipeline->ClearSamplerState();
 
+		FConstants Constants{};
+		Constants.Matrix = renderInfo.WorldTransformMatrix;
+		Constants.Color = renderInfo.Color;
+		Constants.UseVertexColor = renderInfo.UseVertexColor ? 1 : 0;
+		Constants.HasTexture = renderInfo.Texture ? 1 : 0;
+
+		mMeshPipeline->UpdateConstantBuffer(0, Constants);
+		mMeshPipeline->UpdateConstantBuffer(1, mViewUnifiedProjectionMatrix);
+
 		if (renderInfo.Texture)
 		{
-			FConstants Constants{};
-			Constants.Matrix = renderInfo.WorldTransformMatrix;
-			Constants.Color = FVector4(1, 1, 1, 1);
-			Constants.UseVertexColor = 0;
-			Constants.HasTexture = 1;
-
-			mMeshPipeline->UpdateConstantBuffer(0, Constants);
-			mMeshPipeline->UpdateConstantBuffer(1, mViewUnifiedProjectionMatrix);
-
 			mMeshPipeline->SetShaderResource(0, renderInfo.Texture->GetSRV());
 			mMeshPipeline->SetSamplerState(0, D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP);
+		}
 
-			mRenderer->RenderPrimitiveIndexed(mMeshPipeline, Asset->GetVertexBuffer(), Asset->GetIndexBuffer(), Asset->GetIndexCount());
-		}
-		else
-		{
-			mRenderer->RenderPrimitiveIndexed(Asset->GetVertexBuffer(), Asset->GetIndexBuffer(), Asset->GetIndexCount(), renderInfo.WorldTransformMatrix);
-		}
+		const uint32 DrawIndexCount = renderInfo.IndexCount > 0 ? renderInfo.IndexCount : Asset->GetIndexCount();
+		mRenderer->RenderPrimitiveIndexed(mMeshPipeline, Asset->GetVertexBuffer(), Asset->GetIndexBuffer(), DrawIndexCount, renderInfo.FirstIndex);
 	}
 
 	for (const FRenderQuadInfo& QuadInfo : mRenderCollector.GetOpaqueQuadInfos())
