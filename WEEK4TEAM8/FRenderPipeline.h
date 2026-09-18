@@ -30,7 +30,6 @@ public:
 	void SetBlendState(ERenderBlendMode BlendMode);
 	void SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY Topology);
 	void SetShader(const FString& ShaderPath);
-	void SetStaticMeshShader(const FString& ShaderPath);
 	
 	void SetShaderResource(uint32 Slot, Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> SRV);
 	void ClearShaderResource();

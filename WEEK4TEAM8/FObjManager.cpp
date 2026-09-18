@@ -66,8 +66,7 @@ UStaticMesh* FObjManager::LoadObjStaticMesh(const FString& FilePath)
         }
 
         const std::filesystem::path TexturePath = ObjDirectory / Material.DiffuseTexturePath.CStr();
-        const std::filesystem::path AssetRelativeTexturePath = TexturePath.lexically_relative("Assets");
-        const FString TexturePathString = FString(TexturePath.string());
+		const FString TexturePathString = FString(TexturePath.string());
         const FName TextureAssetName(TexturePathString);
 
         TSharedPtr<FTexture2DAsset> Texture =
@@ -78,11 +77,10 @@ UStaticMesh* FObjManager::LoadObjStaticMesh(const FString& FilePath)
         if (!Texture)
         {
             TSharedPtr<FFileAssetSource> TextureSource =
-                MakeShared<FFileAssetSource>(
-                    *FileManager,
-                    AssetRelativeTexturePath);
+				MakeShared<FFileAssetSource>(TexturePath);
 
             FAssetManager::Get().RegisterAsset(
+                FGuid::NewGuid(),
                 TextureAssetName,
                 TextureLoader,
                 TextureSource);
@@ -101,7 +99,7 @@ UStaticMesh* FObjManager::LoadObjStaticMesh(const FString& FilePath)
 
     const FName MeshAssetName(FilePath);
     TSharedPtr<FStaticMeshAsset> StaticMeshAsset =
-        MakeShared<FStaticMeshAsset>(MeshAssetName, *Renderer, BuildData);
+		MakeShared<FStaticMeshAsset>(FGuid::NewGuid(), MeshAssetName, *Renderer, BuildData);
 
     FAssetManager::Get().RegisterAsset(StaticMeshAsset);
 

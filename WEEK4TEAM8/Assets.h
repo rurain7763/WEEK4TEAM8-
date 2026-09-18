@@ -29,6 +29,7 @@ namespace BuiltInAssetID
 	inline const FGuid ConeMesh(0xB17B0001, 0x00000000, 0x00000000, 0x00000005);
 	inline const FGuid GizmoArrowMesh(0xB17B0001, 0x00000000, 0x00000000, 0x00000006);
 	inline const FGuid DefaultFont(0xB17B0001, 0x00000000, 0x00000000, 0x00000100);
+	inline const FGuid TriangleMesh(0xB17B0001, 0x00000000, 0x00000000, 0x00001000);
 }
 
 class FFileAssetSource : public FAssetSource
@@ -48,7 +49,7 @@ public:
 	FStaticMeshAsset() = default;
 	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount);
 	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount);
-	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMesh& InStaticMesh);
+	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMeshBuildData& InBuildData);
 
 	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetVertexBuffer() const { return VertexBuffer; }
 	inline uint32 GetVertexCount() const { return VertexCount; }
@@ -62,10 +63,10 @@ public:
 
 private:
 	Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer;
-	uint32 VertexCount = 0;
+	uint32 VertexCount;
 
-	Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer;
-	uint32 IndexCount = 0;
+	TArray<Microsoft::WRL::ComPtr<ID3D11Buffer>> SubMeshIndexBuffers;
+	TArray<uint32> SubMeshIndexCounts;
 
 	FAABB BoundingBox;
 	TArray<FStaticMeshSection> Sections;

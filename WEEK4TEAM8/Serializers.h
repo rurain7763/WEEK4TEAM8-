@@ -95,13 +95,3 @@ struct FArchiveSerializer<FAssetFileHeader>
 	}
 };
 
-template <>
-struct FArchiveSerializer<FMeshSection>
-{
-	static void Serialize(FArchive& Ar, FMeshSection& Value)
-	{
-		Ar << Value.Name;
-		Ar << Value.MaterialIndex;
-		Ar << Value.Indices;
-	}
-};

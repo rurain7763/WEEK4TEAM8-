@@ -343,9 +343,7 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 			//std::filesystem::create_directories(sceneDirectory);
 
 			const std::optional<std::filesystem::path> selectedPath =
-				FNativeFileDialog::SaveScene(
-					ownerWindow,
-					sceneDirectory);
+				FNativeFileDialog::SaveScene(sceneDirectory);
 
 			// 취소 버튼을 누른 경우에는 아무 작업도 하지 않는다.
 			if (selectedPath.has_value())
@@ -372,9 +370,7 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 			//std::filesystem::create_directories(sceneDirectory);
 
 			const std::optional<std::filesystem::path> selectedPath =
-				FNativeFileDialog::OpenScene(
-					ownerWindow,
-					sceneDirectory);
+				FNativeFileDialog::OpenScene(sceneDirectory);
 
 			// 취소한 경우에는 현재 씬과 카메라 상태를 건드리지 않는다.
 			if (selectedPath.has_value())

@@ -57,10 +57,12 @@ bool FStaticMeshBuilder::Build (const FMeshDescription& MeshDescription,
         }
 
         Section.IndexCount = static_cast<uint32>(OutCookedData.Indices.Num()) - Section.FirstIndex;
-        if (Section.IndexCount > 0)
-        {
-            OutCookedData.Sections.Add(Section);
-        }
-    }
+		if (Section.IndexCount > 0)
+		{
+			OutCookedData.Sections.Add(Section);
+		}
+	}
+
+	return true;
 }
 

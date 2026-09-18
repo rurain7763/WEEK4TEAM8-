@@ -28,7 +28,7 @@ FGraphicsManager::FGraphicsManager(HWND hWindow) :
 	mMeshPipeline = mRenderer->CreateRenderPipeline();
 	mMeshPipeline->SetRasterRizerState(D3D11_CULL_BACK, 0, { EViewModeIndex::VMI_Lit, EViewModeIndex::VMI_Wireframe });
 	mMeshPipeline->SetDepthStencilState(true, true);
-	mMeshPipeline->SetStaticMeshShader("Assets/Shaders/StaticMeshShader.hlsl");
+	mMeshPipeline->SetShader("Assets/Shaders/StaticMeshShader.hlsl");
 	mMeshPipeline->AddConstantBuffer<FConstants>();
 	mMeshPipeline->AddConstantBuffer<FMatrix>();
 }
@@ -127,8 +127,8 @@ void FGraphicsManager::Render()
 			mMeshPipeline->SetSamplerState(0, D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP);
 		}
 
-		const uint32 DrawIndexCount = renderInfo.IndexCount > 0 ? renderInfo.IndexCount : Asset->GetIndexCount();
-		mRenderer->RenderPrimitiveIndexed(mMeshPipeline, Asset->GetVertexBuffer(), Asset->GetIndexBuffer(), DrawIndexCount, renderInfo.FirstIndex);
+		const uint32 DrawIndexCount = renderInfo.IndexCount > 0 ? renderInfo.IndexCount : Asset->GetIndexCount(0);
+		mRenderer->RenderPrimitiveIndexed(mMeshPipeline, Asset->GetVertexBuffer(), Asset->GetIndexBuffer(0), DrawIndexCount, renderInfo.FirstIndex);
 	}
 
 	for (const FRenderQuadInfo& QuadInfo : mRenderCollector.GetOpaqueQuadInfos())
@@ -319,7 +319,7 @@ void FGraphicsManager::RenderHighLight(const FRenderInfo& RI)
 
 	mRenderer->RenderHighlight(
 		RI.StaticMesh->GetVertexBuffer(), RI.StaticMesh->GetVertexCount(),
-		RI.StaticMesh->GetIndexBuffer(), RI.StaticMesh->GetIndexCount(),
+		RI.StaticMesh->GetIndexBuffer(0), RI.StaticMesh->GetIndexCount(0),
 		RI.WorldTransformMatrix,
 		Outline,
 		FVector4(1.f, 0.6f, 0.f, 1.f));

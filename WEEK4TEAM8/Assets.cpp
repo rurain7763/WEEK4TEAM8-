@@ -13,11 +13,6 @@ namespace
 {
 void CalculateNormals(FStaticMeshBuildData& MeshData)
 {
-	if (MeshData.Vertices.Num() == 0)
-	{
-		return;
-	}
-
 	for (FStaticMeshBuildVertex& Vertex : MeshData.Vertices)
 	{
 		Vertex.Normal = FVector(0.0f);
@@ -28,7 +23,6 @@ void CalculateNormals(FStaticMeshBuildData& MeshData)
 		const uint32 Index0 = MeshData.Indices[Index];
 		const uint32 Index1 = MeshData.Indices[Index + 1];
 		const uint32 Index2 = MeshData.Indices[Index + 2];
-
 		if (Index0 >= static_cast<uint32>(MeshData.Vertices.Num())
 			|| Index1 >= static_cast<uint32>(MeshData.Vertices.Num())
 			|| Index2 >= static_cast<uint32>(MeshData.Vertices.Num()))
@@ -36,11 +30,9 @@ void CalculateNormals(FStaticMeshBuildData& MeshData)
 			continue;
 		}
 
-		const FVector& Position0 = MeshData.Vertices[Index0].Pos;
-		const FVector& Position1 = MeshData.Vertices[Index1].Pos;
-		const FVector& Position2 = MeshData.Vertices[Index2].Pos;
-
-		const FVector FaceNormal = FVector::cross(Position1 - Position0, Position2 - Position0);
+		const FVector FaceNormal = FVector::cross(
+			MeshData.Vertices[Index1].Pos - MeshData.Vertices[Index0].Pos,
+			MeshData.Vertices[Index2].Pos - MeshData.Vertices[Index0].Pos);
 		MeshData.Vertices[Index0].Normal += FaceNormal;
 		MeshData.Vertices[Index1].Normal += FaceNormal;
 		MeshData.Vertices[Index2].Normal += FaceNormal;
@@ -59,11 +51,11 @@ void CalculateNormals(FStaticMeshBuildData& MeshData)
 	}
 }
 
-FStaticMeshBuildData BuildFromSimpleVertices(const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount)
+FStaticMeshBuildData BuildFromSimpleVertices(const FVertexSimple* InVertices, uint32 InVertexCount,
+	const uint32* InIndices, uint32 InIndexCount)
 {
 	FStaticMeshBuildData BuildData;
 	BuildData.Vertices.Reserve(InVertexCount);
-	BuildData.Indices.Reserve(InIndexCount);
 
 	for (uint32 Index = 0; Index < InVertexCount; ++Index)
 	{
@@ -78,6 +70,7 @@ FStaticMeshBuildData BuildFromSimpleVertices(const FVertexSimple* InVertices, ui
 
 	if (InIndices && InIndexCount > 0)
 	{
+		BuildData.Indices.Reserve(InIndexCount);
 		for (uint32 Index = 0; Index < InIndexCount; ++Index)
 		{
 			BuildData.Indices.Add(InIndices[Index]);
@@ -85,6 +78,7 @@ FStaticMeshBuildData BuildFromSimpleVertices(const FVertexSimple* InVertices, ui
 	}
 	else
 	{
+		BuildData.Indices.Reserve(InVertexCount);
 		for (uint32 Index = 0; Index < InVertexCount; ++Index)
 		{
 			BuildData.Indices.Add(Index);
@@ -96,74 +90,21 @@ FStaticMeshBuildData BuildFromSimpleVertices(const FVertexSimple* InVertices, ui
 }
 }
 
-FString FFileAssetSource::ReadFileToString() const
+TSharedPtr<FArchive> FFileAssetSource::CreateArchive()
 {
 	return MakeShared<FWindowsBinReader>(FilePath);
 }
 
 FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount)
-	: FAsset(InAssetID, InAssetName, EAssetType::StaticMesh)
-	, VertexCount(InVertexCount)
+	: FStaticMeshAsset(InAssetID, InAssetName, InRenderer,
+		BuildFromSimpleVertices(InVertices, InVertexCount, nullptr, 0))
 {
-}
-
-FStaticMeshAsset::FStaticMeshAsset(const FName& InAssetName, URenderer& InRenderer,
-	const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount)
-	: FStaticMeshAsset(InAssetName, InRenderer, BuildFromSimpleVertices(InVertices, InVertexCount, InIndices, InIndexCount))
-{
-
 }
 
 FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount)
-	: FAsset(InAssetID, InAssetName, EAssetType::StaticMesh)
-	, VertexCount(InVertexCount)
+	: FStaticMeshAsset(InAssetID, InAssetName, InRenderer,
+		BuildFromSimpleVertices(InVertices, InVertexCount, InIndices, InIndexCount))
 {
-	VertexBuffer = InRenderer.CreateVertexBuffer(InVertices, InVertexCount);
-	
-	Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer = InRenderer.CreateIndexBuffer(InIndices, InIndexCount);
-	SubMeshIndexBuffers.Add(IndexBuffer);
-	SubMeshIndexCounts.Add(InIndexCount);
-
-	for (uint32 i = 0; i < InIndexCount; ++i)
-	{
-		BoundingBox.ExpandToInclude(Vertex.Pos);
-	}
-}
-
-FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMesh& InStaticMesh)
-	: FAsset(InAssetID, InAssetName, EAssetType::StaticMesh)
-{
-	TArray<FVertexSimple> Vertices;
-	for (int32 i = 0; i < InStaticMesh.Positions.Num(); ++i)
-	{
-		FVertexSimple& Vertex = Vertices.Emplace();
-
-		Vertex.x = InStaticMesh.Positions[i].x;
-		Vertex.y = InStaticMesh.Positions[i].y;
-		Vertex.z = InStaticMesh.Positions[i].z;
-		Vertex.r = 1.0f;
-		Vertex.g = 1.0f;
-		Vertex.b = 1.0f;
-		Vertex.a = 1.0f;
-		Vertex.u = InStaticMesh.TexCoords[i].X;
-		Vertex.v = 1.0f - InStaticMesh.TexCoords[i].Y; // 텍스처 좌표의 Y축을 뒤집음
-	}
-
-	VertexBuffer = InRenderer.CreateVertexBuffer(Vertices.Data(), Vertices.Num());
-	VertexCount = Vertices.Num();
-
-	for (const FMeshSection& Section : InStaticMesh.MeshSections)
-	{
-		Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer = InRenderer.CreateIndexBuffer(Section.Indices.Data(), Section.Indices.Num());
-		SubMeshIndexBuffers.Add(IndexBuffer);
-		SubMeshIndexCounts.Add(Section.Indices.Num());
-
-		for (uint32 i = 0; i < Section.Indices.Num(); ++i)
-		{
-			const FVector& Position = InStaticMesh.Positions[Section.Indices[i]];
-			BoundingBox.ExpandToInclude(Position);
-		}
-	}
 }
 
 TSharedPtr<FAsset> FStaticMeshAssetLoader::LoadAsset(const FGuid& AssetID, const FName& AssetName, FArchive& Ar)
@@ -171,12 +112,10 @@ TSharedPtr<FAsset> FStaticMeshAssetLoader::LoadAsset(const FGuid& AssetID, const
 	TArray<FVector> Positions;
 	TArray<FVector> Normals;
 	TArray<FVector2> TexCoords;
-	TArray<FMeshSection> MeshSections;
 
 	Ar << Positions;
 	Ar << Normals;
 	Ar << TexCoords;
-	Ar << MeshSections;
 
 	TArray<FVertexSimple> Vertices;
 	for (int32 i = 0; i < Positions.Num(); ++i)
@@ -194,13 +133,7 @@ TSharedPtr<FAsset> FStaticMeshAssetLoader::LoadAsset(const FGuid& AssetID, const
 		Vertex.v = 1.0f - TexCoords[i].Y; // 텍스처 좌표의 Y축을 뒤집음
 	}
 
-	FStaticMesh StaticMesh;
-	StaticMesh.Positions = Positions;
-	StaticMesh.Normals = Normals;
-	StaticMesh.TexCoords = TexCoords;
-	StaticMesh.MeshSections = MeshSections;
-	
-	return MakeShared<FStaticMeshAsset>(AssetID, AssetName, Renderer, StaticMesh);
+	return MakeShared<FStaticMeshAsset>(AssetID, AssetName, Renderer, Vertices.Data(), static_cast<uint32>(Vertices.Num()));
 }
 
 void FStaticMeshAssetLoader::UnloadAsset(TSharedPtr<FAsset> Asset)
@@ -232,7 +165,7 @@ TSharedPtr<FAsset> FTexture2DAssetLoader::LoadAsset(const FGuid& AssetID, const 
 	TextureDesc.MipLevels = 1;
 
 	Microsoft::WRL::ComPtr<ID3D11Texture2D> Texture = Renderer.CreateTexture2D(TextureDesc, ImageData.Data());
-	
+
 	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
 	SRVDesc.Format = TextureDesc.Format;
 	SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
@@ -257,7 +190,7 @@ TSharedPtr<FAsset> FFontAssetLoader::LoadAsset(const FGuid& AssetID, const FName
 		UE_LOG_ERROR("Failed to read font asset: %s", AssetName.ToString().CStr());
 		return nullptr;
 	}
-	
+
 	FT_Library Library = FontManager.GetLibrary();
 
 	FT_Face Face;
@@ -442,4 +375,26 @@ TSharedPtr<FAsset> FMaterialAssetLoader::LoadAsset(const FGuid& AssetID, const F
 void FMaterialAssetLoader::UnloadAsset(TSharedPtr<FAsset> Asset)
 {
 	// NOTE: Nothing to do for now
+}
+
+FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMeshBuildData& InBuildData)
+	: FAsset(InAssetID, InAssetName, EAssetType::StaticMesh)
+	, VertexCount(static_cast<uint32>(InBuildData.Vertices.Num()))
+	, Sections(InBuildData.Sections)
+{
+	for (const FStaticMeshBuildVertex& Source : InBuildData.Vertices)
+	{
+		BoundingBox.ExpandToInclude(Source.Pos);
+	}
+
+	VertexBuffer = InRenderer.CreateVertexBuffer(InBuildData.Vertices.Data(), VertexCount);
+	// Sections refer to offsets in the single cooked index stream.  Keep that
+	// stream in one GPU buffer so FirstIndex remains valid when rendering.
+	if (!InBuildData.Indices.IsEmpty())
+	{
+		SubMeshIndexBuffers.Add(InRenderer.CreateIndexBuffer(
+			InBuildData.Indices.Data(),
+			static_cast<uint32>(InBuildData.Indices.Num())));
+		SubMeshIndexCounts.Add(static_cast<uint32>(InBuildData.Indices.Num()));
+	}
 }
