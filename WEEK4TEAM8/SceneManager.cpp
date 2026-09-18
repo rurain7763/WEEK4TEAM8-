@@ -31,6 +31,8 @@
 #include "Assets.h"
 #include "UTextComponent.h"
 #include "ShowFlags.h"
+#include "TObjectIterator.h"
+#include "UStaticMeshComponent.h"
 
 FSceneManager::FSceneManager()
 {
@@ -149,6 +151,41 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 		}
 		ImGui::End();
 
+		ConsoleWindow& console = ConsoleWindow::Get();
+		if (console.bShowStatFPS || console.bShowStatMemory)
+		{
+			// Viewport 창 안쪽 좌상단에 붙는 입력을 받지 않는 오버레이 창
+			ImGui::SetNextWindowPos(ImVec2(mViewportX + 12.0f, mViewportY + 12.0f), ImGuiCond_Always);
+			ImGui::SetNextWindowBgAlpha(0.55f);
+
+			const ImGuiWindowFlags overlayFlags =
+				ImGuiWindowFlags_NoDecoration |
+				ImGuiWindowFlags_AlwaysAutoResize |
+				ImGuiWindowFlags_NoSavedSettings |
+				ImGuiWindowFlags_NoFocusOnAppearing |
+				ImGuiWindowFlags_NoNav |
+				ImGuiWindowFlags_NoInputs;
+
+			ImGui::Begin("##StatOverlay", nullptr, overlayFlags);
+			if (console.bShowStatFPS)
+			{
+				ImGui::TextColored(ImVec4(0.35f, 1.0f, 0.35f, 1.0f), "FPS: %.1f", guiReference.FrameTimer.GetFPS());
+				ImGui::Text("Frame: %.2f ms", guiReference.FrameTimer.GetDeltaTime() * 1000.0f);
+			}
+
+			if (console.bShowStatMemory)
+			{
+				if (console.bShowStatFPS)
+				{
+					ImGui::Separator();
+				}
+
+				ImGui::TextColored(ImVec4(0.35f, 0.8f, 1.0f, 1.0f), "Memory");
+				ImGui::Text("Allocations: %d", UEngineStatics::sTotalAllocationCount);
+				ImGui::Text("Allocated: %d bytes", UEngineStatics::sTotalAllocationBytes);
+			}
+			ImGui::End();
+		}
 		ImGui::PopStyleVar();
 	}
 
@@ -306,9 +343,7 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 			//std::filesystem::create_directories(sceneDirectory);
 
 			const std::optional<std::filesystem::path> selectedPath =
-				FNativeFileDialog::SaveScene(
-					ownerWindow,
-					sceneDirectory);
+				FNativeFileDialog::SaveScene(sceneDirectory);
 
 			// 취소 버튼을 누른 경우에는 아무 작업도 하지 않는다.
 			if (selectedPath.has_value())
@@ -335,9 +370,7 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 			//std::filesystem::create_directories(sceneDirectory);
 
 			const std::optional<std::filesystem::path> selectedPath =
-				FNativeFileDialog::OpenScene(
-					ownerWindow,
-					sceneDirectory);
+				FNativeFileDialog::OpenScene(sceneDirectory);
 
 			// 취소한 경우에는 현재 씬과 카메라 상태를 건드리지 않는다.
 			if (selectedPath.has_value())
@@ -780,6 +813,48 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 			}
 		}
 
+		UStaticMeshComponent* StaticMeshComponent = nullptr;
+		for (UActorComponent* Component : mSelectedActor->GetComponents())
+		{
+			if (Component->IsA<UStaticMeshComponent>())
+			{
+				StaticMeshComponent = Component->Cast<UStaticMeshComponent>();
+
+				break;
+			}
+		}
+		if (StaticMeshComponent)
+		{
+			UStaticMesh* CurrentStaticMesh = StaticMeshComponent->GetStaticMesh();
+
+			const FString CurrentPath = CurrentStaticMesh
+				? CurrentStaticMesh->GetAssetPathFileName()
+				: "None";
+
+			if (ImGui::BeginCombo("Static Mesh", CurrentPath.CStr()))
+			{
+				for (TObjectIterator<UStaticMesh> It; It; ++It)
+				{
+					UStaticMesh* CandidateStaticMesh = *It;
+
+					const FString& CandidatePath = CandidateStaticMesh->GetAssetPathFileName();
+					const bool bIsSelected = CurrentStaticMesh == CandidateStaticMesh;
+
+					if (ImGui::Selectable(CandidatePath.CStr(), bIsSelected))
+					{
+						StaticMeshComponent->SetStaticMesh(CandidateStaticMesh);
+					}
+
+					if (bIsSelected)
+					{
+						ImGui::SetItemDefaultFocus();
+					}
+				}
+
+				ImGui::EndCombo();
+			}
+		}
+
 		USceneComponent* rootComponent = mSelectedActor->GetRootComponent();
 		if (rootComponent && rootComponent->IsA<UPrimitiveComponent>() && !rootComponent->IsA<UAtlasAnimationComponent>())
 		{
@@ -934,7 +1009,7 @@ void FSceneManager::NewScene()
 		delete mCurrentWorld;
 	}
 
-	UEngineStatics::SetNextUUID(0);
+	//UEngineStatics::SetNextUUID(0);
 	ResetSelectedActor();
 	mCurrentWorld = FObjectFactory::ConstructObject<UWorld>();
 }

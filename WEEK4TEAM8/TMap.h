@@ -42,6 +42,7 @@ public:
 	void Reset();
 	void Empty(int32 ExpectedNumElements = 0);
 	V* Find(const T& key);
+	const V* Find(const T& key) const;
 
 	bool Contains(const T& key) const;
 	bool IsEmpty() const;
@@ -89,6 +90,20 @@ template <typename T, typename V, typename HashFunc, typename EqualFunc>
 inline V* TMap<T, V, HashFunc, EqualFunc>::Find(const T& key)
 {
 	auto iter = mMap.find(key);
+	if (iter == mMap.end())
+	{
+		return nullptr;
+	}
+
+	return &iter->second;
+}
+
+template <typename T, typename V, typename HashFunc, typename EqualFunc>
+inline const V* TMap<T, V, HashFunc, EqualFunc>::Find(
+	const T& key) const
+{
+	auto iter = mMap.find(key);
+
 	if (iter == mMap.end())
 	{
 		return nullptr;

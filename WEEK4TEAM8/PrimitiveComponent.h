@@ -25,7 +25,7 @@ public:
 
 	//virtual void Render();
 	virtual void Render(FRenderCollector& RenderCollector) override;
-	void GetRenderInfos(TArray<FRenderInfo>* outRenderInfos) const override final;
+	virtual void GetRenderInfos(TArray<FRenderInfo>* outRenderInfos) const override;
 
 	// 프리미티브는 전부 픽킹 대상이다.
 	virtual void RegisterPickTarget(FRenderCollector& RenderCollector) override;

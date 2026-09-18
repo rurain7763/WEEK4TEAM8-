@@ -9,6 +9,7 @@
 #include "FAABB.h"
 #include "FObjImporter.h"
 #include "FGuid.h"
+#include "FMeshDescription.h"
 #include <d3d11.h>
 #include <wrl/client.h>
 #include <filesystem>
@@ -28,6 +29,7 @@ namespace BuiltInAssetID
 	inline const FGuid ConeMesh(0xB17B0001, 0x00000000, 0x00000000, 0x00000005);
 	inline const FGuid GizmoArrowMesh(0xB17B0001, 0x00000000, 0x00000000, 0x00000006);
 	inline const FGuid DefaultFont(0xB17B0001, 0x00000000, 0x00000000, 0x00000100);
+	inline const FGuid TriangleMesh(0xB17B0001, 0x00000000, 0x00000000, 0x00001000);
 }
 
 class FFileAssetSource : public FAssetSource
@@ -47,7 +49,7 @@ public:
 	FStaticMeshAsset() = default;
 	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount);
 	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount);
-	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMesh& InStaticMesh);
+	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMeshBuildData& InBuildData);
 
 	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetVertexBuffer() const { return VertexBuffer; }
 	inline uint32 GetVertexCount() const { return VertexCount; }
@@ -57,6 +59,7 @@ public:
 	inline const TArray<Microsoft::WRL::ComPtr<ID3D11Buffer>>& GetSubMeshIndexBuffers() const { return SubMeshIndexBuffers; }
 	inline const TArray<uint32>& GetSubMeshIndexCounts() const { return SubMeshIndexCounts; }
 	inline const FAABB& GetLocalBoundingBox() const { return BoundingBox; }
+	inline const TArray<FStaticMeshSection>& GetSections() const { return Sections; }
 
 private:
 	Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer;
@@ -66,6 +69,7 @@ private:
 	TArray<uint32> SubMeshIndexCounts;
 
 	FAABB BoundingBox;
+	TArray<FStaticMeshSection> Sections;
 };
 
 class FStaticMeshAssetLoader : public FAssetLoader
