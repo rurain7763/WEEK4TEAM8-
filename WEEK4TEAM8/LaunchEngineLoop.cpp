@@ -21,6 +21,7 @@
 #include "World.h"
 #include <FLogManager.h>
 #include "Assets.h"
+#include "FObjImporter.h"
 
 void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 {
@@ -152,6 +153,13 @@ void FEngineLoop::InitAssetManager()
 	TSharedPtr<FFontAsset> TestFontAsset = mAssetManager->GetAssetAs<FFontAsset>(FName("TestFont"), true);
 	TSharedPtr<FFontAtlasAsset> FontAtlasAsset = MakeShared<FFontAtlasAsset>(FName("TestFontAtlas"), *renderer, TestFontAsset, 512, 512, 2, 2);
 	mAssetManager->RegisterAsset(FontAtlasAsset);
+
+	FObjImporter Importer;
+	TSharedPtr<FStaticMeshAsset> MyMesh = Importer.Import("MyMesh", *renderer, "Assets/cube.obj");
+	if (MyMesh)
+	{
+		mAssetManager->RegisterAsset(MyMesh);
+	}
 }
 
 void FEngineLoop::Tick(bool bPumpMessages)

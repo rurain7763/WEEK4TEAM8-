@@ -10,17 +10,21 @@ struct FObjInfo
     TArray<FVector> Vertices;
     TArray<FVector2> UV;
     TArray<FVector> Normal;
-    TArray<uint32> VertexIndices;
-    TArray<uint32> UVIndices;
-    TArray<uint32> NormalIndices;
+    TArray<int32> VertexIndices;
+    TArray<int32> UVIndices;
+    TArray<int32> NormalIndices;
     TArray<FString> Materials;
-    TArray<FString> Textures;
+    FString MtlFileName;
 };
 
 struct FObjMaterialInfo
 {
     FString MaterialName;
-    FVector4 DiffuseColor = { 1.0f,1.0f, 1.0f, 1.0f };
+    FVector Ambient = { 1.0f,1.0f, 1.0f };
+    FVector Diffuse = { 1.0f,1.0f, 1.0f };
+    FVector Specular = { 1.0f,1.0f, 1.0f };
+    float Ns = 0.0f;
+    int32 illum = 0;
     FString MaterialTexturePath;
 };
 

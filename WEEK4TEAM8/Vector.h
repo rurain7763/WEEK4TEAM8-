@@ -230,8 +230,8 @@ struct FVertexSimple
 
 struct FVertexPNCT
 {
-	FVector Position;
-	FVector Normal;
-	FVector4 Color;
-	FVector2 UV;
+	float x, y, z;
+	float nx, ny, nz;
+	float r, g, b, a;
+	float u, v;
 };

@@ -54,7 +54,7 @@ FStaticMeshAsset::FStaticMeshAsset(const FName& InAssetName, URenderer& InRender
 	for (uint32 i = 0; i < InIndexCount; ++i)
 	{
 		const FVertexPNCT& Vertex = InVertices[InIndices[i]];
-		BoundingBox.ExpandToInclude(Vertex.Position);
+		BoundingBox.ExpandToInclude({ Vertex.x, Vertex.y, Vertex.z });
 	}
 }
 
