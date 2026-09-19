@@ -45,7 +45,9 @@ FGraphicsManager::~FGraphicsManager()
 	delete mRenderer;
 }
 
-void FGraphicsManager::Prepare(const FCamera* mCamera, float viewportWidth, float viewportHeight)
+void FGraphicsManager::Prepare(const FCamera* mCamera, float viewportWidth, float viewportHeight,
+	const TSharedPtr<FRenderTarget2D>& RenderTarget, const TSharedPtr<FDepthStencil>& DepthStencil,
+	float ProjectionRatio)
 {
 	// Cache view and projection matrices for rendering
 	const float nearZ = 0.1f;
@@ -58,7 +60,7 @@ void FGraphicsManager::Prepare(const FCamera* mCamera, float viewportWidth, floa
 	FMatrix view = mCamera->GetViewMatrix();
 	FMatrix projection_u_p = mCamera->GetUnifiedProjectionMatrix(mAspect, mCamera->mFovDegree, d, nearZ, farZ, 1.0f);
 	FMatrix projection_u_o = mCamera->GetUnifiedProjectionMatrix(mAspect, mCamera->mFovDegree, d, nearZ, farZ, 0.0f);
-	FMatrix projection_u = mCamera->GetUnifiedProjectionMatrix(mAspect, mCamera->mFovDegree, d, nearZ, farZ, mProjectionRatio);
+	FMatrix projection_u = mCamera->GetUnifiedProjectionMatrix(mAspect, mCamera->mFovDegree, d, nearZ, farZ, ProjectionRatio);
 
 	//mViewProjectionMatrix = view * mCamera->GetProjectionMatrix(mAspect, mCamera->mFovDegree, nearZ, farZ);
 	mViewMatrix = view;
@@ -70,6 +72,8 @@ void FGraphicsManager::Prepare(const FCamera* mCamera, float viewportWidth, floa
 	mRenderer->SetViewModeIndex(mViewModeIndex);
 
 	mRenderer->Prepare(view * projection_u);
+	mRenderer->BindRenderTarget(RenderTarget, DepthStencil);
+
 
 	float orthoHeight = mCamera->mOrthoHeight;
 	float orthoWidth = orthoHeight * mAspect;
@@ -87,8 +91,6 @@ void FGraphicsManager::Prepare(const FCamera* mCamera, float viewportWidth, floa
 	// 깊이 테스트가 켜져 있으면 나중에 그린 FarCube 가 깊이 비교에서 탈락해
 	// NearCube(주황)가 앞에 남고, 꺼져 있으면 FarCube(파랑)가 그 위를 덮어쓴다.
 	//mRenderer->UpdateConstantViewProjection(viewProjection);
-
-	mRenderer->BindRenderTarget(mSceneRenderTarget, mSceneDepthStencil);
 }
 
 void FGraphicsManager::GizmoPrepare()
@@ -96,7 +98,7 @@ void FGraphicsManager::GizmoPrepare()
 	mRenderer->RSUpdateState();
 
 }
-void FGraphicsManager::Render()
+void FGraphicsManager::Render(bool bClearCollector)
 {
 	mRenderer->RenderLines(mRenderCollector.LineInfos);
 
@@ -153,7 +155,10 @@ void FGraphicsManager::Render()
 		mRenderer->RenderQuad(QuadInfo);
 	}
 
-	mRenderCollector.Clear();
+	if (bClearCollector)
+	{
+		mRenderCollector.Clear();
+	}
 }
 
 void FGraphicsManager::DrawLine(const FVector& start, const FVector& end, const FVector4& color)

@@ -7,6 +7,7 @@
 #include "SceneManager.h"
 #include "FEditorUIManager.h"
 #include <cmath>
+#include "FViewportLayout.h"
 
 FGizmo::FGizmo(URenderer& InRenderer) 
 	: Renderer(InRenderer) 
@@ -51,7 +52,7 @@ bool FGizmo::IsMouseOverHandle() const
 	return bIsHoveredAxis; 
 }
 
-void FGizmo::Update(FSceneManager* SceneManager, const FEditorUIManager& EditorUI, const FMatrix& ViewProjection)
+void FGizmo::Update(FSceneManager* SceneManager, const FRect& ViewportRect, const FMatrix& ViewProjection)
 {
     AActor* TargetActor = SceneManager->GetSelectedActor();
 
@@ -71,13 +72,15 @@ void FGizmo::Update(FSceneManager* SceneManager, const FEditorUIManager& EditorU
 
     FVector2 MousePosInScreen = Map(
         FVector2(Input.CursorX, Input.CursorY),
-        FVector2(EditorUI.GetViewportX(), EditorUI.GetViewportY()),
-        FVector2(EditorUI.GetViewportX() + EditorUI.GetViewportWidth(), EditorUI.GetViewportY() + EditorUI.GetViewportHeight()),
+        FVector2(ViewportRect.X, ViewportRect.Y),
+        FVector2(ViewportRect.X + ViewportRect.Width, ViewportRect.Y + ViewportRect.Height),
         FVector2(0.f, 0.f),
         FVector2(Renderer.GetWidth(), Renderer.GetHeight())
     );
 
-    const bool bAllowMouse = EditorUI.IsViewportHovered();
+    const FPoint Cursor(static_cast<float>(Input.CursorX), static_cast<float>(Input.CursorY) );
+    const bool bAllowMouse = ViewportRect.Contains(Cursor);
+
     bool bDragStarted = false;
 
     if (!Input.IsDown(VK_LBUTTON))
@@ -140,7 +143,8 @@ void FGizmo::Update(FSceneManager* SceneManager, const FEditorUIManager& EditorU
         Ray.Direction = FarPoint - NearPoint;
         Ray.Direction.Normalize();
 
-        FVector W = DragStartLocation - Ray.Origin;
+        // FVector W = DragStartLocation - Ray.Origin;
+        FVector W = Ray.Origin - DragStartLocation;
 
         float A = FVector::dot(AxisDirection, AxisDirection);
         float B = FVector::dot(AxisDirection, Ray.Direction);
@@ -153,7 +157,8 @@ void FGizmo::Update(FSceneManager* SceneManager, const FEditorUIManager& EditorU
         {
             return;
         }
-        float T = (B * E - C * D) / Denominator;
+        //float T = (B * E - C * D) / Denominator;
+        float T = (C * D - B * E) / Denominator;
 
         if (bDragStarted)
         {

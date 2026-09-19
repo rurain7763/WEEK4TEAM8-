@@ -26,12 +26,16 @@ public:
 	~FGraphicsManager();
 
 	//void Prepare(const Camera* mCamera);
-	void Prepare(const FCamera* Camera,float viewportWidth, float viewportHeight);
+	// ProjectionRatio is viewport-local: Perspective receives the editor's
+	// transition value and orthographic views receive 0.0f.
+	void Prepare(const FCamera* Camera, float viewportWidth, float viewportHeight,
+		const TSharedPtr<FRenderTarget2D>& RenderTarget, const TSharedPtr<FDepthStencil>& DepthStencil,
+		float ProjectionRatio);
 	void GizmoPrepare();
 
 	//void Render(FTransform worldTransformMatrix, EPrimitive ePrimitive); // FRenderInfo
 	//void Render(const TArray<FRenderInfo> renderInfos);
-	void Render();
+	void Render(bool bClearCollector = true);
 	//void RenderOverlay(const TArray<FRenderInfo> renderInfos); //깊이버퍼 초기화
 	// FRenderInfo
 

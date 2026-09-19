@@ -31,6 +31,8 @@
 #include "TObjectIterator.h"
 #include "UStaticMeshComponent.h"
 #include "EngineStatics.h"
+#include "FEditorViewportManager.h"
+#include "FViewportLayout.h"
 
 
 FEditorUIManager::FEditorUIManager(const ImGuiIO& InIO)
@@ -97,23 +99,71 @@ void FEditorUIManager::UpdateGUI(const FGuiReference& guiReference)
 		if (ImGui::Begin("Viewport"))
 		{
 			const ImVec2 size = ImGui::GetContentRegionAvail();
+			const ImVec2 imageMin = ImGui::GetCursorScreenPos();
 
 			if (size.x > 0 && size.y > 0)
 			{
-				const TSharedPtr<FRenderTarget2D>& sceneRenderTarget = guiReference.GraphicsManager->GetSceneRenderTarget();
-				ImGui::Image((ImTextureID)(intptr_t)sceneRenderTarget->SRV.Get(), size);
-				mbViewportHovered = ImGui::IsItemHovered();
-
-				const ImVec2 imageMin = ImGui::GetItemRectMin();
-				const ImVec2 imageMax = ImGui::GetItemRectMax();
-
 				mViewportX = imageMin.x;
 				mViewportY = imageMin.y;
 				mViewportWidth = size.x;
 				mViewportHeight = size.y;
+
+				guiReference.ViewportManager->Arrange({ imageMin.x, imageMin.y, size.x, size.y });
+
+				mbViewportHovered = ImGui::IsMouseHoveringRect(imageMin, ImVec2(imageMin.x + size.x, imageMin.y + size.y));
+
+				if (!guiReference.ViewportManager->bMultiViewport)
+				{
+					guiReference.ViewportManager->ActiveViewportType = EViewportType::Perspective;
+					FViewport& Viewport = guiReference.ViewportManager->GetViewportWindow(EViewportType::Perspective).Viewport;
+
+					ImGui::SetCursorScreenPos(ImVec2(Viewport.Rect.X, Viewport.Rect.Y));
+					ImGui::Image((ImTextureID)(intptr_t)Viewport.mSceneRenderTarget->SRV.Get(),
+						ImVec2(Viewport.Rect.Width, Viewport.Rect.Height));
+				}
+				else
+				{
+					const ImGuiIO& IO = ImGui::GetIO();
+					const FPoint Cursor = { IO.MousePos.x, IO.MousePos.y };
+
+					if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+					{
+						const bool bClickedSplitter = guiReference.ViewportManager->BeginSplitterDrag(Cursor);
+
+						if (!bClickedSplitter)
+						{
+							if (SViewportWindow* HitViewport = guiReference.ViewportManager->FindViewportAt(Cursor))
+							{
+								guiReference.ViewportManager->ActiveViewportType = HitViewport->Viewport.Type;
+							}
+						}
+					}
+					if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+					{
+						guiReference.ViewportManager->UpdateSplitterDrag(Cursor);
+					}
+					if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+					{
+						guiReference.ViewportManager->EndSplitterDrag();
+					}
+
+					for (int i = 0; i < 4; ++i)
+					{
+						const EViewportType Type = static_cast<EViewportType>(i);
+						FViewport& Viewport = guiReference.ViewportManager->GetViewportWindow(Type).Viewport;
+
+						ImGui::SetCursorScreenPos(ImVec2(Viewport.Rect.X, Viewport.Rect.Y));
+						ImGui::Image((ImTextureID)(intptr_t)Viewport.mSceneRenderTarget->SRV.Get(),
+							ImVec2(Viewport.Rect.Width, Viewport.Rect.Height));
+					}
+
+					guiReference.ViewportManager->DrawSplitters(ImGui::GetWindowDrawList());
+				}
 			}
+
 		}
 		ImGui::End();
+		ImGui::PopStyleVar();
 
 		ConsoleWindow& console = ConsoleWindow::Get();
 		if (console.bShowStatFPS || console.bShowStatMemory)
@@ -150,14 +200,13 @@ void FEditorUIManager::UpdateGUI(const FGuiReference& guiReference)
 			}
 			ImGui::End();
 		}
-		ImGui::PopStyleVar();
+
+		updateControlPanelGUI(guiReference);
+		updatePropertyWindowGUI(guiReference);
+		updateObjectListPanelGUI(guiReference);
+
+		ConsoleWindow::Get().Process(mPanelWidth);
 	}
-
-	updateControlPanelGUI(guiReference);
-	updatePropertyWindowGUI(guiReference);
-	updateObjectListPanelGUI(guiReference);
-
-	ConsoleWindow::Get().Process(mPanelWidth);
 }
 
 void FEditorUIManager::updateControlPanelGUI(const FGuiReference& guiReference)

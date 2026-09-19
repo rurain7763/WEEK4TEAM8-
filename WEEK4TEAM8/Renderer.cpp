@@ -315,11 +315,17 @@ Microsoft::WRL::ComPtr<ID3D11Texture2D> URenderer::CreateTexture2D(const D3D11_T
 		TextureData.pSysMem = InitialData;
 		TextureData.SysMemPitch = Desc.Width * GetByteSizeFromFormat(Desc.Format);
 
-		Device->CreateTexture2D(&Desc, &TextureData, &Texture);
+		if (FAILED(Device->CreateTexture2D(&Desc, &TextureData, &Texture)))
+		{
+			return nullptr;
+		}
 	}
 	else
 	{
-		Device->CreateTexture2D(&Desc, nullptr, &Texture);
+		if (FAILED(Device->CreateTexture2D(&Desc, nullptr, &Texture)))
+		{
+			return nullptr;
+		}
 	}
 
 	return Texture;
@@ -339,6 +345,11 @@ TSharedPtr<FRenderPipeline> URenderer::CreateRenderPipeline()
 
 TSharedPtr<FRenderTarget2D> URenderer::CreateRenderTarget2D(uint32 Width, uint32 Height, DXGI_FORMAT Format)
 {
+	if (Width == 0 || Height == 0)
+	{
+		return nullptr;
+	}
+
 	TSharedPtr<FRenderTarget2D> RenderTarget = MakeShared<FRenderTarget2D>();
 
 	D3D11_TEXTURE2D_DESC TextureDesc = {};
@@ -352,18 +363,28 @@ TSharedPtr<FRenderTarget2D> URenderer::CreateRenderTarget2D(uint32 Width, uint32
 	TextureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 
 	RenderTarget->Texture = CreateTexture2D(TextureDesc);
+	if (!RenderTarget->Texture)
+	{
+		return nullptr;
+	}
 
 	D3D11_RENDER_TARGET_VIEW_DESC RTVDesc = {};
 	RTVDesc.Format = Format;
 	RTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-	Device->CreateRenderTargetView(RenderTarget->Texture.Get(), &RTVDesc, RenderTarget->RTV.GetAddressOf());
+	if (FAILED(Device->CreateRenderTargetView(RenderTarget->Texture.Get(), &RTVDesc, RenderTarget->RTV.GetAddressOf())))
+	{
+		return nullptr;
+	}
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
 	SRVDesc.Format = Format;
 	SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 	SRVDesc.Texture2D.MostDetailedMip = 0;
 	SRVDesc.Texture2D.MipLevels = 1;
-	Device->CreateShaderResourceView(RenderTarget->Texture.Get(), &SRVDesc, RenderTarget->SRV.GetAddressOf());
+	if (FAILED(Device->CreateShaderResourceView(RenderTarget->Texture.Get(), &SRVDesc, RenderTarget->SRV.GetAddressOf())))
+	{
+		return nullptr;
+	}
 
 	RenderTarget->Width = Width;
 	RenderTarget->Height = Height;
@@ -373,6 +394,11 @@ TSharedPtr<FRenderTarget2D> URenderer::CreateRenderTarget2D(uint32 Width, uint32
 
 TSharedPtr<FDepthStencil> URenderer::CreateDepthStencil(uint32 Width, uint32 Height)
 {
+	if (Width == 0 || Height == 0)
+	{
+		return nullptr;
+	}
+
 	TSharedPtr<FDepthStencil> DepthStencil = MakeShared<FDepthStencil>();
 
 	D3D11_TEXTURE2D_DESC TextureDesc = {};
@@ -386,12 +412,19 @@ TSharedPtr<FDepthStencil> URenderer::CreateDepthStencil(uint32 Width, uint32 Hei
 	TextureDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
 
 	DepthStencil->Texture = CreateTexture2D(TextureDesc);
+	if (!DepthStencil->Texture)
+	{
+		return nullptr;
+	}
 
 	D3D11_DEPTH_STENCIL_VIEW_DESC DsvDesc = {};
 	DsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	DsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
 	DsvDesc.Texture2D.MipSlice = 0;
-	Device->CreateDepthStencilView(DepthStencil->Texture.Get(), &DsvDesc, DepthStencil->DSV.GetAddressOf());
+	if (FAILED(Device->CreateDepthStencilView(DepthStencil->Texture.Get(), &DsvDesc, DepthStencil->DSV.GetAddressOf())))
+	{
+		return nullptr;
+	}
 
 	DepthStencil->Width = Width;
 	DepthStencil->Height = Height;
@@ -429,8 +462,9 @@ void URenderer::BindPipeline(const TSharedPtr<FRenderPipeline>& Pipeline) const
 	}
 	else
 	{
-		DeviceContext->VSSetShaderResources(0, 0, nullptr);
-		DeviceContext->PSSetShaderResources(0, 0, nullptr);
+		ID3D11ShaderResourceView* NullSRV = nullptr;
+		DeviceContext->VSSetShaderResources(0, 1, &NullSRV);
+		DeviceContext->PSSetShaderResources(0, 1, &NullSRV);
 	}
 
 	if (Pipeline->SamplerStates.Num())
@@ -439,7 +473,16 @@ void URenderer::BindPipeline(const TSharedPtr<FRenderPipeline>& Pipeline) const
 	}
 	else
 	{
-		DeviceContext->PSSetSamplers(0, 0, nullptr);
+		// MeshPS declares a sampler even on the untextured path. Bind a real
+		// deterministic default instead of depending on D3D11's null fallback.
+		const FSamplerStateKey DefaultSamplerKey{
+			D3D11_FILTER_MIN_MAG_MIP_LINEAR,
+			D3D11_TEXTURE_ADDRESS_WRAP,
+			D3D11_TEXTURE_ADDRESS_WRAP
+		};
+		ID3D11SamplerState* DefaultSampler =
+			Pipeline->SamplerStatePool->GetOrCreateSamplerState(Device, DefaultSamplerKey);
+		DeviceContext->PSSetSamplers(0, 1, &DefaultSampler);
 	}
 }
 
@@ -457,6 +500,11 @@ void URenderer::BindFrameBuffer()
 
 void URenderer::BindRenderTarget(const TSharedPtr<FRenderTarget2D>& RenderTarget, const TSharedPtr<FDepthStencil>& DepthStencil, bool bClear)
 {
+	if (!RenderTarget || !DepthStencil || !RenderTarget->RTV || !DepthStencil->DSV)
+	{
+		return;
+	}
+
 	DeviceContext->OMSetRenderTargets(1, RenderTarget->RTV.GetAddressOf(), DepthStencil->DSV.Get());
 	if (bClear)
 	{
@@ -491,8 +539,10 @@ void URenderer::RenderLines(const TArray<FRenderLineInfo>& Lines) const
 		uint32 BatchSize = FGenericPlatformMath::Min(Remaining, MaxLineInstances);
 		LineStructuredBuffer->UpdateStructuredBuffer(Offset, BatchSize);
 
+		ID3D11Buffer* NullVertexBuffer = nullptr;
+		UINT NullStride = 0;
 		UINT OffsetIndex = 0;
-		DeviceContext->IASetVertexBuffers(0, 0, NULL, NULL, &OffsetIndex);
+		DeviceContext->IASetVertexBuffers(0, 1, &NullVertexBuffer, &NullStride, &OffsetIndex);
 		DeviceContext->DrawInstanced(6, BatchSize, 0, 0);
 
 		Remaining -= BatchSize;
@@ -539,13 +589,20 @@ void URenderer::RenderQuad(const FRenderQuadInfo& Info) const
 
 	BindPipeline(QuadPipeline);
 
-	D3D11_SHADER_RESOURCE_VIEW_DESC Desc{};
-	Info.TextureSRV->GetDesc(&Desc);
+	bool bAlphaMask = false;
+	if (Info.TextureSRV)
+	{
+		D3D11_SHADER_RESOURCE_VIEW_DESC Desc{};
+		Info.TextureSRV->GetDesc(&Desc);
+		bAlphaMask = Desc.Format == DXGI_FORMAT_R8_UNORM;
+	}
 
-	QuadPipeline->UpdateConstantBuffer(0, FQuadConstants{ Info.Model, Info.Color, Info.SubUV, Info.TextureSRV ? 1 : 0, Desc.Format == DXGI_FORMAT_R8_UNORM });
+	QuadPipeline->UpdateConstantBuffer(0, FQuadConstants{ Info.Model, Info.Color, Info.SubUV, Info.TextureSRV ? 1 : 0, bAlphaMask });
 
+	ID3D11Buffer* NullVertexBuffer = nullptr;
+	UINT NullStride = 0;
 	UINT Offset = 0;
-	DeviceContext->IASetVertexBuffers(0, 0, NULL, NULL, &Offset);
+	DeviceContext->IASetVertexBuffers(0, 1, &NullVertexBuffer, &NullStride, &Offset);
 	DeviceContext->Draw(6, 0);
 }
 
@@ -597,8 +654,10 @@ void URenderer::RenderLine2D(const FVector2& Start, const FVector2& End, const F
 
 	BindPipeline(Line2DPipeline);
 
+	ID3D11Buffer* NullVertexBuffer = nullptr;
+	UINT NullStride = 0;
 	UINT Offset = 0;
-	DeviceContext->IASetVertexBuffers(0, 0, NULL, NULL, &Offset);
+	DeviceContext->IASetVertexBuffers(0, 1, &NullVertexBuffer, &NullStride, &Offset);
 	DeviceContext->Draw(6, 0);
 }
 
@@ -608,8 +667,10 @@ void URenderer::RenderCircle2D(const FVector2& Center, const FVector4& Color, fl
 
 	BindPipeline(Circle2DPipeline);
 
+	ID3D11Buffer* NullVertexBuffer = nullptr;
+	UINT NullStride = 0;
 	UINT Offset = 0;
-	DeviceContext->IASetVertexBuffers(0, 0, NULL, NULL, &Offset);
+	DeviceContext->IASetVertexBuffers(0, 1, &NullVertexBuffer, &NullStride, &Offset);
 	DeviceContext->Draw(6, 0);
 }
 
@@ -619,8 +680,10 @@ void URenderer::RenderTriangle2D(const FVector2& Center, const FVector4& Color, 
 
 	BindPipeline(Triangle2DPipeline);
 
+	ID3D11Buffer* NullVertexBuffer = nullptr;
+	UINT NullStride = 0;
 	UINT Offset = 0;
-	DeviceContext->IASetVertexBuffers(0, 0, NULL, NULL, &Offset);
+	DeviceContext->IASetVertexBuffers(0, 1, &NullVertexBuffer, &NullStride, &Offset);
 	DeviceContext->Draw(3, 0);
 }
 
@@ -635,8 +698,10 @@ void URenderer::RenderWorldAxis(const FMatrix& View, const FMatrix& Projection, 
 
 	BindPipeline(WorldAxisPipeline);
 
+	ID3D11Buffer* NullVertexBuffer = nullptr;
+	UINT NullStride = 0;
 	UINT Offset = 0;
-	DeviceContext->IASetVertexBuffers(0, 0, NULL, NULL, &Offset);
+	DeviceContext->IASetVertexBuffers(0, 1, &NullVertexBuffer, &NullStride, &Offset);
 	DeviceContext->Draw(6, 0);
 }
 
@@ -646,8 +711,10 @@ void URenderer::RenderWorldGrid(const FMatrix& ViewProjection, const FVector& Ca
 
 	BindPipeline(WorldGridPipeline);
 
+	ID3D11Buffer* NullVertexBuffer = nullptr;
+	UINT NullStride = 0;
 	UINT Offset = 0;
-	DeviceContext->IASetVertexBuffers(0, 0, NULL, NULL, &Offset);
+	DeviceContext->IASetVertexBuffers(0, 1, &NullVertexBuffer, &NullStride, &Offset);
 	DeviceContext->Draw(6, 0);
 }
 

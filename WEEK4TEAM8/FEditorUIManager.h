@@ -12,6 +12,7 @@ class FAssetManager;
 class UObject;
 class ImGuiIO;
 class FFrameTimer;
+class FEditorViewportManager;
 
 struct FGuiReference
 {
@@ -21,6 +22,7 @@ struct FGuiReference
 	FSceneManager* SceneManager;
 	const FFileManager* FileManager;
 	FAssetManager* AssetManager;
+	FEditorViewportManager* ViewportManager;
 };
 
 struct FGuiInputField
@@ -57,7 +59,6 @@ private:
 	float mViewportWidth;
 	float mViewportHeight;
 	bool mbViewportHovered = false;
-
 
 	static constexpr float MIN_WIDTH_RATIO = 0.2f;
 	static constexpr float CONTROL_PANEL_HEIGHT_RATIO = 0.4f;

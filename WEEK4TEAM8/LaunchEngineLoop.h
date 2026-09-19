@@ -12,6 +12,7 @@
 #include "FAssetManager.h"
 #include "FFontManager.h"
 #include "FComponentVisualizer.h"
+#include "FEditorViewportManager.h"
 
 #include <d3d11.h>
 
@@ -39,13 +40,14 @@ private:
 	FFrameTimer* FrameTimer;
 	bool GInTick = false;
 	FEditorViewportClient* ViewportClient;
-	FEditorUIManager* EditorUIManager;
 
 	FGraphicsManager* mGraphicsManager;
 	FSceneManager* mSceneManager;
 	FFileManager* mFileManager;
 	FAssetManager* mAssetManager;
 	FFontManager* mFontManager;
+	FEditorUIManager* mEditorUIManager;
+	FEditorViewportManager* mViewportManager;
 
 	FComponentVisualizerManager* mComponentVisualizerManager;
 };
