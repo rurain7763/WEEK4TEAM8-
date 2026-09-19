@@ -37,3 +37,31 @@ void SSplitterV::UpdateLayout(const FRect& InRect)
 		SideRB->UpdateLayout(BottomRect);
 	}
 }
+
+void SViewportWindow::SetupView(EViewportType InViewType, const FVector& FocusPoint, float Distance)
+{
+	ViewType = InViewType;
+	bIsOrthographic = (InViewType != EViewportType::Perspective);
+	Camera.mOrthoDistance = 10.0f;
+
+	switch (InViewType)
+	{
+	case(EViewportType::Top):
+		Camera.Transform.Location = FocusPoint + FVector(0.f, 0.f, Distance);
+		Camera.LookAt(FocusPoint);
+		break;
+	case(EViewportType::Perspective):
+		Camera.Transform.Location = FocusPoint + FVector(0.f, 0.f, 0.f);
+		Camera.LookAt(FocusPoint);
+		break;
+	case(EViewportType::Front):
+		Camera.Transform.Location = FocusPoint + FVector(Distance, 0.f, 0.f);
+		Camera.LookAt(FocusPoint);
+		break;
+	case(EViewportType::Side):
+		Camera.Transform.Location = FocusPoint + FVector(0.f, Distance, 0.f);
+		Camera.LookAt(FocusPoint);
+		break;
+	}
+	
+}

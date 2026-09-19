@@ -80,6 +80,8 @@ public:
 	float GetViewportHeight() const { return mViewportHeight; }
 	bool IsViewportHovered() const { return mbViewportHovered; }
 
+	bool GetMaximizeWindow() const { return bMaximizeWindow; }
+	void SetMaximizeWindow(bool InbMaximizeWindow) { bMaximizeWindow = InbMaximizeWindow; }
 private:
 	static constexpr float MIN_WIDTH_RATIO = 0.2f;
 	static constexpr float MAX_WIDTH_RATIO = 0.6f;
@@ -93,6 +95,8 @@ private:
 	float mViewportWidth;
 	float mViewportHeight;
 	bool mbViewportHovered = false;
+
+	bool bMaximizeWindow = false;
 
 	UWorld* mCurrentWorld = nullptr;
 	AActor* mSelectedActor = nullptr;

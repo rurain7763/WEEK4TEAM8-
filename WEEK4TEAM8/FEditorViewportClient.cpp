@@ -77,6 +77,29 @@ AActor* FEditorViewportClient::PerformMousePicking(FCamera& InCamera, int32 Mous
 void FEditorViewportClient::Update(float deltaTime, FCamera& InCamera, float perspectiveRatio, FSceneManager* sceneManager)
 {
 	const FInputState& Input = WindowApplication.Input;
+
+	if (perspectiveRatio < 0.5f)
+	{
+		if (Input.IsDown(VK_RBUTTON))
+		{
+			float DeltaX = static_cast<float>(Input.MouseDX);
+			float DeltaY = static_cast<float>(Input.MouseDY);
+
+			float PanSpeed = InCamera.mOrthoDistance * 0.0015f;
+
+			InCamera.Transform.Location += -InCamera.GetRightVector() * (DeltaX * PanSpeed);
+			InCamera.Transform.Location += InCamera.GetUpVector() * (DeltaY * PanSpeed);
+		}
+
+		if (Input.MouseWheelDelta != 0)
+		{
+			float ZoomFactor = (Input.MouseWheelDelta > 0) ? 0.85f : 1.15f;
+			InCamera.mOrthoDistance = FMath::Clamp(InCamera.mOrthoDistance * ZoomFactor, 0.5f, 500.0f);
+		}
+
+		return;
+	}
+
 	bool bAllowMouse = sceneManager->IsViewportHovered();
 	bool bAllowKeyboardInput = bAllowMouse && !ImGui::GetIO().WantCaptureKeyboard;
 

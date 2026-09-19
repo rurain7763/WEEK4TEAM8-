@@ -10,6 +10,7 @@
 #include "RenderInfo.h"
 #include "Vector.h"
 #include "ShowFlags.h"
+#include "SSplitter.h"
 
 class FAssetManager;
 
@@ -81,6 +82,8 @@ public:
 
 	inline int32 GetGridGap() { return GridGap; }
 	void SetGridGap(int32 GridGap);
+
+	void SetCurrentViewportType(EViewportType InViewportType) { mCurrentViewportType = InViewportType; }
 private:
 	URenderer* mRenderer;
 	FMatrix mViewMatrix;
@@ -116,6 +119,8 @@ private:
 	TSharedPtr<FRenderPipeline> mMeshPipeline;
 
 	FRenderCollector mRenderCollector;
+
+	EViewportType mCurrentViewportType = EViewportType::Perspective;
 
 	int32 GridGap = 1;
 };

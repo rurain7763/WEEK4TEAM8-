@@ -130,8 +130,22 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 
 		mbViewportHovered = false;
-		if (ImGui::Begin("Viewport"))
+		if (ImGui::Begin("Viewport", nullptr, ImGuiWindowFlags_MenuBar))
 		{
+			if (ImGui::BeginMenuBar())
+			{
+				const float buttonWidth = 80.0f;
+				ImGui::SetCursorPosX(ImGui::GetWindowWidth() - buttonWidth - 10.0f);
+
+				const char* buttonLabel = bMaximizeWindow ? "[ 1-View ]" : "[ 4-View ]";
+
+				if (ImGui::Button(buttonLabel, ImVec2(buttonWidth, 0)))
+				{
+					bMaximizeWindow = !bMaximizeWindow;
+				}
+				ImGui::EndMenuBar();
+			}
+
 			ImDrawList* drawList = ImGui::GetWindowDrawList();
 			const ImVec2 size = ImGui::GetContentRegionAvail();
 
@@ -144,25 +158,27 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 				const ImVec2 imageMin = ImGui::GetItemRectMin();
 				const ImVec2 imageMax = ImGui::GetItemRectMax();
 
-				const float SplitX = imageMin.x + size.x * guiReference.SplitRatioX;
-				const float SplitY = imageMin.y + size.y * guiReference.SplitRatioY;
+				if (GetMaximizeWindow())
+				{
+					const float SplitX = imageMin.x + size.x * guiReference.SplitRatioX;
+					const float SplitY = imageMin.y + size.y * guiReference.SplitRatioY;
 
-				const float LineThickness = 2.0f;
+					const float LineThickness = 2.0f;
 
-				drawList->AddLine(
-					ImVec2(SplitX, imageMin.y),
-					ImVec2(SplitX, imageMax.y),
-					IM_COL32(45, 45, 48, 255),
-					LineThickness
-				);
+					drawList->AddLine(
+						ImVec2(SplitX, imageMin.y),
+						ImVec2(SplitX, imageMax.y),
+						IM_COL32(45, 45, 48, 255),
+						LineThickness
+					);
 
-				drawList->AddLine(
-					ImVec2(imageMin.x, SplitY),
-					ImVec2(imageMax.x, SplitY),
-					IM_COL32(45, 45, 48, 255),
-					LineThickness
-				);
-
+					drawList->AddLine(
+						ImVec2(imageMin.x, SplitY),
+						ImVec2(imageMax.x, SplitY),
+						IM_COL32(45, 45, 48, 255),
+						LineThickness
+					);
+				}
 				mViewportX = imageMin.x;
 				mViewportY = imageMin.y;
 				mViewportWidth = size.x;

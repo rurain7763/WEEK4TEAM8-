@@ -159,7 +159,23 @@ void FGraphicsManager::Render()
 	{
 		// Match the grid's world-space half-width of 0.001.
 		mRenderer->RenderWorldAxis(mViewMatrix, mProjectionMatrix, FVector4(0.f, 0.f, 1.f, 1.f), FVector3(0.f, 0.f, 1.f), 0.002f);
-		mRenderer->RenderWorldGrid(mViewUnifiedProjectionMatrix, mCameraLocation, GridGap);
+		mRenderer->RenderWorldAxis(mViewMatrix, mProjectionMatrix, FVector4(0.f, 1.f, 0.f, 1.f), FVector3(0.f, 1.f, 0.f), 0.002f);
+		mRenderer->RenderWorldAxis(mViewMatrix, mProjectionMatrix, FVector4(0.f, 0.f, 1.f, 1.f), FVector3(0.f, 0.f, 1.f), 0.002f);
+
+		if (mCurrentViewportType == EViewportType::Front)
+		{
+			FMatrix Rot = FMatrix::RotateY(90);
+			mRenderer->RenderWorldGrid(Rot * mViewUnifiedProjectionMatrix, Rot.TransformPosition(mCameraLocation), GridGap);
+		}
+		else if (mCurrentViewportType == EViewportType::Side)
+		{
+			FMatrix Rot = FMatrix::RotateX(90);
+			mRenderer->RenderWorldGrid(Rot * mViewUnifiedProjectionMatrix, Rot.TransformPosition(mCameraLocation), GridGap);
+		}
+		else
+		{
+			mRenderer->RenderWorldGrid(mViewUnifiedProjectionMatrix, mCameraLocation, GridGap);
+		}
 	}
 
 	for (const FRenderQuadInfo& QuadInfo : mRenderCollector.GetTransparentQuadInfos())

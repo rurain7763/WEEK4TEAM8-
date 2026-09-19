@@ -84,7 +84,6 @@ public:
     float SplitRatio = 0.5f;
     float MinRatio = 0.1f;
     float MaxRatio = 0.9f;
-    float SplitterBarThickness = 1.0f;
 
     virtual ~SSplitter() override
     {
@@ -126,4 +125,5 @@ public:
     bool bIsOrthographic;
 
     D3D11_VIEWPORT GetD3DViewport() const { return Rect.ToD3DViewport(); }
+    void SetupView(EViewportType InViewType, const FVector& FocusPoint = FVector(0.f, 0.f, 0.f), float Distance = 20.0f);
 };
