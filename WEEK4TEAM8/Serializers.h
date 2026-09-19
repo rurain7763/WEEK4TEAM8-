@@ -8,6 +8,7 @@
 #include "FAsset.h"
 #include "FObjImporter.h"
 
+// FVector Serializers (x, y, z)
 template <>
 struct FArchiveSerializer<FVector>
 {
@@ -19,6 +20,7 @@ struct FArchiveSerializer<FVector>
 	}
 };
 
+// FVector2 Serializers (x, y)
 template <>
 struct FArchiveSerializer<FVector2>
 {
@@ -29,6 +31,45 @@ struct FArchiveSerializer<FVector2>
 	}
 };
 
+template <>
+struct FArchiveSerializer<FVector4>
+{
+	static void Serialize(FArchive& Ar, FVector4& Value)
+	{
+		Ar << Value.x;
+		Ar << Value.y;
+		Ar << Value.z;
+		Ar << Value.w;
+		
+	}
+};
+
+template <>
+struct FArchiveSerializer<FStaticMeshBuildVertex>
+{
+	static void Serialize(FArchive& Ar, FStaticMeshBuildVertex& Value)
+	{
+		Ar << Value.Pos;
+		Ar << Value.Normal;
+		Ar << Value.Color;
+		Ar << Value.Tex;
+		
+	}
+};
+
+template <>
+struct FArchiveSerializer<FStaticMeshSection>
+{
+	static void Serialize(FArchive& Ar, FStaticMeshSection& Value)
+	{
+		Ar << Value.FirstIndex;
+		Ar << Value.IndexCount;
+		Ar << Value.MaterialName;
+		
+	}
+};
+
+// FString Serializers (length 만큼)
 template<>
 struct FArchiveSerializer<FString>
 {
@@ -50,6 +91,7 @@ struct FArchiveSerializer<FString>
 	}
 };
 
+// FName 전용 Serializers (FName <-> String)
 template <>
 struct FArchiveSerializer<FName>
 {
@@ -71,6 +113,7 @@ struct FArchiveSerializer<FName>
 	}
 };
 
+// FGuid 전용 Serializers (uint32, uint32, uint32, uint32)
 template <>
 struct FArchiveSerializer<FGuid>
 {
@@ -83,6 +126,7 @@ struct FArchiveSerializer<FGuid>
 	}
 };
 
+// FAssetFileHeader 전용 Serializers (ver, type, id)
 template <>
 struct FArchiveSerializer<FAssetFileHeader>
 {

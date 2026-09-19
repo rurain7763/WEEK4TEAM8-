@@ -7,8 +7,10 @@
 #include "ObjectFactory.h"
 #include "Renderer.h"
 #include "FileManager.h"
+#include "FTexture2DImporter.h"
 
 #include <filesystem>
+#include "FLogManager.h"
 
 URenderer* FObjManager::Renderer = nullptr;
 TMap<FString, UStaticMesh*> FObjManager::ObjStaticMeshMap;
@@ -76,8 +78,17 @@ UStaticMesh* FObjManager::LoadObjStaticMesh(const FString& FilePath)
 
         if (!Texture)
         {
+            std::optional<std::filesystem::path> NewTexturePath =
+                    FTexture2DImporter::GetorImport(TexturePath);
+            
+            if (!NewTexturePath)
+            {
+                UE_LOG_ERROR("Failed to import texture: %s", TexturePath.string().c_str());
+                continue;
+            }
+
             TSharedPtr<FFileAssetSource> TextureSource =
-				MakeShared<FFileAssetSource>(TexturePath);
+				MakeShared<FFileAssetSource>(*NewTexturePath);
 
             FAssetManager::Get().RegisterAsset(
                 FGuid::NewGuid(),

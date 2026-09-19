@@ -35,6 +35,7 @@
 #include "UStaticMeshComponent.h"
 #include "LaunchEngineLoop.h"
 #include "FAssetManager.h"
+#include "FLogManager.h"
 
 FSceneManager::FSceneManager()
 {
@@ -60,8 +61,43 @@ void FSceneManager::OnNewAssetFile(const FAssetFileHeader& Header, const std::fi
 
 	if (Header.AssetType == EAssetType::Texture2D)
 	{
-		// TODO: Texture2D AssetLoader와 AssetSource를 생성하고 등록
+	
+		TSharedPtr<FTexture2DAssetLoader> TextureLoader =  MakeShared<FTexture2DAssetLoader>(*mRenderer);
+
+		std::optional<std::filesystem::path> NewTexturePath = 
+		FTexture2DImporter::GetorImport(FilePath);
+		
+		if (!NewTexturePath)
+		{
+			UE_LOG_ERROR("Failed to import texture: %s", FilePath.string().c_str());
+			return;
+		}
+
+		TSharedPtr<FFileAssetSource> TextureSource =
+			MakeShared<FFileAssetSource>(*NewTexturePath);
+
+		// Texture2D AssetLoader와 AssetSource를 생성하고 등록
+		FAssetManager::Get().RegisterAsset(
+		FGuid::NewGuid(),
+		FName(FilePath.stem().string()),
+ 		TextureLoader,
+		TextureSource
+		);
 	}
+	else if (Header.AssetType == EAssetType::StaticMesh)
+	{
+	
+		TSharedPtr<FStaticMeshAssetLoader> MeshLoader = MakeShared<FStaticMeshAssetLoader>(*mRenderer);
+		TSharedPtr<FFileAssetSource> MeshSource = MakeShared<FFileAssetSource>(FilePath);
+
+		// StaticMesh AssetLoader와 AssetSource를 생성하고 등록
+		FAssetManager::Get().RegisterAsset(
+		FGuid::NewGuid(),
+		FName(FilePath.stem().string()),
+ 		MeshLoader,
+		MeshSource
+		);	 	
+	}	
 	else
 	{
 		UE_LOG_ERROR("Unsupported asset type");
@@ -87,6 +123,8 @@ void FSceneManager::Render(float deltaTime, FRenderCollector& outCollector)
 
 void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 {
+	mRenderer = guiReference.GraphicsManager->GetRenderer();
+
 	//ImGui
 	ImGui_ImplDX11_NewFrame();
 	ImGui_ImplWin32_NewFrame();
@@ -163,6 +201,8 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 					const TSharedPtr<FRenderTarget2D>& RenderTarget = EditorViewport->Viewport->RenderTarget;
 					DrawList->AddImage((ImTextureID)(intptr_t)RenderTarget->SRV.Get(), ImVec2(DrawRect.X, DrawRect.Y), ImVec2(DrawRect.X + DrawRect.Width, DrawRect.Y + DrawRect.Height));
+					ImGui::Dummy(ImVec2(DrawRect.Width, DrawRect.Height));
+
 				}
 			}
 
