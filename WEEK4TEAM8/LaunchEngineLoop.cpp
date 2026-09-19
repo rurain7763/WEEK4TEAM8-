@@ -96,7 +96,7 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 	char Value[64] = {};
 	GetPrivateProfileStringA("Grid", "Gap", "", Value, sizeof(Value), ".\\editor.ini");
 	int32 GridGap = 1;
-	sscanf_s(Value, "%d", &	GridGap);
+	sscanf_s(Value, "%d", &GridGap);
 	mGraphicsManager->SetGridGap(GridGap);
 
 	mSceneManager->NewScene();
@@ -111,13 +111,62 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 		//}
 
 		AActor* ObjActor = FObjectFactory::ConstructObject<AActor>();
-		UStaticMeshComponent* ObjComponent = 
+		UStaticMeshComponent* ObjComponent =
 			FObjectFactory::ConstructObject<UStaticMeshComponent>(FString("Assets/Meshes/TestTriangle.obj"),
-			FVector(0, 0, 0), FRotator(0, 0, 0), FVector(1, 1, 1));
+				FVector(0, 0, 0), FRotator(0, 0, 0), FVector(1, 1, 1));
 
 
 		ObjActor->AddComponent(ObjComponent);
 		mSceneManager->GetCurrentWorld()->AddActor(ObjActor);
+	}
+
+	{
+		mRootSplitter = new SSplitterV();
+		mTopSplitter = new SSplitterH();
+		mBottomSplitter = new SSplitterH();
+
+		SViewportWindow* TopView = new SViewportWindow();
+		TopView->ViewType = EViewportType::Top;
+		TopView->bIsOrthographic = true;
+		TopView->Camera.Transform.Location = FVector(0.f, 0.f, 20.f);
+		TopView->Camera.LookAt(FVector(0.f, 0.f, 0.f));
+		TopView->Camera.mOrthoDistance = 10.0f;
+
+		SViewportWindow* PerspView = new SViewportWindow();
+		PerspView->ViewType = EViewportType::Perspective;
+		PerspView->bIsOrthographic = false;
+		PerspView->Camera.Transform.Location = FVector(-5.f, 5.f, 5.f);
+		PerspView->Camera.LookAt(FVector(0.f, 0.f, 0.f));
+
+		SViewportWindow* FrontView = new SViewportWindow();
+		FrontView->ViewType = EViewportType::Front;
+		FrontView->bIsOrthographic = true;
+		FrontView->Camera.Transform.Location = FVector(-20.f, 0.f, 0.f);
+		FrontView->Camera.LookAt(FVector(0.f, 0.f, 0.f));
+		FrontView->Camera.mOrthoDistance = 10.0f;
+
+		SViewportWindow* SideView = new SViewportWindow();
+		SideView->ViewType = EViewportType::Side;
+		SideView->bIsOrthographic = true;
+		SideView->Camera.Transform.Location = FVector(0.f, -20.f, 0.f);
+		SideView->Camera.LookAt(FVector(0.f, 0.f, 0.f));
+		SideView->Camera.mOrthoDistance = 10.0f;
+
+		mRootSplitter->SideLT = mTopSplitter;
+		mRootSplitter->SideRB = mBottomSplitter;
+
+		mTopSplitter->SideLT = TopView;
+		mTopSplitter->SideRB = PerspView;
+
+		mBottomSplitter->SideLT = FrontView;
+		mBottomSplitter->SideRB = SideView;
+
+		mViewportWindows.Add(TopView);
+		mViewportWindows.Add(PerspView);
+		mViewportWindows.Add(FrontView);
+		mViewportWindows.Add(SideView);
+
+		mActiveViewportWindow = PerspView;
 	}
 }
 
@@ -132,7 +181,7 @@ void FEngineLoop::InitAssetManager()
 	FObjManager::LoadObjStaticMesh("Assets/Meshes/TestCube.obj");
 	FObjManager::LoadObjStaticMesh("Assets/Meshes/TestTriangle.obj");
 	FObjManager::LoadObjStaticMesh("Assets/Meshes/TestHexagonalPrism.obj");
-	
+
 	// Register built-in asset types
 	TSharedPtr<FStaticMeshAsset> cubeAsset = MakeShared<FStaticMeshAsset>(BuiltInAssetID::CubeMesh, FName("CubeMesh"), *renderer, Cube_vertices, sizeof(Cube_vertices) / sizeof(FVertexSimple), Cube_indices, sizeof(Cube_indices) / sizeof(uint32));
 	mAssetManager->RegisterAsset(cubeAsset);
@@ -170,7 +219,7 @@ void FEngineLoop::InitAssetManager()
 
 	TSharedPtr<FFileAssetSource> FontAssetSource = MakeShared<FFileAssetSource>("Assets/Fonts/BMKkubulimTTF.ttf");
 	mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("TestFont"), FontLoader, FontAssetSource);
-	
+
 	TSharedPtr<FFontAsset> TestFontAsset = mAssetManager->GetAssetAs<FFontAsset>(FName("TestFont"), true);
 	TSharedPtr<FFontAtlasAsset> FontAtlasAsset = MakeShared<FFontAtlasAsset>(FGuid::NewGuid(), FName("TestFontAtlas"), *renderer, TestFontAsset, 512, 512, 2, 2);
 	mAssetManager->RegisterAsset(FontAtlasAsset);
@@ -193,7 +242,14 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		WindowApplication.ProcessDeferredEvents();
 
 		mGraphicsManager->UpdateProjectionTransition(deltaTime);
-		ViewportClient->Update(deltaTime, mSceneManager, mGraphicsManager->GetPerspectiveRatio(), RenderCollector);
+
+		if (mActiveViewportWindow)
+		{
+			float ActiveRatio = mActiveViewportWindow->bIsOrthographic ? 0.0f : 1.0f;
+			ViewportClient->Update(deltaTime, mActiveViewportWindow->Camera, ActiveRatio, mSceneManager);
+		}
+
+		//ViewportClient->Update(deltaTime, mSceneManager, mGraphicsManager->GetPerspectiveRatio(), RenderCollector);
 	}
 
 	//Physics Threads
@@ -209,66 +265,126 @@ void FEngineLoop::Tick(bool bPumpMessages)
 
 	//mouse picking
 	{
+		const float TotalW = mSceneManager->GetViewportWidth();
+		const float TotalH = mSceneManager->GetViewportHeight();
+
+		// 십자선의 현재 픽셀 위치
+		const float SplitX = TotalW * mTopSplitter->SplitRatio;
+		const float SplitY = TotalH * mRootSplitter->SplitRatio;
+
+		const float HitThickness = 6.0f;
+
 		const FInputState& Input = WindowApplication.Input;
 
-		// 뷰포트가 ImGui 창이 되면서 그 위에서는 io.WantCaptureMouse 가 항상 true 다.
-		// 그대로 두면 씬을 클릭해도 선택이 되지 않는다. 카메라/기즈모와 같은 기준을 쓴다.
-		AActor* HitActor = ViewportClient->PerformMousePicking(mGraphicsManager->GetPerspectiveRatio(), RenderCollector, *mSceneManager);
-		if (mSceneManager->IsViewportHovered() && Input.WasPressed(VK_LBUTTON) && !ViewportClient->mGizmo.IsDragging() && !ViewportClient->mGizmo.IsMouseOverHandle())
+		FVector2 LocalMouse(
+			static_cast<float>(Input.CursorX) - mSceneManager->GetViewportX(),
+			static_cast<float>(Input.CursorY) - mSceneManager->GetViewportY()
+		);
+
+		if (!bIsDraggingSplitter)
 		{
-			if (HitActor)
+			bool bNearV = FMath::Abs(LocalMouse.X - SplitX) <= HitThickness;
+			bool bNearH = FMath::Abs(LocalMouse.Y - SplitY) <= HitThickness;
+
+			if (bNearV && bNearH)
+				SplitterDragState = ESplitterDragState::Cross;
+			else if (bNearV)
+				SplitterDragState = ESplitterDragState::Vertical;
+			else if (bNearH)
+				SplitterDragState = ESplitterDragState::Horizontal;
+			else
+				SplitterDragState = ESplitterDragState::None;
+		}
+
+		if (mSceneManager->IsViewportHovered() && mRootSplitter)
+		{
+			SWindow* Node = mRootSplitter->FindHoveredWindow(LocalMouse);
+			HoveredVW = dynamic_cast<SViewportWindow*>(Node);
+			if (HoveredVW && (Input.WasPressed(VK_LBUTTON) || Input.WasPressed(VK_RBUTTON)))
 			{
-				mSceneManager->SetSelectedActor(HitActor);
+				mActiveViewportWindow = HoveredVW;
+			}
+		}
+
+		if (SplitterDragState != ESplitterDragState::None && Input.WasPressed(VK_LBUTTON))
+		{
+			bIsDraggingSplitter = true;
+		}
+
+		if (bIsDraggingSplitter)
+		{
+			if (Input.IsDown(VK_LBUTTON))
+			{
+				constexpr float MinRatio = 0.1f;
+				constexpr float MaxRatio = 0.9f;
+
+				if (SplitterDragState == ESplitterDragState::Vertical || SplitterDragState == ESplitterDragState::Cross)
+				{
+					float NewRatioX = FMath::Clamp(LocalMouse.X / TotalW, MinRatio, MaxRatio);
+					mTopSplitter->SplitRatio = NewRatioX;
+					mBottomSplitter->SplitRatio = NewRatioX;
+				}
+
+				if (SplitterDragState == ESplitterDragState::Horizontal || SplitterDragState == ESplitterDragState::Cross)
+				{
+					float NewRatioY = FMath::Clamp(LocalMouse.Y / TotalH, MinRatio, MaxRatio);
+					mRootSplitter->SplitRatio = NewRatioY;
+				}
 			}
 			else
 			{
-				mSceneManager->ResetSelectedActor();
+				bIsDraggingSplitter = false;
+				SplitterDragState = ESplitterDragState::None;
 			}
 		}
 
-		AActor* SelectedActor = mSceneManager->GetSelectedActor();
-		if (SelectedActor)
+		const bool bInteractingWithSplitter = (SplitterDragState != ESplitterDragState::None) || bIsDraggingSplitter;
+
+		if (!bInteractingWithSplitter)
 		{
-			FTransform Transform = SelectedActor->GetTransform();
+			SViewportWindow* GizmoTargetVW = ViewportClient->mGizmo.IsDragging() ? mActiveViewportWindow : HoveredVW;
 
-			for (UActorComponent* Component : SelectedActor->GetComponents())
+			if (GizmoTargetVW)
 			{
-				UPrimitiveComponent* PrimitiveComponent = Component->Cast<UPrimitiveComponent>();
-				if (PrimitiveComponent)
+				float Ratio = GizmoTargetVW->bIsOrthographic ? 0.0f : 1.0f;
+				FMatrix GizmoVP = GizmoTargetVW->Camera.GetViewMatrix() *
+					GizmoTargetVW->Camera.GetUnifiedProjectionMatrix(
+						GizmoTargetVW->Rect.Width / GizmoTargetVW->Rect.Height,
+						GizmoTargetVW->Camera.mFovDegree,
+						GizmoTargetVW->Camera.mOrthoDistance, 0.1f, 1000.f, Ratio);
+
+				ViewportClient->mGizmo.Update(mSceneManager, GizmoVP, GizmoTargetVW->Rect);
+
+				if (ViewportClient->mGizmo.IsDragging() && HoveredVW)
 				{
-					// 선택된 액터의 AABB를 화면에 표시
-					FMatrix WorldMatrix = Transform.MakeMatrix();
-
-					TSharedPtr<FStaticMeshAsset> MeshAsset = PrimitiveComponent->GetMesh();
-					if (!MeshAsset.get()) continue;
-
-					const FAABB& AABB = MeshAsset->GetLocalBoundingBox().ToWorld(WorldMatrix);
-
-					AABB.ForEachCornerLines([&RenderCollector](const FVector& Start, const FVector& End)
-					{
-						FVector4 WorldStart = FVector4(Start, 1.f);
-						FVector4 WorldEnd = FVector4(End, 1.f);
-
-						FRenderLineInfo LineInfo;
-						LineInfo.Start = WorldStart.ToVec3();
-						LineInfo.End = WorldEnd.ToVec3();
-						LineInfo.Color = FVector4(1.f, 0.f, 0.f, 1.f); // 빨간색
-						LineInfo.Thickness = 5.0f;
-
-						RenderCollector.LineInfos.Add(LineInfo);
-					});
+					mActiveViewportWindow = HoveredVW;
 				}
+			}
 
-				// 선택된 액터의 컴포넌트 시각화
-				FComponentVisualizer* Visualizer = mComponentVisualizerManager->FindVisualizer(Component->GetRuntimeClass());
-				if (Visualizer)
+			if (HoveredVW && !ViewportClient->mGizmo.IsDragging() && !ViewportClient->mGizmo.IsMouseOverHandle())
+			{
+				int32 SubMouseX = static_cast<int32>(LocalMouse.X - HoveredVW->Rect.X);
+				int32 SubMouseY = static_cast<int32>(LocalMouse.Y - HoveredVW->Rect.Y);
+				float Ratio = HoveredVW->bIsOrthographic ? 0.0f : 1.0f;
+
+				AActor* HitActor = ViewportClient->PerformMousePicking(
+					HoveredVW->Camera,
+					SubMouseX, SubMouseY,
+					HoveredVW->Rect.Width, HoveredVW->Rect.Height,
+					Ratio,
+					RenderCollector
+				);
+
+				if (Input.WasPressed(VK_LBUTTON))
 				{
-					Visualizer->VisualizeComponent(Component, RenderCollector);
+					if (HitActor) mSceneManager->SetSelectedActor(HitActor);
+					else mSceneManager->ResetSelectedActor();
 				}
 			}
 		}
-
-		ViewportClient->mGizmo.Update(mSceneManager, mGraphicsManager->GetViewProjectionMatrix());
+		// 4. 기즈모 업데이트는 현재 '활성화된 뷰포트'의 카메라 행렬 전달
+		// 뷰포트가 ImGui 창이 되면서 그 위에서는 io.WantCaptureMouse 가 항상 true 다.
+		// 그대로 두면 씬을 클릭해도 선택이 되지 않는다. 카메라/기즈모와 같은 기준을 쓴다.
 	}
 
 	//Render Threads
@@ -280,24 +396,76 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		}
 
 		mGraphicsManager->Update(deltaTime);
-		mGraphicsManager->Prepare(&ViewportClient->mCamera, mSceneManager->GetViewportWidth(), mSceneManager->GetViewportHeight());
-		mGraphicsManager->FlushLines();
-		mGraphicsManager->Render();
-		
-		//강조
-		if (mSceneManager->GetSelectedActor())
+
+		const float TotalW = mSceneManager->GetViewportWidth();
+		const float TotalH = mSceneManager->GetViewportHeight();
+
+		const float SplitX = TotalW * mTopSplitter->SplitRatio;
+		const float SplitY = TotalH * mRootSplitter->SplitRatio;
+
+		if (TotalW > 0.0f && TotalH > 0.0f)
 		{
-			FRenderInfo clickedRenderInfo;
-			mSceneManager->GetSelectedActor()->GetFirstRenderInfo(clickedRenderInfo);
-			mGraphicsManager->RenderHighLight(clickedRenderInfo);
+			mGraphicsManager->ResizeSceneRenderTarget(static_cast<UINT>(TotalW), static_cast<UINT>(TotalH));
+
+			if (mRootSplitter)
+			{
+				mRootSplitter->UpdateLayout(FRect(0.0f, 0.0f, TotalW, TotalH));
+			}
 		}
 
-		ViewportClient->mGizmo.Render(mSceneManager, ViewportClient->mCamera.Transform.Location, mGraphicsManager->GetViewProjectionMatrix());
+		SViewportWindow* GizmoTargetVW = ViewportClient->mGizmo.IsDragging() ? mActiveViewportWindow : HoveredVW;
+		if (!GizmoTargetVW)
+		{
+			GizmoTargetVW = mActiveViewportWindow;
+
+		}
+		for (int i = 0; i < mViewportWindows.Num(); ++i)
+		{
+			SViewportWindow* VW = mViewportWindows[i];
+			if (VW == nullptr)
+				continue;
+			if (VW->Rect.Width <= 0.0f || VW->Rect.Height <= 0.0f) continue;
+
+			bool bClear = (i == 0);
+			float Ratio = VW->bIsOrthographic ? 0.0f : 1.0f;
+
+			mGraphicsManager->Prepare(&VW->Camera, VW->Rect.Width, VW->Rect.Height, Ratio, bClear);
+
+			D3D11_VIEWPORT D3DViewport = VW->GetD3DViewport();
+			mGraphicsManager->GetRenderer()->GetDeviceContext()->RSSetViewports(1, &D3DViewport);
+
+			mGraphicsManager->Render();
+
+			if (mSceneManager->GetSelectedActor())
+			{
+				FRenderInfo clickedRenderInfo;
+				mSceneManager->GetSelectedActor()->GetFirstRenderInfo(clickedRenderInfo);
+				mGraphicsManager->RenderHighLight(clickedRenderInfo);
+			}
+
+			bool bRecord = (VW == GizmoTargetVW);
+			ViewportClient->mGizmo.Render(mSceneManager, VW->Camera.Transform.Location, mGraphicsManager->GetViewProjectionMatrix(), bRecord);
+		}
+
+		mGraphicsManager->GetRenderCollector().Clear();
 
 		//ImGui
 		{
 			//ImGui Input
-			mSceneManager->UpdateGUI({ *FrameTimer, mGraphicsManager, ViewportClient, mFileManager, mAssetManager });
+			mSceneManager->UpdateGUI({ *FrameTimer, mGraphicsManager, ViewportClient, mFileManager, mAssetManager, mTopSplitter ? mTopSplitter->SplitRatio : 0.5f, mRootSplitter ? mRootSplitter->SplitRatio : 0.5f, SplitterDragState });
+
+			if (SplitterDragState == ESplitterDragState::Cross)
+			{
+				ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+			}
+			else if (SplitterDragState == ESplitterDragState::Vertical)
+			{
+				ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+			}
+			else if (SplitterDragState == ESplitterDragState::Horizontal)
+			{
+				ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+			}
 
 			mGraphicsManager->GetRenderer()->BindFrameBuffer();
 

@@ -52,7 +52,7 @@ void FGraphicsManager::Prepare(const FCamera* mCamera, float viewportWidth, floa
 	const float farZ = 2000.0f;
 
 	float d = mCamera->mOrthoDistance;
-	
+
 	mAspect = viewportWidth / viewportHeight;
 
 	FMatrix view = mCamera->GetViewMatrix();
@@ -89,6 +89,25 @@ void FGraphicsManager::Prepare(const FCamera* mCamera, float viewportWidth, floa
 	//mRenderer->UpdateConstantViewProjection(viewProjection);
 
 	mRenderer->BindRenderTarget(mSceneRenderTarget, mSceneDepthStencil);
+}
+
+void FGraphicsManager::Prepare(FCamera* InCamera, float viewportWidth, float viewportHeight, float InRatio, bool bClear)
+{
+	//mRenderer->BindRenderTarget(mSceneRenderTarget, mSceneDepthStencil, bClear);
+
+	float Aspect = viewportWidth / viewportHeight;
+	FMatrix Proj = InCamera->GetUnifiedProjectionMatrix(Aspect, InCamera->mFovDegree, InCamera->mOrthoDistance, 0.1f, 1000.f, InRatio);
+	FMatrix View = InCamera->GetViewMatrix();
+
+	mViewMatrix = View;
+	mProjectionMatrix = Proj;
+	mViewUnifiedProjectionMatrix = View * Proj;
+	mViewProjectionMatrix = View * Proj;
+	mCameraLocation = InCamera->Transform.Location;
+
+	mRenderer->Prepare(mViewUnifiedProjectionMatrix);
+
+	mRenderer->BindRenderTarget(mSceneRenderTarget, mSceneDepthStencil, bClear);
 }
 
 void FGraphicsManager::GizmoPrepare()
@@ -153,7 +172,7 @@ void FGraphicsManager::Render()
 		mRenderer->RenderQuad(QuadInfo);
 	}
 
-	mRenderCollector.Clear();
+	//mRenderCollector.Clear();
 }
 
 void FGraphicsManager::DrawLine(const FVector& start, const FVector& end, const FVector4& color)
@@ -234,7 +253,7 @@ void FGraphicsManager::OnResize(UINT width, UINT height)
 	{
 		mSceneRenderTarget = mRenderer->CreateRenderTarget2D(width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
 	}
-	
+
 	if (mSceneDepthStencil)
 	{
 		mSceneDepthStencil = mRenderer->CreateDepthStencil(width, height);
@@ -388,4 +407,17 @@ void FGraphicsManager::SetGridGap(int32 GridGap)
 	else
 		GridGap = 1;
 	this->GridGap = GridGap;
+}
+
+void FGraphicsManager::ResizeSceneRenderTarget(UINT InWidth, UINT InHeight)
+{
+	if (InWidth == 0 || InHeight == 0) return;
+
+	if (mSceneRenderTarget && mSceneRenderTarget->Width == InWidth && mSceneRenderTarget->Height == InHeight)
+	{
+		return;
+	}
+
+	mSceneRenderTarget = mRenderer->CreateRenderTarget2D(InWidth, InHeight, DXGI_FORMAT_R8G8B8A8_UNORM);
+	mSceneDepthStencil = mRenderer->CreateDepthStencil(InWidth, InHeight);
 }

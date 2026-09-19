@@ -50,7 +50,7 @@ bool FGizmo::IsMouseOverHandle() const
 	return bIsHoveredAxis; 
 }
 
-void FGizmo::Update(FSceneManager* SceneManager, const FMatrix& ViewProjection)
+void FGizmo::Update(FSceneManager* SceneManager, const FMatrix& ViewProjection, const FRect& SubViewportRect)
 {
     AActor* TargetActor = SceneManager->GetSelectedActor();
 
@@ -68,10 +68,15 @@ void FGizmo::Update(FSceneManager* SceneManager, const FMatrix& ViewProjection)
 
     const FInputState& Input = WindowApplication.Input;
 
+    const float MinX = SceneManager->GetViewportX() + SubViewportRect.X;
+    const float MinY = SceneManager->GetViewportY() + SubViewportRect.Y;
+    const float MaxX = MinX + SubViewportRect.Width;
+    const float MaxY = MinY + SubViewportRect.Height;
+
     FVector2 MousePosInScreen = Map(
         FVector2(Input.CursorX, Input.CursorY),
-        FVector2(SceneManager->GetViewportX(), SceneManager->GetViewportY()),
-        FVector2(SceneManager->GetViewportX() + SceneManager->GetViewportWidth(), SceneManager->GetViewportY() + SceneManager->GetViewportHeight()),
+        FVector2(MinX, MinY),
+        FVector2(MaxX, MaxY),
         FVector2(0.f, 0.f),
         FVector2(Renderer.GetWidth(), Renderer.GetHeight())
     );
@@ -186,11 +191,12 @@ void FGizmo::Update(FSceneManager* SceneManager, const FMatrix& ViewProjection)
     PrevMousePos = MousePosInScreen;
 }
 
-void FGizmo::Render(FSceneManager* SceneManager, const FVector& CameraPosition, const FMatrix& ViewProjection)
+void FGizmo::Render(FSceneManager* SceneManager, const FVector& CameraPosition, const FMatrix& ViewProjection, bool bRecordSegments)
 {
     AActor* TargetActor = SceneManager->GetSelectedActor();
 
-    HandleScreenSegments.Empty();
+    if (bRecordSegments)
+        HandleScreenSegments.Empty();
 
     if (!TargetActor) 
 	{ 
@@ -239,7 +245,10 @@ void FGizmo::Render(FSceneManager* SceneManager, const FVector& CameraPosition, 
 			return;
 		}
 
-        HandleScreenSegments.Add({ Center, End, ApplyAxis, Axis });
+        if (bRecordSegments)
+        {
+            HandleScreenSegments.Add({ Center, End, ApplyAxis, Axis });
+        }
         
 		const FVector4 Highlight = AxisColor(Axis, Color);
         Renderer.RenderLine2D(Center, End, Highlight, 5.f);
@@ -279,7 +288,10 @@ void FGizmo::Render(FSceneManager* SceneManager, const FVector& CameraPosition, 
 				continue;
 			}
 
-            HandleScreenSegments.Add({ Start, End, FVector::cross(U,V), Axis });
+            if (bRecordSegments)
+            {
+                HandleScreenSegments.Add({ Start, End, FVector::cross(U,V), Axis });
+            }
             Renderer.RenderLine2D(Start, End, AxisColor(Axis, Color), 2.f);
         }
     };

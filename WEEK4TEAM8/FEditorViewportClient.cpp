@@ -32,82 +32,87 @@ FEditorViewportClient::FEditorViewportClient(URenderer& InRenderer)
 	}
 }
 
-AActor* FEditorViewportClient::PerformMousePicking(float perspectiveRatio, const FRenderCollector& RenderCollector, FSceneManager &SceneManager)
+AActor* FEditorViewportClient::PerformMousePicking(FCamera& InCamera, int32 MouseX, int32 MouseY, float ScreenW, float ScreenH, float perspectiveRatio, const FRenderCollector& RenderCollector)
 {
 	bMouseHit = false;
+	if (ScreenW <= 0.f || ScreenH <= 0.f) return nullptr;
 
-	// 씬은 ImGui "Viewport" 창의 이미지 위에 그려진다.
-	// 그래서 역투영에 넣을 좌표계 기준은 윈도우 전체가 아니라 그 이미지다.
-	// 커서를 이미지 좌상단 기준으로 옮기고, 화면 크기도 이미지 크기를 쓴다.
-	const float ViewportWidth = SceneManager.GetViewportWidth();
-	const float ViewportHeight = SceneManager.GetViewportHeight();
-	if (ViewportWidth <= 0.f || ViewportHeight <= 0.f)
-	{
-		return nullptr;
-	}
+	const float ndcX = (2.0f * (MouseX + 0.5f) / ScreenW) - 1.0f;
+	const float ndcY = 1.0f - (2.0f * (MouseY + 0.5f) / ScreenH);
 
-	const int32 MouseXInViewport = WindowApplication.Input.CursorX - static_cast<int32>(SceneManager.GetViewportX());
-	const int32 MouseYInViewport = WindowApplication.Input.CursorY - static_cast<int32>(SceneManager.GetViewportY());
+	const FMatrix invProjection = InCamera.GetInverseUnifiedProjectionMatrix( ScreenW / ScreenH, InCamera.mFovDegree, InCamera.mOrthoDistance, 0.1f, 100.f, perspectiveRatio);
+	const FMatrix invViewProj = invProjection * InCamera.GetViewMatrix().AffineInverse();
 
-	// 투영 방식에 따라 광선을 만드는 법만 다르다. 두 점을 구하고 나면 이후 판정은 완전히 같다
-	FVector NearPoint, FarPoint;
-	DeprojectScreenToWorldForUnified(MouseXInViewport, MouseYInViewport,
-		ViewportWidth, ViewportHeight, 0.1f, 100.f, mCamera.mOrthoDistance, perspectiveRatio, NearPoint, FarPoint);
+	const auto Unproject = [&](float ndcZ) -> FVector
+		{
+			const FVector xyz = invViewProj.TransformPosition(FVector(ndcX, ndcY, ndcZ));
+			const float w = ndcX * invViewProj.M[0][3] + ndcY * invViewProj.M[1][3] + ndcZ * invViewProj.M[2][3] + invViewProj.M[3][3];
+			return xyz * (1.0f / w);
+		};
 
-	mRayNear = NearPoint;
-	mRayFar = FarPoint;
+	mRayNear = Unproject(0.0f);
+	mRayFar = Unproject(1.0f);
 
-	float NearlistT = FLT_MAX;
+	float NearestT = FLT_MAX;
 	AActor* NearestActor = nullptr;
-	const FPickingRay PickingRay(NearPoint, FarPoint);
+	const FPickingRay PickingRay(mRayNear, mRayFar);
 
-	// 충돌 판정은 컴포넌트가 스스로 한다. 여기서는 어느 것이 가장 가까운지만 고른다.
 	for (UPrimitiveComponent* PickTarget : RenderCollector.PickTargets)
 	{
 		float HitT = FLT_MAX;
-		if (!PickTarget->RayCastComponent(PickingRay, HitT))
-		{
-			continue;
-		}
+		if (!PickTarget->RayCastComponent(PickingRay, HitT)) continue;
 
-		if (HitT < NearlistT)
+		if (HitT < NearestT)
 		{
-			NearlistT = HitT;
+			NearestT = HitT;
 			bMouseHit = true;
-			NearestActor = PickTarget->GetOwner();  // 가장 가까운 액터를 반환
+			NearestActor = PickTarget->GetOwner();
 		}
 	}
 
 	return NearestActor;
 }
 
-void FEditorViewportClient::Update(float deltaTime, FSceneManager* sceneManager, float perspectiveRatio, FRenderCollector& RenderCollector)
+
+void FEditorViewportClient::Update(float deltaTime, FCamera& InCamera, float perspectiveRatio, FSceneManager* sceneManager)
 {
 	const FInputState& Input = WindowApplication.Input;
 	bool bAllowMouse = sceneManager->IsViewportHovered();
 	bool bAllowKeyboardInput = bAllowMouse && !ImGui::GetIO().WantCaptureKeyboard;
 
-	// Camera Rotate
-	// 회전을 이동보다 먼저, 이번 프레임에 돌린 방향으로 바로 움직이게
-	if (bAllowMouse && Input.IsDown(VK_RBUTTON))
+	const bool bIsOrtho = (perspectiveRatio < 1.0f);
+
+	if (bAllowMouse && Input.IsDown(VK_RBUTTON) && !bIsOrtho)
 	{
-		mCamera.Rotate(Input.MouseDX, Input.MouseDY);
+		InCamera.Rotate(Input.MouseDX, Input.MouseDY);
 	}
 
-	// Camera Velocity
 	FVector MoveDir(0.f, 0.f, 0.f);
 	if (bAllowKeyboardInput)
 	{
-		const FMatrix R = FMatrix::Rotate(mCamera.Transform.Rotation);
-		const FVector Forward = R.GetUnitAxis(EAxis::X);
-		const FVector Right = R.GetUnitAxis(EAxis::Y);
+		if (!bIsOrtho)
+		{
+			const FMatrix R = FMatrix::Rotate(InCamera.Transform.Rotation);
+			const FVector Forward = R.GetUnitAxis(EAxis::X);
+			const FVector Right = R.GetUnitAxis(EAxis::Y);
 
-		if (Input.IsDown('W')) MoveDir += Forward;
-		if (Input.IsDown('S')) MoveDir -= Forward;
-		if (Input.IsDown('D')) MoveDir += Right;
-		if (Input.IsDown('A')) MoveDir -= Right;
-		if (Input.IsDown('E')) MoveDir += FVector(0.f, 0.f, 1.f);
-		if (Input.IsDown('Q')) MoveDir -= FVector(0.f, 0.f, 1.f);
+			if (Input.IsDown('W')) MoveDir += Forward;
+			if (Input.IsDown('S')) MoveDir -= Forward;
+			if (Input.IsDown('D')) MoveDir += Right;
+			if (Input.IsDown('A')) MoveDir -= Right;
+			if (Input.IsDown('E')) MoveDir += FVector(0.f, 0.f, 1.f);
+			if (Input.IsDown('Q')) MoveDir -= FVector(0.f, 0.f, 1.f);
+		}
+		else
+		{
+			const FVector Up = InCamera.GetUpVector();
+			const FVector Right = InCamera.GetRightVector();
+
+			if (Input.IsDown('W')) MoveDir += Up;
+			if (Input.IsDown('S')) MoveDir -= Up;
+			if (Input.IsDown('D')) MoveDir += Right;
+			if (Input.IsDown('A')) MoveDir -= Right;
+		}
 	}
 
 	const bool bMoveKeyDown = !MoveDir.IsNearlyZero();
@@ -116,41 +121,36 @@ void FEditorViewportClient::Update(float deltaTime, FSceneManager* sceneManager,
 		MoveDir.Normalize();
 	}
 
-	//Camera Translate
 	if (bAllowMouse && Input.MouseWheelDelta != 0.0f)
 	{
-		//키 입력이 없으면 마우스 휠은 줌인/줌아웃
 		if (!bMoveKeyDown)
 		{
-			if (perspectiveRatio < 1.0f)
+			if (bIsOrtho)
 			{
-				mCamera.mOrthoDistance *= FMath::Pow(1.2f, -Input.MouseWheelDelta);
-				mCamera.mOrthoDistance = FMath::Clamp(mCamera.mOrthoDistance, 0.1f, 100.0f);
+				InCamera.mOrthoDistance *= FMath::Pow(1.2f, -Input.MouseWheelDelta);
+				InCamera.mOrthoDistance = FMath::Clamp(InCamera.mOrthoDistance, 0.1f, 100.0f);
 			}
 			else
 			{
-				mCamera.Transform.Location += mCamera.GetForwardVector() * 1.0f * Input.MouseWheelDelta;
+				InCamera.Transform.Location += InCamera.GetForwardVector() * 1.5f * Input.MouseWheelDelta;
 			}
 		}
-		//입력이 있으면 마우스 휠은 카메라 이동속도 조절
 		else
 		{
-			mCamera.Speed *= FMath::Pow(1.2f, Input.MouseWheelDelta);
-			mCamera.Speed = FMath::Clamp(mCamera.Speed, 0.1f, 100.0f);
+			InCamera.Speed *= FMath::Pow(1.2f, Input.MouseWheelDelta);
+			InCamera.Speed = FMath::Clamp(InCamera.Speed, 0.1f, 100.0f);
 		}
 	}
 
-	const FVector TargetVelocity = MoveDir * mCamera.Speed;
-
-	// 지수 감쇠만큼 카메라 속도가 서서히 줄어듬
-	const float Alpha = FMath::Exp(-mCamera.Damping * deltaTime);
-	mCamera.Velocity = TargetVelocity + (mCamera.Velocity - TargetVelocity) * Alpha;
-	if (mCamera.Velocity.IsNearlyZero())
+	const FVector TargetVelocity = MoveDir * InCamera.Speed;
+	const float Alpha = FMath::Exp(-InCamera.Damping * deltaTime);
+	InCamera.Velocity = TargetVelocity + (InCamera.Velocity - TargetVelocity) * Alpha;
+	if (InCamera.Velocity.IsNearlyZero())
 	{
-		mCamera.Velocity = FVector(0.f);
+		InCamera.Velocity = FVector(0.f);
 	}
 
-	mCamera.Transform.Location += mCamera.Velocity * deltaTime;
+	InCamera.Transform.Location += InCamera.Velocity * deltaTime;
 
 	if (bAllowKeyboardInput)
 	{

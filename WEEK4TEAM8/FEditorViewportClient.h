@@ -19,9 +19,9 @@ public:
 	// 이번 프레임에 수집된 픽킹 대상(RenderCollector.PickTargets)만 훑는다.
 	// 월드의 액터 계층을 다시 내려가지 않는다.
 	// 광선은 ImGui 뷰포트 이미지 기준으로 만든다. 렌더러의 D3D11_VIEWPORT(백버퍼 전체)가 아니다.
-	AActor* PerformMousePicking(float perspectiveRatio, const FRenderCollector& RenderCollector, FSceneManager& SceneManager);
+	AActor* PerformMousePicking(FCamera& InCamera, int32 MouseX, int32 MouseY, float ScreenW, float ScreenH, float perspectiveRatio, const FRenderCollector& RenderCollector);
+	void Update(float deltaTime, FCamera& InCamera, float perspectiveRatio, FSceneManager* sceneManager);
 	float GetFov() const { return mCamera.mFovDegree; }
-	void Update(float deltaTime, FSceneManager* sceneManager, float perspectiveRatio, FRenderCollector& RenderCollector);
 	bool IsMouseHit() const { return bMouseHit; }
 
 	void Reset();

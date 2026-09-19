@@ -11,7 +11,7 @@
 #include "FAssetManager.h"
 #include "FFontManager.h"
 #include "FComponentVisualizer.h"
-
+#include "SSplitter.h"
 #include <d3d11.h>
 
 class Sphere;
@@ -46,6 +46,17 @@ private:
 	FFontManager* mFontManager;
 
 	FComponentVisualizerManager* mComponentVisualizerManager;
+
+	SSplitterV* mRootSplitter = nullptr;             
+	TArray<SViewportWindow*> mViewportWindows;
+	SViewportWindow* mActiveViewportWindow = nullptr;
+	SViewportWindow* HoveredVW = nullptr;
+
+	ESplitterDragState SplitterDragState = ESplitterDragState::None;
+	bool bIsDraggingSplitter = false;
+
+	SSplitterH* mTopSplitter = nullptr;
+	SSplitterH* mBottomSplitter = nullptr;
 };
 
 inline FEngineLoop GEngineLoop;

@@ -27,8 +27,10 @@ public:
 
 	//void Prepare(const Camera* mCamera);
 	void Prepare(const FCamera* Camera,float viewportWidth, float viewportHeight);
+	void Prepare(FCamera* InCamera, float viewportWidth, float viewportHeight, float InRatio, bool bClear = true);
 	void GizmoPrepare();
 
+	void ResizeSceneRenderTarget(UINT InWidth, UINT InHeight);
 	//void Render(FTransform worldTransformMatrix, EPrimitive ePrimitive); // FRenderInfo
 	//void Render(const TArray<FRenderInfo> renderInfos);
 	void Render();

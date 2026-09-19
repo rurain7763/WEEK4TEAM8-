@@ -5,6 +5,7 @@
 #include "TArray.h"
 #include "Transform.h"
 #include "enum.h"
+#include "SSplitter.h"
 
 class AActor;
 class URenderer;
@@ -27,8 +28,8 @@ public:
     void SetOperation(EGIZMO_TYPE Operation);
     EGIZMO_TYPE GetOperation() const;
 
-    void Update(FSceneManager* SceneManager, const FMatrix& ViewProjection);
-    void Render(FSceneManager* SceneManager, const FVector& CameraPosition, const FMatrix& ViewProjection);
+    void Update(FSceneManager* SceneManager, const FMatrix& ViewProjection, const FRect& SubViewportRect);
+    void Render(FSceneManager* SceneManager, const FVector& CameraPosition, const FMatrix& ViewProjection, bool bRecordSegments = true);
     bool IsMouseOverHandle() const;
     bool IsDragging() const { return bIsSelected; }
     void Reset();

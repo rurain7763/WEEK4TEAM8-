@@ -132,6 +132,7 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 		mbViewportHovered = false;
 		if (ImGui::Begin("Viewport"))
 		{
+			ImDrawList* drawList = ImGui::GetWindowDrawList();
 			const ImVec2 size = ImGui::GetContentRegionAvail();
 
 			if (size.x > 0 && size.y > 0)
@@ -142,6 +143,25 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 				const ImVec2 imageMin = ImGui::GetItemRectMin();
 				const ImVec2 imageMax = ImGui::GetItemRectMax();
+
+				const float SplitX = imageMin.x + size.x * guiReference.SplitRatioX;
+				const float SplitY = imageMin.y + size.y * guiReference.SplitRatioY;
+
+				const float LineThickness = 2.0f;
+
+				drawList->AddLine(
+					ImVec2(SplitX, imageMin.y),
+					ImVec2(SplitX, imageMax.y),
+					IM_COL32(45, 45, 48, 255),
+					LineThickness
+				);
+
+				drawList->AddLine(
+					ImVec2(imageMin.x, SplitY),
+					ImVec2(imageMax.x, SplitY),
+					IM_COL32(45, 45, 48, 255),
+					LineThickness
+				);
 
 				mViewportX = imageMin.x;
 				mViewportY = imageMin.y;

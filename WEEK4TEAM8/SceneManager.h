@@ -7,6 +7,7 @@
 #include "RenderInfo.h"
 #include "enum.h"
 #include "FAssetManager.h"
+#include "SSplitter.h"
 
 inline constexpr std::string_view kSceneDataDir = "SceneData\\";
 inline constexpr std::string_view kSceneDataSuffix = ".Scene";
@@ -24,6 +25,10 @@ struct FGuiReference
 	FEditorViewportClient* ViewportClient;
 	const FFileManager* FileManager;
 	FAssetManager* AssetManager;
+
+	float SplitRatioX = 0.5f;
+	float SplitRatioY = 0.5f;
+	ESplitterDragState DragState = ESplitterDragState::None;
 };
 
 struct FGuiInputField
