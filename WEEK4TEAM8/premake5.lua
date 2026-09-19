@@ -65,11 +65,24 @@ project "WEEK4TEAM8"
             "freetype" 
         }
 
+    filter "configurations:ObjViewerRelease"
+        runtime "Release"
+        optimize "Off"
+        symbols "On"
+        -- ObjViewerRelease는 Release용 외부 라이브러리를 재사용한다.
+        libdirs { "%{wks.location}/Vendor/lib/Release" }
+        defines { "IS_OBJ_VIEWER=1" }
+        links {
+            "freetype" 
+        }
+
+
+
     filter "system:windows"
         defines {
             "UNICODE",
             "_UNICODE",
-            "WIN32_LEAN_AND_MEAN",
+            "WIN32_LEAN_AND_MEAN"
         }
 
 filter "toolset:msc*"

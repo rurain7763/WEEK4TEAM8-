@@ -27,6 +27,7 @@
 #include "UStaticMeshComponent.h"
 #include "FObjManager.h"
 #include "Serializers.h"
+#include "NativeFileDialog.h"
 
 void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 {
@@ -63,6 +64,7 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 	RegisterRawInputDevices(&rid, 1, sizeof(rid));
 
 	mGraphicsManager = new FGraphicsManager(hWnd);
+	FNativeFileDialog::Initialize(hWnd);
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -101,6 +103,7 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 	const FVector4 NearTint(1.0f, 0.65f, 0.15f, 0.85f); // 주황 = 가까운 쪽
 	const FVector4 FarTint(0.25f, 0.55f, 1.0f, 0.85f); // 파랑 = 먼 쪽
 
+
 	mSceneManager = new FSceneManager();
 	mFileManager = new FFileManager();
 	mFontManager = new FFontManager();
@@ -115,17 +118,6 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 	mGraphicsManager->SetGridGap(GridGap);
 
 	mSceneManager->NewScene();
-
-	{
-		AActor* ObjActor = FObjectFactory::ConstructObject<AActor>();
-		UStaticMeshComponent* ObjComponent = 
-			FObjectFactory::ConstructObject<UStaticMeshComponent>(FString("Assets/Meshes/TestTriangle.obj"),
-			FVector(0, 0, 0), FRotator(0, 0, 0), FVector(1, 1, 1));
-
-
-		ObjActor->AddComponent(ObjComponent);
-		mSceneManager->GetCurrentWorld()->AddActor(ObjActor);
-	}
 }
 
 void FEngineLoop::InitAssetManager()
@@ -357,7 +349,6 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		GuiReference.Viewports = &mMainViewport;
 		GuiReference.ViewportCount = 1;
 	}
-
 	mSceneManager->UpdateGUI(GuiReference);
 
 	FRect ViewportRect;

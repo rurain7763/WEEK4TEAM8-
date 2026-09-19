@@ -8,6 +8,7 @@
 #include "enum.h"
 #include "FAssetManager.h"
 #include "FContentBrowser.h"
+#include "FObjViewer.h"
 
 inline constexpr std::string_view kSceneDataDir = "SceneData\\";
 inline constexpr std::string_view kSceneDataSuffix = ".Scene";
@@ -100,6 +101,7 @@ private:
 	AActor* mSelectedActor = nullptr;
 	FGuiInputField mGuiInputField;
 	FContentBrowser mContentBrowser;
+	FObjViewer mObjViewer;
 
 	void updateControlPanelGUI(const FGuiReference& guiReference);
 

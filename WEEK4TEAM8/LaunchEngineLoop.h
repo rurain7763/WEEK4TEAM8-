@@ -17,6 +17,7 @@
 class Sphere;
 class FGraphicsManager;
 
+
 struct FEditorLayout
 {
 	bool bIsSplitView = false;

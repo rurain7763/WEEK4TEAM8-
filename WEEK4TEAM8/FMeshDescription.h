@@ -47,6 +47,8 @@ struct FStaticMeshBuildVertex
     FVector Normal;
     FVector4 Color;
     FVector2 Tex;
+
+    FVector GetPosition() const { return Pos; }
 };
 
 struct FStaticMeshSection
