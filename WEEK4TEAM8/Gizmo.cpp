@@ -5,6 +5,7 @@
 #include "WindowApplication.h"
 #include "EngineMathLibrary.h"
 #include "SceneManager.h"
+#include "FEditorUIManager.h"
 #include <cmath>
 
 FGizmo::FGizmo(URenderer& InRenderer) 
@@ -50,7 +51,7 @@ bool FGizmo::IsMouseOverHandle() const
 	return bIsHoveredAxis; 
 }
 
-void FGizmo::Update(FSceneManager* SceneManager, const FMatrix& ViewProjection)
+void FGizmo::Update(FSceneManager* SceneManager, const FEditorUIManager& EditorUI, const FMatrix& ViewProjection)
 {
     AActor* TargetActor = SceneManager->GetSelectedActor();
 
@@ -70,13 +71,13 @@ void FGizmo::Update(FSceneManager* SceneManager, const FMatrix& ViewProjection)
 
     FVector2 MousePosInScreen = Map(
         FVector2(Input.CursorX, Input.CursorY),
-        FVector2(SceneManager->GetViewportX(), SceneManager->GetViewportY()),
-        FVector2(SceneManager->GetViewportX() + SceneManager->GetViewportWidth(), SceneManager->GetViewportY() + SceneManager->GetViewportHeight()),
+        FVector2(EditorUI.GetViewportX(), EditorUI.GetViewportY()),
+        FVector2(EditorUI.GetViewportX() + EditorUI.GetViewportWidth(), EditorUI.GetViewportY() + EditorUI.GetViewportHeight()),
         FVector2(0.f, 0.f),
         FVector2(Renderer.GetWidth(), Renderer.GetHeight())
     );
 
-    const bool bAllowMouse = SceneManager->IsViewportHovered();
+    const bool bAllowMouse = EditorUI.IsViewportHovered();
     bool bDragStarted = false;
 
     if (!Input.IsDown(VK_LBUTTON))

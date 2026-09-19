@@ -3,6 +3,7 @@
 #include <Windows.h>
 #include "FrameTimer.h"
 #include "FEditorViewportClient.h"
+#include "FEditorUIManager.h"
 #include "Camera.h"
 #include "SceneManager.h"
 #include "FileManager.h"
@@ -38,6 +39,7 @@ private:
 	FFrameTimer* FrameTimer;
 	bool GInTick = false;
 	FEditorViewportClient* ViewportClient;
+	FEditorUIManager* EditorUIManager;
 
 	FGraphicsManager* mGraphicsManager;
 	FSceneManager* mSceneManager;

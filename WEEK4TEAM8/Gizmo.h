@@ -9,6 +9,7 @@
 class AActor;
 class URenderer;
 class FSceneManager;
+class FEditorUIManager;
 
 enum class EAxisNumber 
 { 
@@ -27,7 +28,7 @@ public:
     void SetOperation(EGIZMO_TYPE Operation);
     EGIZMO_TYPE GetOperation() const;
 
-    void Update(FSceneManager* SceneManager, const FMatrix& ViewProjection);
+    void Update(FSceneManager* SceneManager, const FEditorUIManager& EditorUI, const FMatrix& ViewProjection);
     void Render(FSceneManager* SceneManager, const FVector& CameraPosition, const FMatrix& ViewProjection);
     bool IsMouseOverHandle() const;
     bool IsDragging() const { return bIsSelected; }
