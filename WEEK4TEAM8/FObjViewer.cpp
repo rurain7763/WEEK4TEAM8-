@@ -21,8 +21,14 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 {
 	ImGui::Begin("OBJ Viewer");
 
-//	ImGui::Text("Vertices: %d", mViewerComponent->GetStaticMesh() ->GetStaticMeshAsset()->GetCpuVertices().Num());
-	//ImGui::Text("Indices: %d", mViewerComponent->GetStaticMesh() ->GetStaticMeshAsset()->GetCpuIndices().Num());
+	if (mViewerComponent && mViewerComponent->GetStaticMesh())
+	{
+		const auto& meshAsset = mViewerComponent->GetStaticMesh()->GetStaticMeshAsset();
+
+		ImGui::Text("Vertices: %u", meshAsset->GetCpuVertices().Num());
+		ImGui::Text("Indices: %u", meshAsset->GetCpuIndices().Num());
+		ImGui::Text("Triangles: %u", meshAsset->GetCpuIndices().Num() / 3);
+	}
 
 	if (mViewerActor)
 	{
@@ -115,6 +121,7 @@ void FObjViewer::OpenObj(const FString& filePath)
 			FRotator(0, 0, 0),
 			FVector(1, 1, 1));
 
+	mViewerComponent = objComponent;
 	mViewerActor->AddRootSceneComponent(objComponent);
 	mSceneManager->GetCurrentWorld()->AddActor(mViewerActor);
 
