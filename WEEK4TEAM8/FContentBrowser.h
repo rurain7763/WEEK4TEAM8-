@@ -25,7 +25,7 @@ public:
 private:
 	void RenderBottomBar();
 	void RenderDrawer();
-
+	void RenderFolderNode(const std::filesystem::path& DirectoryPath);
 private:
 	std::filesystem::path RootDirectory;
 	std::filesystem::path CurrentDirectory;

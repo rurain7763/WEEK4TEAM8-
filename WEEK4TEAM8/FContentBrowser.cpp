@@ -222,9 +222,110 @@ void FContentBrowser::RenderDrawer()
 
 		ImGui::Separator();
 
-		//if()
+		if (ImGui::BeginChild("FolderTreePanel", ImVec2(220.0f, 0.0f), true))
+		{
+			ImGui::TextDisabled("FOLDERS");
+			ImGui::Separator();
+
+			RenderFolderNode(RootDirectory);
+		}
+		ImGui::EndChild();
+
+		ImGui::SameLine();
+
+		if (ImGui::BeginChild("AssetContentPanel", ImVec2(0.0f, 0.0f), true))
+		{
+			ImGui::Text("Current Path: %s", CurrentDirectory.string().c_str());
+			ImGui::Separator();
+
+			for (const auto& Entry : std::filesystem::directory_iterator(CurrentDirectory))
+			{
+				if (Entry.is_directory())
+				{
+					ImGui::BulletText("[Folder] %s", Entry.path().filename().string().c_str());
+				}
+				else
+				{
+					ImGui::BulletText("[File] %s", Entry.path().filename().string().c_str());
+				}
+			}
+		}
+		ImGui::EndChild();
 	}
 	ImGui::End();
 
 	ImGui::PopStyleColor();
+}
+
+void FContentBrowser::RenderFolderNode(const std::filesystem::path& DirectoryPath)
+{
+	bool bHasSubDirectories = false;
+
+	try
+	{
+		for (const auto& Entry : std::filesystem::directory_iterator(DirectoryPath))
+		{
+			if (Entry.is_directory())
+			{
+				bHasSubDirectories = true;
+				break;
+			}
+		}
+	}
+	catch (...) 
+	{
+		//UELOG 추가
+	}
+
+	ImGuiTreeNodeFlags NodeFlags =
+		ImGuiTreeNodeFlags_OpenOnArrow |
+		ImGuiTreeNodeFlags_OpenOnDoubleClick |
+		ImGuiTreeNodeFlags_SpanAvailWidth;
+
+	if (CurrentDirectory == DirectoryPath)
+	{
+		NodeFlags |= ImGuiTreeNodeFlags_Selected;
+	}
+
+	if (CurrentDirectory == DirectoryPath)
+	{
+		NodeFlags |= ImGuiTreeNodeFlags_Selected;
+	}
+
+	if (!bHasSubDirectories)
+	{
+		NodeFlags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+	}
+
+	FString FolderName = DirectoryPath.filename().string();
+	if (FolderName.IsEmpty())
+	{
+		FolderName = DirectoryPath.string();
+	}
+
+	FString PathString = DirectoryPath.string();
+
+	bool bNodeOpen = ImGui::TreeNodeEx(PathString.c_str(), NodeFlags, "%s", FolderName.c_str());
+
+	if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+	{
+		CurrentDirectory = DirectoryPath;
+	}
+
+	if (bNodeOpen && bHasSubDirectories)
+	{
+		try
+		{
+			for (const auto& Entry : std::filesystem::directory_iterator(DirectoryPath))
+			{
+				if (Entry.is_directory())
+				{
+					RenderFolderNode(Entry.path());
+				}
+			}
+		}
+		catch (...) {}
+
+		ImGui::TreePop();
+	}
 }
