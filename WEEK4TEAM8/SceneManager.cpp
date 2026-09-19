@@ -46,7 +46,7 @@ FSceneManager::FSceneManager()
 	mViewportY = 0;
 	mViewportWidth = WindowApplication.PendingWidth;
 	mViewportHeight = WindowApplication.PendingHeight;
-	
+
 	mContentBrowser.Initialize(kDefaultAssetsPath);
 	mContentBrowser.SetEventHandler(this);
 }
@@ -93,6 +93,8 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 	ImGui_ImplDX11_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
+
+	mContentBrowser.SetAssetManager(guiReference.AssetManager);
 
 	{
 		// Docking
@@ -159,7 +161,7 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 				if (DrawRect.Width > 0 && DrawRect.Height > 0)
 				{
 					ImGui::SetCursorScreenPos(ImVec2(DrawRect.X, DrawRect.Y));
-					
+
 					bool bHovered = ImGui::IsMouseHoveringRect(ImVec2(DrawRect.X, DrawRect.Y), ImVec2(DrawRect.X + DrawRect.Width, DrawRect.Y + DrawRect.Height));
 					EditorViewport->Client->SetActive(bHovered);
 
@@ -175,10 +177,10 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 				const float SplitThickness = 1.0f;
 				const float SplitHandleThickness = 8.0f;
-				
+
 				float SplitX = mViewportX + mViewportWidth * VerticalRatio;
 				float SplitY = mViewportY + mViewportHeight * HorizontalRatio;
-				
+
 				ImGui::SetCursorScreenPos(ImVec2(SplitX - SplitHandleThickness * 0.5f, mViewportY));
 				ImGui::InvisibleButton("##SplitVertical", ImVec2(SplitHandleThickness, mViewportHeight));
 				if (ImGui::IsItemActive())
@@ -271,11 +273,11 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	// NOTE: This name array must be edited when adding new primitive types to EPrimitive enum.
 	ImGui::SeparatorText("Spawn Actor");
 
-	const char* ActorTypeNames[] = { 
-		"Sphere", 
-		"Cube", 
-		"Triangle", 
-		"GizmoArrow", 
+	const char* ActorTypeNames[] = {
+		"Sphere",
+		"Cube",
+		"Triangle",
+		"GizmoArrow",
 		"Circle",
 		"SpotLight",
 		"Explosion"
@@ -543,7 +545,7 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	ImGui::Text("Sensitivity");
 	ImGui::SameLine();
 	ImGui::SliderFloat("##CameraSensitivity", &camera.Sensitivity, 0.01f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
-	
+
 	// 1) 라벨 텍스트를 먼저 그리고 같은 줄로
 	ImGui::Text("Location");
 	ImGui::SameLine();
@@ -746,7 +748,7 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 					return;
 				}
 				spriteAtlasAssetNames.Add(metaInfo.AssetName.ToString());
-			});
+				});
 
 			const TSharedPtr<FSpriteAtlasAsset>& currentAtlas = atlasAnimationComponent->GetAtlas();
 			FString currentAtlasName = currentAtlas ? currentAtlas->GetAssetName().ToString() : "None";
@@ -845,7 +847,7 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 
 			if (ImGui::BeginDragDropTarget())
 			{
-				if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("DND_STATIC_MESH"))
+				if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload(AssetPayloadTags::StaticMesh))
 				{
 					const char* DroppedPathCStr = static_cast<const char*>(Payload->Data);
 					std::filesystem::path DroppedPath(DroppedPathCStr);
@@ -889,8 +891,8 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 				{
 					return;
 				}
-				textureAssetNames.Add(metaInfo.AssetName.ToString()); 
-			});
+				textureAssetNames.Add(metaInfo.AssetName.ToString());
+				});
 
 			const TSharedPtr<FTexture2DAsset>& currentTexture = primitiveComponent->GetTexture();
 			FString currentTextureName = currentTexture ? currentTexture->GetAssetName().ToString() : "None";
@@ -910,6 +912,32 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 					}
 				}
 				ImGui::EndCombo();
+			}
+
+			if (ImGui::BeginDragDropTarget())
+			{
+				if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload(AssetPayloadTags::Texture2D))
+				{
+					const char* DroppedPathCStr = static_cast<const char*>(Payload->Data);
+					std::filesystem::path DroppedPath(DroppedPathCStr);
+
+					std::string AssetNameStr = DroppedPath.stem().string();
+					FName TargetAssetName(AssetNameStr.c_str());
+
+					TSharedPtr<FTexture2DAsset> TextureAsset = guiReference.AssetManager->GetAssetAs<FTexture2DAsset>(TargetAssetName, true);
+
+					if (TextureAsset)
+					{
+						primitiveComponent->SetTexture(TextureAsset);
+							UE_LOG("Success: Texture applied: %s", AssetNameStr.c_str());
+					}
+					else
+					{
+						UE_LOG_ERROR("Failed: AssetManager has no asset named '%s'", AssetNameStr.c_str());
+					}
+				}
+
+				ImGui::EndDragDropTarget();
 			}
 		}
 	}
@@ -990,7 +1018,7 @@ void FSceneManager::updateObjectListPanelGUI(const FGuiReference& guiReference)
 							}
 						}
 
-						
+
 					}
 				}
 				ImGui::EndChild();

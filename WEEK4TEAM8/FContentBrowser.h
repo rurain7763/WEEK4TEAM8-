@@ -3,6 +3,7 @@
 #include "ImGui/imgui.h"
 #include "NativeFileDialog.h"
 #include "AssetFileIOs.h"
+#include "FAssetManager.h"
 #include <filesystem>
 
 struct FContentBrowserEventHandler
@@ -10,6 +11,12 @@ struct FContentBrowserEventHandler
 	virtual void OnNewAssetFile(const FAssetFileHeader& Header, const std::filesystem::path& FilePath) {}
 	virtual void OnDeleteAssetFile(const std::filesystem::path& FilePath) {}
 };
+
+namespace AssetPayloadTags
+{
+	inline constexpr const char* StaticMesh = "DND_ASSET_STATICMESH";
+	inline constexpr const char* Texture2D = "DND_ASSET_TEXTURE2D";
+}
 
 class FContentBrowser
 {
@@ -21,7 +28,7 @@ public:
 
 	void ToggleDrawer() { bIsDrawerOpen = !bIsDrawerOpen; }
 	bool IsDrawerOpen() const { return bIsDrawerOpen; }
-
+	void SetAssetManager(FAssetManager* InAssetManager) { AssetManager = InAssetManager; }
 private:
 	void RenderBottomBar();
 	void RenderDrawer();
@@ -30,6 +37,8 @@ private:
 	std::filesystem::path RootDirectory;
 	std::filesystem::path CurrentDirectory;
 	FContentBrowserEventHandler* EventHandler = nullptr;
+
+	FAssetManager* AssetManager = nullptr;
 
 	bool bIsDrawerOpen = false;
 	float DrawerHeight = 350.0f;

@@ -163,15 +163,15 @@ void FEngineLoop::InitAssetManager()
 	TSharedPtr<FFontAssetLoader> FontLoader = MakeShared<FFontAssetLoader>(*mFontManager);
 
 	TSharedPtr<FFileAssetSource> FileAssetSource = MakeShared<FFileAssetSource>("Assets/Textures/Test.jpg");
-	mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("TestTexture"), TextureLoader, FileAssetSource);
+	mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("Test"), TextureLoader, FileAssetSource);
 
 	TSharedPtr<FFileAssetSource> SpotLightIconAssetSource = MakeShared<FFileAssetSource>("Assets/Textures/Icon_SpotLight.png");
-	mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("SpotLightIcon"), TextureLoader, SpotLightIconAssetSource);
+	mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("Icon_SpotLight"), TextureLoader, SpotLightIconAssetSource);
 
 	TSharedPtr<FFileAssetSource> ExplosionTextureSource = MakeShared<FFileAssetSource>("Assets/Textures/ExplosionAtlas.png");
-	mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("ExplosionTexture"), TextureLoader, ExplosionTextureSource);
+	mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("ExplosionAtlas"), TextureLoader, ExplosionTextureSource);
 
-	TSharedPtr<FTexture2DAsset> ExplosionTexture2DAsset = mAssetManager->GetAssetAs<FTexture2DAsset>("ExplosionTexture", true);
+	TSharedPtr<FTexture2DAsset> ExplosionTexture2DAsset = mAssetManager->GetAssetAs<FTexture2DAsset>("ExplosionAtlas", true);
 	TSharedPtr<FSpriteAtlasAsset> ExplosionSpriteAtlasAsset = MakeShared<FSpriteAtlasAsset>(FGuid::NewGuid(), FName("ExplosionSpriteAtlas"), *renderer, ExplosionTexture2DAsset, 6, 6);
 	mAssetManager->RegisterAsset(ExplosionSpriteAtlasAsset);
 

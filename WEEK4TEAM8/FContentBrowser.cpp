@@ -1,5 +1,6 @@
 #include "FContentBrowser.h"
 #include "ImGui/imgui_internal.h"
+#include "Assets.h"
 
 void FContentBrowser::Initialize(const std::filesystem::path& InitDirectory)
 {
@@ -11,95 +12,6 @@ void FContentBrowser::SetEventHandler(FContentBrowserEventHandler* InEventHandle
 {
 	EventHandler = InEventHandler;
 }
-
-/*void FContentBrowser::Render()
-{
-	struct FAssetFileEntry
-	{
-		FAssetFileHeader Header;
-		std::filesystem::path FilePath;
-	};
-
-	TArray<FAssetFileEntry> NewAssetFiles;
-	TArray<std::filesystem::path> DeletedAssetFiles;
-
-	ImGui::Begin("Content Browser");
-
-	if (ImGui::Button("Import Texture2D"))
-	{
-		std::filesystem::path TargetPath;
-		if (FNativeFileDialog::OpenFileDialog(CurrentDirectory, { FFileFilter{ L"Image Files", L"*.png;*.jpg;" } }, L"", TargetPath))
-		{
-			FImagePayload ImagePayload;
-			if (FImageFileIO::Load(TargetPath, ImagePayload))
-			{
-				std::filesystem::path NewFilePath = CurrentDirectory / (TargetPath.stem().string() + ".uasset");
-				// TODO: 파일 이름이 중복되는 경우 처리 필요
-
-				FWindowsBinWriter FileWriter(NewFilePath);
-
-				FAssetFileHeader Header;
-				Header.Version = 1;
-				Header.AssetType = EAssetType::Texture2D;
-				Header.AssetID = FGuid::NewGuid();
-
-				FileWriter << Header;
-				if (FImageFileIO::Save(FileWriter, ImagePayload))
-				{
-					NewAssetFiles.Emplace(FAssetFileEntry{ Header, NewFilePath });
-				}
-			}
-		}
-	}
-
-	ImGui::Separator();
-
-	ImGui::Text("Current Directory: %s", CurrentDirectory.string().c_str());
-
-	for (const auto& Entry : std::filesystem::directory_iterator(CurrentDirectory))
-	{
-		if (Entry.is_directory())
-		{
-			if (ImGui::Button(Entry.path().filename().string().c_str()))
-			{
-				CurrentDirectory = Entry.path();
-			}
-		}
-		else
-		{
-			std::filesystem::path Extension = Entry.path().extension();
-			if (Extension == ".uasset")
-			{
-				std::filesystem::path FileName = Entry.path().filename();
-				ImGui::Text("%s", FileName.string().c_str());
-			}
-		}
-	}
-
-	if (ImGui::Button("<-"))
-	{
-		if (CurrentDirectory != RootDirectory)
-		{
-			CurrentDirectory = CurrentDirectory.parent_path();
-		}
-	}
-
-	ImGui::End();
-
-	// Dispatch events for new and deleted asset files
-	if (EventHandler)
-	{
-		for (const auto& NewFile : NewAssetFiles)
-		{
-			EventHandler->OnNewAssetFile(NewFile.Header, NewFile.FilePath);
-		}
-
-		for (const auto& DeletedFile : DeletedAssetFiles)
-		{
-			EventHandler->OnDeleteAssetFile(DeletedFile);
-		}
-	}
-}*/
 
 void FContentBrowser::Render()
 {
@@ -133,7 +45,7 @@ void FContentBrowser::RenderBottomBar()
 		ImGuiWindowFlags_NoScrollbar;
 
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6.0f,3.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6.0f, 3.0f));
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(24, 24, 24, 255));
 
 	if (ImGui::Begin("##EditorBottomBar", nullptr, BottomBarFlags))
@@ -238,36 +150,179 @@ void FContentBrowser::RenderDrawer()
 			ImGui::Text("Current Path: %s", CurrentDirectory.string().c_str());
 			ImGui::Separator();
 
+			if (CurrentDirectory != RootDirectory)
+			{
+				if (ImGui::Button("...\n(Up)", ImVec2(80.0f, 80.0f)))
+				{
+					CurrentDirectory = CurrentDirectory.parent_path();
+				}
+
+				if (ImGui::IsItemHovered())
+				{
+					ImGui::SetTooltip("Go to parent directory (%s)", CurrentDirectory.parent_path().filename().string().c_str());
+				}
+
+				ImGui::SameLine();
+			}
+
+			const float TileWidth = 80.0f;
+			const float TileHeight = 80.0f;
+			const ImGuiStyle& Style = ImGui::GetStyle();
+
+			const float WindowVisibleX2 = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
+
+			int ItemIndex = 0;
+
 			for (const auto& Entry : std::filesystem::directory_iterator(CurrentDirectory))
 			{
-				if (Entry.is_directory())
+				const std::filesystem::path& Path = Entry.path();
+				FString FileName = Path.filename().string();
+				bool bIsDirectory = Entry.is_directory();
+				std::string Extension = Path.extension().string();
+
+				ImGui::PushID(ItemIndex++);
+
+				ImGui::BeginGroup();
 				{
-					ImGui::BulletText("[Folder] %s", Entry.path().filename().string().c_str());
-				}
-				else
-				{
-					FString FileName = Entry.path().filename().string();
-					FString Extension = Entry.path().extension().string();
-					FString FullPath = Entry.path().string();
+					ImGui::InvisibleButton("##TileBtn", ImVec2(TileWidth, TileHeight));
 
-					ImGui::Selectable(FileName.c_str(), false);
+					bool bHovered = ImGui::IsItemHovered();
+					bool bActive = ImGui::IsItemActive();
+					ImVec2 PMin = ImGui::GetItemRectMin();
+					ImVec2 PMax = ImGui::GetItemRectMax();
+					ImDrawList* DrawList = ImGui::GetWindowDrawList();
 
-					const bool bIsMeshFile = (Extension == ".uasset" || Extension == ".obj");
-
-					if (bIsMeshFile && ImGui::BeginDragDropSource())
+					if (bHovered || bActive)
 					{
-						ImGui::SetDragDropPayload(
-							"DND_STATIC_MESH",
-							FullPath.c_str(),
-							(FullPath.Len() + 1) * sizeof(char)
-						);
+						ImU32 BgColor = bActive ? IM_COL32(255, 255, 255, 40) : IM_COL32(255, 255, 255, 20);
+						DrawList->AddRectFilled(PMin, PMax, BgColor, 4.0f);
+					}
 
-						ImGui::Text("Mesh: %s", FileName.c_str());
-						ImGui::TextDisabled("Dragging to StaticMesh Component...");
+					if (bIsDirectory)
+					{
+						if (ImGui::IsItemClicked())
+						{
+							CurrentDirectory = Path;
+							ImGui::EndGroup();
+							ImGui::PopID();
+							break;
+						}
+						ImU32 TabColor = bActive ? 0xFF80C0E0 : (bHovered ? 0xFF99D0F0 : 0xFF70B0D0);
+						ImU32 BodyColor = bActive ? 0xFF90D0F8 : (bHovered ? 0xFFAAE0FF : 0xFF80C0E8);
 
+						ImVec2 TabMin = ImVec2(PMin.x + 8.0f, PMin.y + 12.0f);
+						ImVec2 TabMax = ImVec2(PMin.x + 36.0f, PMin.y + 24.0f);
+						DrawList->AddRectFilled(TabMin, TabMax, TabColor, 4.0f);
+
+						ImVec2 BodyMin = ImVec2(PMin.x + 8.0f, PMin.y + 20.0f);
+						ImVec2 BodyMax = ImVec2(PMax.x - 8.0f, PMax.y - 12.0f);
+						DrawList->AddRectFilled(BodyMin, BodyMax, BodyColor, 6.0f);
+						DrawList->AddRect(BodyMin, BodyMax, 0x55000000, 6.0f, 0, 1.5f);
+					}
+					else if (Extension == ".obj")
+					{
+						ImVec2 Center = ImVec2((PMin.x + PMax.x) * 0.5f, (PMin.y + PMax.y) * 0.5f - 4.0f);
+						const float HalfSize = 16.0f;
+						const float Offset = 8.0f;
+
+						ImVec2 F_TL = ImVec2(Center.x - HalfSize, Center.y - HalfSize + Offset * 0.5f);
+						ImVec2 F_BR = ImVec2(Center.x + HalfSize - Offset, Center.y + HalfSize);
+
+						ImVec2 B_TL = ImVec2(F_TL.x + Offset, F_TL.y - Offset);
+						ImVec2 B_BR = ImVec2(F_BR.x + Offset, F_BR.y - Offset);
+
+						ImU32 CubeColor = bActive ? 0xFF00FFFF : (bHovered ? 0xFF66FFFF : 0xFF00D2D2);
+						ImU32 FillColor = (CubeColor & 0x00FFFFFF) | 0x22000000;
+
+						DrawList->AddRectFilled(F_TL, F_BR, FillColor);
+						DrawList->AddRect(F_TL, F_BR, CubeColor, 0.0f, 0, 1.5f);
+						DrawList->AddRect(B_TL, B_BR, CubeColor, 0.0f, 0, 1.5f);
+
+						DrawList->AddLine(F_TL, B_TL, CubeColor, 1.5f);
+						DrawList->AddLine(ImVec2(F_BR.x, F_TL.y), ImVec2(B_BR.x, B_TL.y), CubeColor, 1.5f);
+						DrawList->AddLine(ImVec2(F_TL.x, F_BR.y), ImVec2(B_TL.x, B_BR.y), CubeColor, 1.5f);
+						DrawList->AddLine(F_BR, B_BR, CubeColor, 1.5f);
+					}
+					else if (Extension == ".jpg" || Extension == ".png")
+					{
+						if (AssetManager)
+						{
+							TSharedPtr<FTexture2DAsset> TextureAsset = AssetManager->GetAssetAs<FTexture2DAsset>(Path.stem().string().c_str(), true);
+							if (TextureAsset && TextureAsset->GetSRV())
+							{
+								ImTextureID TexID = (ImTextureID)TextureAsset->GetSRV().Get();
+								ImVec2 ImgMin = ImVec2(PMin.x + 8.0f, PMin.y + 8.0f);
+								ImVec2 ImgMax = ImVec2(PMax.x - 8.0f, PMax.y - 8.0f);
+								DrawList->AddImage(TexID, ImgMin, ImgMax);
+								DrawList->AddRect(ImgMin, ImgMax, 0x44FFFFFF, 2.0f);
+							}
+						}
+					}
+					else
+					{
+						ImVec2 Center = ImVec2((PMin.x + PMax.x) * 0.5f, (PMin.y + PMax.y) * 0.5f - 4.0f);
+						const float HalfSize = 16.0f;
+						const float Offset = 8.0f;
+
+						ImVec2 F_TL = ImVec2(Center.x - HalfSize, Center.y - HalfSize + Offset * 0.5f);
+						ImVec2 F_BR = ImVec2(Center.x + HalfSize - Offset, Center.y + HalfSize);
+
+						ImVec2 B_TL = ImVec2(F_TL.x + Offset, F_TL.y - Offset);
+						ImVec2 B_BR = ImVec2(F_BR.x + Offset, F_BR.y - Offset);
+
+						ImU32 CubeColor = bActive ? 0xFF00FFFF : (bHovered ? 0xFF66FFFF : 0xFF00D2D2);
+						ImU32 FillColor = (CubeColor & 0x00FFFFFF) | 0x22000000;
+
+						DrawList->AddRectFilled(F_TL, F_BR, FillColor);
+						DrawList->AddRect(F_TL, F_BR, CubeColor, 0.0f, 0, 1.5f);
+						DrawList->AddRect(B_TL, B_BR, CubeColor, 0.0f, 0, 1.5f);
+
+						DrawList->AddLine(F_TL, B_TL, CubeColor, 1.5f);
+						DrawList->AddLine(ImVec2(F_BR.x, F_TL.y), ImVec2(B_BR.x, B_TL.y), CubeColor, 1.5f);
+						DrawList->AddLine(ImVec2(F_TL.x, F_BR.y), ImVec2(B_TL.x, B_BR.y), CubeColor, 1.5f);
+						DrawList->AddLine(F_BR, B_BR, CubeColor, 1.5f);
+					}
+
+					if (!bIsDirectory && ImGui::BeginDragDropSource())
+					{
+						if (Extension == ".obj")
+						{
+							std::string FullPath = Path.string();
+							ImGui::SetDragDropPayload(AssetPayloadTags::StaticMesh, FullPath.c_str(), (FullPath.length() + 1) * sizeof(char));
+							ImGui::Text("Mesh: %s", FileName.c_str());
+						}
+						else if (Extension == ".jpg" || Extension == ".png")
+						{
+							std::string FullPath = Path.string();
+							ImGui::SetDragDropPayload(AssetPayloadTags::Texture2D, FullPath.c_str(), (FullPath.length() + 1) * sizeof(char));
+							ImGui::Text("Texture2D: %s", FileName.c_str());
+						}
 						ImGui::EndDragDropSource();
 					}
+
+					std::string TruncatedName = FileName;
+					if (TruncatedName.length() > 9)
+					{
+						TruncatedName = TruncatedName.substr(0, 7) + "..";
+					}
+					ImGui::TextWrapped("%s", TruncatedName.c_str());
 				}
+				ImGui::EndGroup();
+
+				if (ImGui::IsItemHovered())
+				{
+					ImGui::SetTooltip("%s", FileName.c_str());
+				}
+
+				float LastItemX2 = ImGui::GetItemRectMax().x;
+				float NextItemX2 = LastItemX2 + Style.ItemSpacing.x + TileWidth;
+
+				if (NextItemX2 < WindowVisibleX2)
+				{
+					ImGui::SameLine();
+				}
+
+				ImGui::PopID();
 			}
 		}
 		ImGui::EndChild();
@@ -292,7 +347,7 @@ void FContentBrowser::RenderFolderNode(const std::filesystem::path& DirectoryPat
 			}
 		}
 	}
-	catch (...) 
+	catch (...)
 	{
 		//UELOG 추가
 	}
