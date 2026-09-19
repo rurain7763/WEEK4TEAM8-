@@ -246,7 +246,27 @@ void FContentBrowser::RenderDrawer()
 				}
 				else
 				{
-					ImGui::BulletText("[File] %s", Entry.path().filename().string().c_str());
+					FString FileName = Entry.path().filename().string();
+					FString Extension = Entry.path().extension().string();
+					FString FullPath = Entry.path().string();
+
+					ImGui::Selectable(FileName.c_str(), false);
+
+					const bool bIsMeshFile = (Extension == ".uasset" || Extension == ".obj");
+
+					if (bIsMeshFile && ImGui::BeginDragDropSource())
+					{
+						ImGui::SetDragDropPayload(
+							"DND_STATIC_MESH",
+							FullPath.c_str(),
+							(FullPath.Len() + 1) * sizeof(char)
+						);
+
+						ImGui::Text("Mesh: %s", FileName.c_str());
+						ImGui::TextDisabled("Dragging to StaticMesh Component...");
+
+						ImGui::EndDragDropSource();
+					}
 				}
 			}
 		}

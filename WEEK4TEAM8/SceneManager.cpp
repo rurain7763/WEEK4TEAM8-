@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <format>
+#include <filesystem>
 
 #include "FileManager.h"
 #include "NativeFileDialog.h"
@@ -35,6 +36,7 @@
 #include "UStaticMeshComponent.h"
 #include "LaunchEngineLoop.h"
 #include "FAssetManager.h"
+#include "FObjManager.h"
 
 FSceneManager::FSceneManager()
 {
@@ -839,6 +841,40 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 				}
 
 				ImGui::EndCombo();
+			}
+
+			if (ImGui::BeginDragDropTarget())
+			{
+				if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("DND_STATIC_MESH"))
+				{
+					const char* DroppedPathCStr = static_cast<const char*>(Payload->Data);
+					std::filesystem::path DroppedPath(DroppedPathCStr);
+					FString DroppedStem = DroppedPath.stem().string();
+
+					UStaticMesh* MatchedMesh = nullptr;
+
+					for (TObjectIterator<UStaticMesh> It; It; ++It)
+					{
+						UStaticMesh* CandidateMesh = *It;
+						std::string CandidatePathStr = CandidateMesh->GetAssetPathFileName().c_str();
+
+						if (CandidatePathStr == DroppedPath.string() || std::filesystem::path(CandidatePathStr).stem().string() == DroppedStem)
+						{
+							MatchedMesh = CandidateMesh;
+							break;
+						}
+					}
+
+					if (!MatchedMesh)
+					{
+						MatchedMesh = FObjManager::LoadObjStaticMesh(DroppedPathCStr);
+					}
+					if (MatchedMesh)
+					{
+						StaticMeshComponent->SetStaticMesh(MatchedMesh);
+					}
+				}
+				ImGui::EndDragDropTarget();
 			}
 		}
 
