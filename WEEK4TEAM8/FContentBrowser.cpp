@@ -150,12 +150,55 @@ void FContentBrowser::RenderDrawer()
 			ImGui::Text("Current Path: %s", CurrentDirectory.string().c_str());
 			ImGui::Separator();
 
-			if (CurrentDirectory != RootDirectory)
+			const float TileWidth = 80.0f;
+			const float TileHeight = 80.0f;
+
+			std::error_code ec;
+			bool bIsRoot = std::filesystem::equivalent(CurrentDirectory, RootDirectory, ec);
+
+			if (!bIsRoot && !ec)
 			{
-				if (ImGui::Button("...\n(Up)", ImVec2(80.0f, 80.0f)))
+				ImGui::BeginGroup();
 				{
-					CurrentDirectory = CurrentDirectory.parent_path();
+					ImGui::InvisibleButton("##UpFolderBtn", ImVec2(TileWidth, TileHeight));
+
+					bool bHovered = ImGui::IsItemHovered();
+					bool bActive = ImGui::IsItemActive();
+					ImVec2 PMin = ImGui::GetItemRectMin();
+					ImVec2 PMax = ImGui::GetItemRectMax();
+					ImDrawList* DrawList = ImGui::GetWindowDrawList();
+
+					if (ImGui::IsItemClicked())
+					{
+						std::error_code clickEc;
+						if (!std::filesystem::equivalent(CurrentDirectory, RootDirectory, clickEc))
+						{
+							CurrentDirectory = CurrentDirectory.parent_path();
+						}
+					}
+
+					if (bHovered || bActive)
+					{
+						ImU32 BgColor = bActive ? IM_COL32(255, 255, 255, 40) : IM_COL32(255, 255, 255, 20);
+						DrawList->AddRectFilled(PMin, PMax, BgColor, 4.0f);
+					}
+
+					ImU32 TabColor = bActive ? 0xFF80C0E0 : (bHovered ? 0xFF99D0F0 : 0xFF70B0D0);
+					ImU32 BodyColor = bActive ? 0xFF90D0F8 : (bHovered ? 0xFFAAE0FF : 0xFF80C0E8);
+
+					ImVec2 TabMin = ImVec2(PMin.x + 8.0f, PMin.y + 12.0f);
+					ImVec2 TabMax = ImVec2(PMin.x + 36.0f, PMin.y + 24.0f);
+					DrawList->AddRectFilled(TabMin, TabMax, TabColor, 4.0f);
+
+					ImVec2 BodyMin = ImVec2(PMin.x + 8.0f, PMin.y + 20.0f);
+					ImVec2 BodyMax = ImVec2(PMax.x - 8.0f, PMax.y - 12.0f);
+					DrawList->AddRectFilled(BodyMin, BodyMax, BodyColor, 6.0f);
+					DrawList->AddRect(BodyMin, BodyMax, 0x55000000, 6.0f, 0, 1.5f);
+
+					ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (TileWidth - ImGui::CalcTextSize("..").x) * 0.5f);
+					ImGui::TextUnformatted("..");
 				}
+				ImGui::EndGroup();
 
 				if (ImGui::IsItemHovered())
 				{
@@ -165,8 +208,6 @@ void FContentBrowser::RenderDrawer()
 				ImGui::SameLine();
 			}
 
-			const float TileWidth = 80.0f;
-			const float TileHeight = 80.0f;
 			const ImGuiStyle& Style = ImGui::GetStyle();
 
 			const float WindowVisibleX2 = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
@@ -380,12 +421,45 @@ void FContentBrowser::RenderFolderNode(const std::filesystem::path& DirectoryPat
 
 	FString PathString = DirectoryPath.string();
 
-	bool bNodeOpen = ImGui::TreeNodeEx(PathString.c_str(), NodeFlags, "%s", FolderName.c_str());
+	std::string NodeHiddenID = FString("##").Append(PathString);
+	bool bNodeOpen = ImGui::TreeNodeEx(NodeHiddenID.c_str(), NodeFlags);
 
 	if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
 	{
 		CurrentDirectory = DirectoryPath;
 	}
+
+	ImGui::SameLine();
+
+	const float IconSize = 14.0f;
+	ImGui::Dummy(ImVec2(IconSize, IconSize));
+
+	ImVec2 IMin = ImGui::GetItemRectMin();
+	ImVec2 IMax = ImGui::GetItemRectMax();
+	ImDrawList* DrawList = ImGui::GetWindowDrawList();
+
+	ImU32 TabColor = 0xFF80C0E0;
+	ImU32 BodyColor = 0xFF90D0F8;
+
+	DrawList->AddRectFilled(
+		ImVec2(IMin.x + 1.0f, IMin.y + 1.0f),
+		ImVec2(IMin.x + 7.0f, IMin.y + 4.0f),
+		TabColor, 1.0f
+	);
+
+	DrawList->AddRectFilled(
+		ImVec2(IMin.x + 1.0f, IMin.y + 3.5f),
+		ImVec2(IMax.x - 1.0f, IMax.y - 1.0f),
+		BodyColor, 2.0f
+	);
+	DrawList->AddRect(
+		ImVec2(IMin.x + 1.0f, IMin.y + 3.5f),
+		ImVec2(IMax.x - 1.0f, IMax.y - 1.0f),
+		0x44000000, 2.0f, 0, 1.0f
+	);
+
+	ImGui::SameLine();
+	ImGui::TextUnformatted(FolderName.c_str());
 
 	if (bNodeOpen && bHasSubDirectories)
 	{
