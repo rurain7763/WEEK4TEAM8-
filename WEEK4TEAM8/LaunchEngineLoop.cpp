@@ -81,7 +81,11 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 	console.Init(clientWidth);
 
 	FrameTimer = new FFrameTimer(120);
-	ViewportClient = new FEditorViewportClient(*mGraphicsManager->GetRenderer()); // Todo: cChange to class
+	mEditorLayout.Initialize(FRect(0, 0, (float)clientWidth, (float)clientHeight));
+	mMainViewport.Window = mEditorLayout.RootWindow;
+	mMainViewport.Viewport = MakeShared<FViewport>();
+	mMainViewport.Viewport->Resize(*mGraphicsManager->GetRenderer(), clientWidth, clientHeight);
+	mMainViewport.Client = MakeShared<FEditorViewportClient>(*mGraphicsManager->GetRenderer());
 
 	const FVector4 NearTint(1.0f, 0.65f, 0.15f, 0.85f); // 주황 = 가까운 쪽
 	const FVector4 FarTint(0.25f, 0.55f, 1.0f, 0.85f); // 파랑 = 먼 쪽
@@ -186,36 +190,49 @@ void FEngineLoop::Tick(bool bPumpMessages)
 	ConsoleWindow& console = ConsoleWindow::Get();
 
 	FRenderCollector& RenderCollector = mGraphicsManager->GetRenderCollector();
-	RenderCollector.Camera = &ViewportClient->GetCamera();
 
-	//Input Threads
+	WindowApplication.ProcessDeferredEvents();
+
+	if (WindowApplication.bPendingResize)
 	{
-		WindowApplication.ProcessDeferredEvents();
-
-		mGraphicsManager->UpdateProjectionTransition(deltaTime);
-		ViewportClient->Update(deltaTime, mSceneManager, mGraphicsManager->GetPerspectiveRatio(), RenderCollector);
+		mGraphicsManager->OnResize(WindowApplication.PendingWidth, WindowApplication.PendingHeight);
+		WindowApplication.bPendingResize = false;
 	}
 
-	//Physics Threads
-	{
+	mSceneManager->Tick(deltaTime);
+	mSceneManager->Render(deltaTime, RenderCollector);
 
-	}
+	mGraphicsManager->UpdateProjectionTransition(deltaTime);
 
-	//Game Threads
+	const float NearZ = 0.1f;
+	const float FarZ = 2000.0f;
+	const int32 ViewportCount = mEditorLayout.bIsSplitView ? 4 : 1;
+	
+	for (int32 i = 0; i < ViewportCount; ++i)
 	{
-		mSceneManager->Tick(deltaTime);
-		mSceneManager->Update(deltaTime, RenderCollector);
-	}
+		FEditorViewport* CurrentViewport = !mEditorLayout.bIsSplitView ? &mMainViewport : &mSplitViewports[i];
 
-	//mouse picking
-	{
+		const FRect& ViewportRect = CurrentViewport->Window->Rect;
+
+		FCamera& Camera = CurrentViewport->Client->GetCamera();
+		Camera.mAspect = ViewportRect.Width / ViewportRect.Height;
+		Camera.mNear = NearZ;
+		Camera.mFar = FarZ;
+
+		RenderCollector.Camera = &Camera;
+
+		FMatrix ViewProjection = Camera.GetViewMatrix() * Camera.GetProjectionMatrix();
+
+		CurrentViewport->Client->Update(deltaTime, mGraphicsManager->GetPerspectiveRatio(), RenderCollector);
+
 		const FInputState& Input = WindowApplication.Input;
 
+		// 마우스 피킹 처리
 		// 뷰포트가 ImGui 창이 되면서 그 위에서는 io.WantCaptureMouse 가 항상 true 다.
 		// 그대로 두면 씬을 클릭해도 선택이 되지 않는다. 카메라/기즈모와 같은 기준을 쓴다.
-		AActor* HitActor = ViewportClient->PerformMousePicking(mGraphicsManager->GetPerspectiveRatio(), RenderCollector, *mSceneManager);
-		if (mSceneManager->IsViewportHovered() && Input.WasPressed(VK_LBUTTON) && !ViewportClient->mGizmo.IsDragging() && !ViewportClient->mGizmo.IsMouseOverHandle())
+		if (CurrentViewport->Client->IsActive() && Input.WasPressed(VK_LBUTTON) && !CurrentViewport->Client->mGizmo.IsDragging() && !CurrentViewport->Client->mGizmo.IsMouseOverHandle())
 		{
+			AActor* HitActor = CurrentViewport->Client->PerformMousePicking(CurrentViewport->Window->Rect, mGraphicsManager->GetPerspectiveRatio(), RenderCollector);
 			if (HitActor)
 			{
 				mSceneManager->SetSelectedActor(HitActor);
@@ -226,6 +243,7 @@ void FEngineLoop::Tick(bool bPumpMessages)
 			}
 		}
 
+		// 선택된 액터 처리
 		AActor* SelectedActor = mSceneManager->GetSelectedActor();
 		if (SelectedActor)
 		{
@@ -245,18 +263,18 @@ void FEngineLoop::Tick(bool bPumpMessages)
 					const FAABB& AABB = MeshAsset->GetLocalBoundingBox().ToWorld(WorldMatrix);
 
 					AABB.ForEachCornerLines([&RenderCollector](const FVector& Start, const FVector& End)
-					{
-						FVector4 WorldStart = FVector4(Start, 1.f);
-						FVector4 WorldEnd = FVector4(End, 1.f);
+						{
+							FVector4 WorldStart = FVector4(Start, 1.f);
+							FVector4 WorldEnd = FVector4(End, 1.f);
 
-						FRenderLineInfo LineInfo;
-						LineInfo.Start = WorldStart.ToVec3();
-						LineInfo.End = WorldEnd.ToVec3();
-						LineInfo.Color = FVector4(1.f, 0.f, 0.f, 1.f); // 빨간색
-						LineInfo.Thickness = 5.0f;
+							FRenderLineInfo LineInfo;
+							LineInfo.Start = WorldStart.ToVec3();
+							LineInfo.End = WorldEnd.ToVec3();
+							LineInfo.Color = FVector4(1.f, 0.f, 0.f, 1.f); // 빨간색
+							LineInfo.Thickness = 5.0f;
 
-						RenderCollector.LineInfos.Add(LineInfo);
-					});
+							RenderCollector.LineInfos.Add(LineInfo);
+						});
 				}
 
 				// 선택된 액터의 컴포넌트 시각화
@@ -266,48 +284,75 @@ void FEngineLoop::Tick(bool bPumpMessages)
 					Visualizer->VisualizeComponent(Component, RenderCollector);
 				}
 			}
+
+			CurrentViewport->Client->mGizmo.Update(SelectedActor, CurrentViewport->Window->Rect, CurrentViewport->Client->IsActive(), ViewProjection);
 		}
 
-		ViewportClient->mGizmo.Update(mSceneManager, mGraphicsManager->GetViewProjectionMatrix());
-	}
+		//Render Threads
+		{
+			CurrentViewport->Viewport->Resize(*mGraphicsManager->GetRenderer(), ViewportRect.Width, ViewportRect.Height);
+			mGraphicsManager->Prepare(&CurrentViewport->Client->mCamera, ViewportRect.Width, ViewportRect.Height, *CurrentViewport->Viewport);
+			mGraphicsManager->Render();
 
-	//Render Threads
+			//강조
+			if (mSceneManager->GetSelectedActor())
+			{
+				FRenderInfo clickedRenderInfo;
+				mSceneManager->GetSelectedActor()->GetFirstRenderInfo(clickedRenderInfo);
+				mGraphicsManager->RenderHighLight(clickedRenderInfo);
+			}
+
+			CurrentViewport->Client->mGizmo.Render(SelectedActor, CurrentViewport->Client->mCamera.Transform.Location, ViewProjection);
+		}
+	}
+	RenderCollector.Clear();
+
+	FGuiReference GuiReference;
+	GuiReference.FrameTimer = FrameTimer;
+	GuiReference.GraphicsManager = mGraphicsManager;
+	GuiReference.ViewportClient = mMainViewport.Client.get();
+	GuiReference.FileManager = mFileManager;
+	GuiReference.AssetManager = mAssetManager;
+	GuiReference.EditorLayout = &mEditorLayout;
+	
+	if (mEditorLayout.bIsSplitView)
 	{
-		if (WindowApplication.bPendingResize)
-		{
-			mGraphicsManager->OnResize(WindowApplication.PendingWidth, WindowApplication.PendingHeight);
-			WindowApplication.bPendingResize = false;
-		}
-
-		mGraphicsManager->Update(deltaTime);
-		mGraphicsManager->Prepare(&ViewportClient->mCamera, mSceneManager->GetViewportWidth(), mSceneManager->GetViewportHeight());
-		mGraphicsManager->FlushLines();
-		mGraphicsManager->Render();
-		
-		//강조
-		if (mSceneManager->GetSelectedActor())
-		{
-			FRenderInfo clickedRenderInfo;
-			mSceneManager->GetSelectedActor()->GetFirstRenderInfo(clickedRenderInfo);
-			mGraphicsManager->RenderHighLight(clickedRenderInfo);
-		}
-
-		ViewportClient->mGizmo.Render(mSceneManager, ViewportClient->mCamera.Transform.Location, mGraphicsManager->GetViewProjectionMatrix());
-
-		//ImGui
-		{
-			//ImGui Input
-			mSceneManager->UpdateGUI({ *FrameTimer, mGraphicsManager, ViewportClient, mFileManager, mAssetManager });
-
-			mGraphicsManager->GetRenderer()->BindFrameBuffer();
-
-			ImGui::Render();
-			ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-		}
-
-		mGraphicsManager->Display();
+		GuiReference.Viewports = mSplitViewports;
+		GuiReference.ViewportCount = 4;
+	}
+	else
+	{
+		GuiReference.Viewports = &mMainViewport;
+		GuiReference.ViewportCount = 1;
 	}
 
+	mSceneManager->UpdateGUI(GuiReference);
+
+	if (mEditorLayout.bIsSplitView && !mSplitViewports[0].Viewport)
+	{
+		for (int32 i = 0; i < 4; ++i)
+		{
+			mSplitViewports[i].Window = mEditorLayout.ViewportWindows[i];
+			mSplitViewports[i].Viewport = MakeShared<FViewport>();
+			mSplitViewports[i].Viewport->Resize(*mGraphicsManager->GetRenderer(), mEditorLayout.ViewportWindows[i]->Rect.Width, mEditorLayout.ViewportWindows[i]->Rect.Height);
+			mSplitViewports[i].Client = MakeShared<FEditorViewportClient>(*mGraphicsManager->GetRenderer());
+		}
+	}
+
+	FRect ViewportRect;
+	ViewportRect.X = mSceneManager->GetViewportX();
+	ViewportRect.Y = mSceneManager->GetViewportY();
+	ViewportRect.Width = mSceneManager->GetViewportWidth();
+	ViewportRect.Height = mSceneManager->GetViewportHeight();
+	mEditorLayout.Resize(ViewportRect);
+
+	mGraphicsManager->GetRenderer()->BindFrameBuffer();
+
+	ImGui::Render();
+	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+	mGraphicsManager->Display();
+	
 	FrameTimer->EndFrame();
 
 	GInTick = false;
@@ -315,7 +360,7 @@ void FEngineLoop::Tick(bool bPumpMessages)
 
 void FEngineLoop::End()
 {
-	const std::string Value = std::format("{:.6f}", ViewportClient->GetCamera().Sensitivity);
+	const std::string Value = std::format("{:.6f}", mMainViewport.Client->GetCamera().Sensitivity);
 
 	if (!WritePrivateProfileStringA("Camera", "Sensitivity", Value.c_str(), ".\\editor.ini"))
 	{
@@ -334,8 +379,13 @@ void FEngineLoop::End()
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
 
+	mMainViewport.Release();
+	for (FEditorViewport& Viewport : mSplitViewports)
+	{
+		Viewport.Release();
+	}
+
 	delete mComponentVisualizerManager;
-	delete ViewportClient;
 	delete FrameTimer;
 	delete mSceneManager;
 	delete mFileManager;

@@ -12,6 +12,7 @@
 #include "ShowFlags.h"
 
 class FAssetManager;
+struct FViewport;
 
 struct FBuffer
 {
@@ -26,7 +27,7 @@ public:
 	~FGraphicsManager();
 
 	//void Prepare(const Camera* mCamera);
-	void Prepare(const FCamera* Camera,float viewportWidth, float viewportHeight);
+	void Prepare(const FCamera* Camera,float viewportWidth, float viewportHeight, const FViewport& viewport);
 	void GizmoPrepare();
 
 	//void Render(FTransform worldTransformMatrix, EPrimitive ePrimitive); // FRenderInfo
@@ -36,7 +37,6 @@ public:
 	// FRenderInfo
 
 	void Display();
-	void Update(float deltaTime);
 
 	float GetAspect() const { return mAspect; }
 	EViewModeIndex GetViewModeIndex() const { return mViewModeIndex; }
@@ -73,7 +73,6 @@ public:
 	bool IsOrthographicTarget() const;
 	void UpdateProjectionTransition(float deltaTime);
 
-	inline const TSharedPtr<FRenderTarget2D>& GetSceneRenderTarget() const { return mSceneRenderTarget; }
 	inline FRenderCollector& GetRenderCollector() { return mRenderCollector; }
 	inline TArray<FRenderInfo>& GetRenderInfos() { return mRenderCollector.RenderInfos; }
 
@@ -109,8 +108,6 @@ private:
 	float mProjectionDuration = 1.0f;
 	bool mbProjectionTransitioning = false;
 
-	TSharedPtr<FRenderTarget2D> mSceneRenderTarget;
-	TSharedPtr<FDepthStencil> mSceneDepthStencil;
 	TSharedPtr<FRenderPipeline> mMeshPipeline;
 
 	FRenderCollector mRenderCollector;

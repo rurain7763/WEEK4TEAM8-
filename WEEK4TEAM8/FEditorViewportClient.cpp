@@ -22,6 +22,7 @@
 FEditorViewportClient::FEditorViewportClient(URenderer& InRenderer)
 	: mCamera(FTransform({ -2.0f, 1.0f, 1.0f }, { 0, 30, 0 }, { 1, 1, 1 }))
 	, mGizmo(InRenderer)
+	, mbActive(true)
 {
 	char Value[64] = {};
 	GetPrivateProfileStringA("Camera", "Sensitivity", "", Value, sizeof(Value), ".\\editor.ini");
@@ -32,22 +33,20 @@ FEditorViewportClient::FEditorViewportClient(URenderer& InRenderer)
 	}
 }
 
-AActor* FEditorViewportClient::PerformMousePicking(float perspectiveRatio, const FRenderCollector& RenderCollector, FSceneManager &SceneManager)
+AActor* FEditorViewportClient::PerformMousePicking(const FRect& ViewportRect, float perspectiveRatio, const FRenderCollector& RenderCollector)
 {
-	bMouseHit = false;
-
 	// 씬은 ImGui "Viewport" 창의 이미지 위에 그려진다.
 	// 그래서 역투영에 넣을 좌표계 기준은 윈도우 전체가 아니라 그 이미지다.
 	// 커서를 이미지 좌상단 기준으로 옮기고, 화면 크기도 이미지 크기를 쓴다.
-	const float ViewportWidth = SceneManager.GetViewportWidth();
-	const float ViewportHeight = SceneManager.GetViewportHeight();
+	const float ViewportWidth = ViewportRect.Width;
+	const float ViewportHeight = ViewportRect.Height;
 	if (ViewportWidth <= 0.f || ViewportHeight <= 0.f)
 	{
 		return nullptr;
 	}
 
-	const int32 MouseXInViewport = WindowApplication.Input.CursorX - static_cast<int32>(SceneManager.GetViewportX());
-	const int32 MouseYInViewport = WindowApplication.Input.CursorY - static_cast<int32>(SceneManager.GetViewportY());
+	const int32 MouseXInViewport = WindowApplication.Input.CursorX - static_cast<int32>(ViewportRect.X);
+	const int32 MouseYInViewport = WindowApplication.Input.CursorY - static_cast<int32>(ViewportRect.Y);
 
 	// 투영 방식에 따라 광선을 만드는 법만 다르다. 두 점을 구하고 나면 이후 판정은 완전히 같다
 	FVector NearPoint, FarPoint;
@@ -73,7 +72,6 @@ AActor* FEditorViewportClient::PerformMousePicking(float perspectiveRatio, const
 		if (HitT < NearlistT)
 		{
 			NearlistT = HitT;
-			bMouseHit = true;
 			NearestActor = PickTarget->GetOwner();  // 가장 가까운 액터를 반환
 		}
 	}
@@ -81,10 +79,10 @@ AActor* FEditorViewportClient::PerformMousePicking(float perspectiveRatio, const
 	return NearestActor;
 }
 
-void FEditorViewportClient::Update(float deltaTime, FSceneManager* sceneManager, float perspectiveRatio, FRenderCollector& RenderCollector)
+void FEditorViewportClient::Update(float deltaTime, float perspectiveRatio, FRenderCollector& RenderCollector)
 {
 	const FInputState& Input = WindowApplication.Input;
-	bool bAllowMouse = sceneManager->IsViewportHovered();
+	bool bAllowMouse = mbActive;
 	bool bAllowKeyboardInput = bAllowMouse && !ImGui::GetIO().WantCaptureKeyboard;
 
 	// Camera Rotate
@@ -229,9 +227,7 @@ void FEditorViewportClient::DeprojectScreenToWorldForUnified(
 	const float ndcX = (2.0f * (MouseX + 0.5f) / ScreenW) - 1.0f;
 	const float ndcY = 1.0f - (2.0f * (MouseY + 0.5f) / ScreenH);
 
-	const FMatrix invProjection = mCamera.GetInverseUnifiedProjectionMatrix(
-		ScreenW / ScreenH, mCamera.mFovDegree, orthoDistance, NearZ, FarZ, perspectiveRatio
-	);
+	const FMatrix invProjection = mCamera.GetInverseUnifiedProjectionMatrix(orthoDistance, perspectiveRatio);
 
 	const FMatrix invViewProj = invProjection * mCamera.GetViewMatrix().AffineInverse();
 
@@ -254,6 +250,26 @@ void FEditorViewportClient::DeprojectScreenToWorldForUnified(
 
 void FEditorViewportClient::Reset()
 {
-	bMouseHit = false;
 	mGizmo.Reset();
+}
+
+void FViewport::Resize(URenderer& Renderer, uint32 Width, uint32 Height)
+{
+	if (Width == 0 || Height == 0)
+	{
+		return;
+	}
+
+	if (RenderTarget && RenderTarget->Width == Width && RenderTarget->Height == Height)
+	{
+		return;
+	}
+
+	RenderTarget = Renderer.CreateRenderTarget2D(Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM);
+	RenderTarget->Width = Width;
+	RenderTarget->Height = Height;
+
+	DepthStencil = Renderer.CreateDepthStencil(Width, Height);
+	DepthStencil->Width = Width;
+	DepthStencil->Height = Height;
 }

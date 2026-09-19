@@ -7,6 +7,7 @@
 #include "Assets.h"
 #include "ObjectFactory.h"
 #include "UTextComponent.h"
+#include "FEditorViewportClient.h"
 
 // 선분 하나당 정점 2개. 축 6개 + 앞으로 붙을 그리드까지 감당할 만큼 잡아둔다
 static constexpr uint32 LINE_VERTEX_CAPACITY = 8192;
@@ -22,8 +23,6 @@ FGraphicsManager::FGraphicsManager(HWND hWindow) :
 #endif
 
 	mAspect = mRenderer->GetWidth() / static_cast<float>(mRenderer->GetHeight());
-	mSceneRenderTarget = mRenderer->CreateRenderTarget2D(mRenderer->GetWidth(), mRenderer->GetHeight(), DXGI_FORMAT_R8G8B8A8_UNORM);
-	mSceneDepthStencil = mRenderer->CreateDepthStencil(mRenderer->GetWidth(), mRenderer->GetHeight());
 
 	mMeshPipeline = mRenderer->CreateRenderPipeline();
 	mMeshPipeline->SetRasterRizerState(D3D11_CULL_BACK, 0, { EViewModeIndex::VMI_Lit, EViewModeIndex::VMI_Wireframe });
@@ -45,20 +44,16 @@ FGraphicsManager::~FGraphicsManager()
 	delete mRenderer;
 }
 
-void FGraphicsManager::Prepare(const FCamera* mCamera, float viewportWidth, float viewportHeight)
+void FGraphicsManager::Prepare(const FCamera* mCamera, float viewportWidth, float viewportHeight, const FViewport& Viewport)
 {
-	// Cache view and projection matrices for rendering
-	const float nearZ = 0.1f;
-	const float farZ = 2000.0f;
-
 	float d = mCamera->mOrthoDistance;
 	
 	mAspect = viewportWidth / viewportHeight;
 
 	FMatrix view = mCamera->GetViewMatrix();
-	FMatrix projection_u_p = mCamera->GetUnifiedProjectionMatrix(mAspect, mCamera->mFovDegree, d, nearZ, farZ, 1.0f);
-	FMatrix projection_u_o = mCamera->GetUnifiedProjectionMatrix(mAspect, mCamera->mFovDegree, d, nearZ, farZ, 0.0f);
-	FMatrix projection_u = mCamera->GetUnifiedProjectionMatrix(mAspect, mCamera->mFovDegree, d, nearZ, farZ, mProjectionRatio);
+	FMatrix projection_u_p = mCamera->GetUnifiedProjectionMatrix(d, 1.0f);
+	FMatrix projection_u_o = mCamera->GetUnifiedProjectionMatrix(d, 0.0f);
+	FMatrix projection_u = mCamera->GetUnifiedProjectionMatrix(d, mProjectionRatio);
 
 	//mViewProjectionMatrix = view * mCamera->GetProjectionMatrix(mAspect, mCamera->mFovDegree, nearZ, farZ);
 	mViewMatrix = view;
@@ -88,7 +83,7 @@ void FGraphicsManager::Prepare(const FCamera* mCamera, float viewportWidth, floa
 	// NearCube(주황)가 앞에 남고, 꺼져 있으면 FarCube(파랑)가 그 위를 덮어쓴다.
 	//mRenderer->UpdateConstantViewProjection(viewProjection);
 
-	mRenderer->BindRenderTarget(mSceneRenderTarget, mSceneDepthStencil);
+	mRenderer->BindRenderTarget(Viewport.RenderTarget, Viewport.DepthStencil);
 }
 
 void FGraphicsManager::GizmoPrepare()
@@ -152,8 +147,6 @@ void FGraphicsManager::Render()
 	{
 		mRenderer->RenderQuad(QuadInfo);
 	}
-
-	mRenderCollector.Clear();
 }
 
 void FGraphicsManager::DrawLine(const FVector& start, const FVector& end, const FVector4& color)
@@ -163,47 +156,9 @@ void FGraphicsManager::DrawLine(const FVector& start, const FVector& end, const 
 	mLineVertices.Add({ end.x,   end.y,   end.z,   color.x, color.y, color.z, color.w });
 }
 
-void FGraphicsManager::FlushLines()
-{
-#if 0
-	if (mLineVertices.Num() == 0) return;
-
-	// 선분 좌표가 이미 월드 공간이라 World는 단위행렬.
-	// Tint.a = 0 이면 셰이더의 lerp가 정점 색을 그대로 통과시킨다
-	//if (mbPerspectiveProjection)
-	//{
-	//	mRenderer->UpdateConstant(FMatrix::Identity, mViewProjectionMatrix, FVector4(0, 0, 0, 0));
-	//}
-	//else
-	//{
-	//	mRenderer->UpdateConstant(FMatrix::Identity, mViewOrthogonalProjectionMatrix, FVector4(0, 0, 0, 0));
-	//}
-
-	mRenderer->UpdateConstant(FMatrix::Identity, mViewUnifiedProjectionMatrix, FVector4(0, 0, 0, 0));
-	mRenderer->RenderLines(&mLineVertices[0], mLineVertices.Num());
-
-	// 안 비우면 매 프레임 누적돼 버퍼가 넘친다. 용량은 유지한 채 개수만 0으로
-	mLineVertices.Reset(LINE_VERTEX_CAPACITY);
-#endif
-}
-
-/*
-void GraphicsManager::Render(FTransform worldTransformMatrix, EPrimitive ePrimitive)
-{
-	mRenderer->UpdateConstant(worldTransformMatrix.MakeMatrix(), mViewProjectionMatrix);
-
-	FBuffer vertexBuffer = mBufferMap[ePrimitive];
-	mRenderer->RenderPrimitive(vertexBuffer.Buffer, vertexBuffer.SourceNum);
-}
-*/
-
 void FGraphicsManager::Display()
 {
 	mRenderer->SwapBuffer();
-}
-
-void FGraphicsManager::Update(float deltaTime)
-{
 }
 
 bool FGraphicsManager::IsPerspectiveProjection() const
@@ -228,16 +183,6 @@ void FGraphicsManager::OnResize(UINT width, UINT height)
 	if (width == 0 || height == 0)
 	{
 		return;
-	}
-
-	if (mSceneRenderTarget)
-	{
-		mSceneRenderTarget = mRenderer->CreateRenderTarget2D(width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
-	}
-	
-	if (mSceneDepthStencil)
-	{
-		mSceneDepthStencil = mRenderer->CreateDepthStencil(width, height);
 	}
 
 	mRenderer->OnResize(width, height);

@@ -33,6 +33,7 @@
 #include "ShowFlags.h"
 #include "TObjectIterator.h"
 #include "UStaticMeshComponent.h"
+#include "LaunchEngineLoop.h"
 
 FSceneManager::FSceneManager()
 {
@@ -69,14 +70,9 @@ void FSceneManager::Tick(float deltaTime)
 	mCurrentWorld->Tick(deltaTime);
 }
 
-void FSceneManager::Update(float deltaTime, FRenderCollector& outCollector)
+void FSceneManager::Render(float deltaTime, FRenderCollector& outCollector)
 {
-	// Todo: Save / Load
-	{
-
-	}
-
-	mCurrentWorld->Update(deltaTime, outCollector);
+	mCurrentWorld->Render(deltaTime, outCollector);
 }
 
 void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
@@ -129,24 +125,71 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 		ImGui::DockSpaceOverViewport(dockspaceID, viewport, flags);
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 
-		mbViewportHovered = false;
 		if (ImGui::Begin("Viewport"))
 		{
-			const ImVec2 size = ImGui::GetContentRegionAvail();
+			const ImVec2 Origin = ImGui::GetCursorScreenPos();
+			const ImVec2 TotalSize = ImGui::GetContentRegionAvail();
 
-			if (size.x > 0 && size.y > 0)
+			mViewportX = Origin.x;
+			mViewportY = Origin.y;
+			mViewportWidth = TotalSize.x;
+			mViewportHeight = TotalSize.y;
+
+			ImDrawList* DrawList = ImGui::GetWindowDrawList();
+
+			ImGuiIO& IO = ImGui::GetIO();
+
+			for (int32 i = 0; i < guiReference.ViewportCount; ++i)
 			{
-				const TSharedPtr<FRenderTarget2D>& sceneRenderTarget = guiReference.GraphicsManager->GetSceneRenderTarget();
-				ImGui::Image((ImTextureID)(intptr_t)sceneRenderTarget->SRV.Get(), size);
-				mbViewportHovered = ImGui::IsItemHovered();
+				FEditorViewport* EditorViewport = &guiReference.Viewports[i];
 
-				const ImVec2 imageMin = ImGui::GetItemRectMin();
-				const ImVec2 imageMax = ImGui::GetItemRectMax();
+				FRect DrawRect = EditorViewport->Window->Rect;
+				if (DrawRect.Width > 0 && DrawRect.Height > 0)
+				{
+					ImGui::SetCursorScreenPos(ImVec2(DrawRect.X, DrawRect.Y));
+					
+					bool bHovered = ImGui::IsMouseHoveringRect(ImVec2(DrawRect.X, DrawRect.Y), ImVec2(DrawRect.X + DrawRect.Width, DrawRect.Y + DrawRect.Height));
+					EditorViewport->Client->SetActive(bHovered);
 
-				mViewportX = imageMin.x;
-				mViewportY = imageMin.y;
-				mViewportWidth = size.x;
-				mViewportHeight = size.y;
+					const TSharedPtr<FRenderTarget2D>& RenderTarget = EditorViewport->Viewport->RenderTarget;
+					DrawList->AddImage((ImTextureID)(intptr_t)RenderTarget->SRV.Get(), ImVec2(DrawRect.X, DrawRect.Y), ImVec2(DrawRect.X + DrawRect.Width, DrawRect.Y + DrawRect.Height));
+				}
+			}
+
+			if (guiReference.EditorLayout->bIsSplitView)
+			{
+				float HorizontalRatio, VerticalRatio;
+				guiReference.EditorLayout->GetSplitRatios(HorizontalRatio, VerticalRatio);
+
+				const float SplitThickness = 1.0f;
+				const float SplitHandleThickness = 8.0f;
+				
+				float SplitX = mViewportX + mViewportWidth * VerticalRatio;
+				float SplitY = mViewportY + mViewportHeight * HorizontalRatio;
+				
+				ImGui::SetCursorScreenPos(ImVec2(SplitX - SplitHandleThickness * 0.5f, mViewportY));
+				ImGui::InvisibleButton("##SplitVertical", ImVec2(SplitHandleThickness, mViewportHeight));
+				if (ImGui::IsItemActive())
+				{
+					VerticalRatio = (IO.MousePos.x - mViewportX) / mViewportWidth;
+					VerticalRatio = std::clamp(VerticalRatio, 0.1f, 0.9f);
+				}
+
+				ImGui::SetCursorScreenPos(ImVec2(mViewportX, SplitY - SplitHandleThickness * 0.5f));
+				ImGui::InvisibleButton("##SplitHorizontal", ImVec2(mViewportWidth, SplitHandleThickness));
+				if (ImGui::IsItemActive())
+				{
+					HorizontalRatio = (IO.MousePos.y - mViewportY) / mViewportHeight;
+					HorizontalRatio = std::clamp(HorizontalRatio, 0.1f, 0.9f);
+				}
+
+				SplitX = mViewportX + mViewportWidth * VerticalRatio;
+				SplitY = mViewportY + mViewportHeight * HorizontalRatio;
+
+				DrawList->AddLine(ImVec2(SplitX, mViewportY), ImVec2(SplitX, mViewportY + mViewportHeight), ImColor(0.8f, 0.8f, 0.8f, 1.0f), SplitThickness);
+				DrawList->AddLine(ImVec2(mViewportX, SplitY), ImVec2(mViewportX + mViewportWidth, SplitY), ImColor(0.8f, 0.8f, 0.8f, 1.0f), SplitThickness);
+
+				guiReference.EditorLayout->SetSplitRatios(HorizontalRatio, VerticalRatio);
 			}
 		}
 		ImGui::End();
@@ -169,8 +212,8 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 			ImGui::Begin("##StatOverlay", nullptr, overlayFlags);
 			if (console.bShowStatFPS)
 			{
-				ImGui::TextColored(ImVec4(0.35f, 1.0f, 0.35f, 1.0f), "FPS: %.1f", guiReference.FrameTimer.GetFPS());
-				ImGui::Text("Frame: %.2f ms", guiReference.FrameTimer.GetDeltaTime() * 1000.0f);
+				ImGui::TextColored(ImVec4(0.35f, 1.0f, 0.35f, 1.0f), "FPS: %.1f", guiReference.FrameTimer->GetFPS());
+				ImGui::Text("Frame: %.2f ms", guiReference.FrameTimer->GetDeltaTime() * 1000.0f);
 			}
 
 			if (console.bShowStatMemory)
@@ -210,7 +253,7 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	mPanelWidth = ImGui::GetWindowWidth();
 
 	ImGui::Text("Hello Jungle World!");
-	ImGui::Text("FPS: %.1f  dt: %.4f", guiReference.FrameTimer.GetFPS(), guiReference.FrameTimer.GetDeltaTime());
+	ImGui::Text("FPS: %.1f  dt: %.4f", guiReference.FrameTimer->GetFPS(), guiReference.FrameTimer->GetDeltaTime());
 
 	/* Spawn Actor */
 	// NOTE: This name array must be edited when adding new primitive types to EPrimitive enum.
@@ -421,10 +464,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 							}
 						}
 					}
-
-					
-
-
 				}
 
 				UE_LOG(
@@ -555,8 +594,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	ImGui::SameLine();
 	ImGui::SliderFloat("##CameraSensitivity", &camera.Sensitivity, 0.01f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
 	
-
-
 	// 1) 라벨 텍스트를 먼저 그리고 같은 줄로
 	ImGui::Text("Location");
 	ImGui::SameLine();
@@ -619,6 +656,8 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 		guiReference.ViewportClient->mGizmo.SetOperation(static_cast<EGIZMO_TYPE>((currentGizmoIndex + 1) % 3));
 	}
 
+	// 스플릿 뷰포트 여부를 GUI에서 설정할 수 있도록 체크박스 추가
+	ImGui::Checkbox("Split Viewport", &guiReference.EditorLayout->bIsSplitView);
 
 	ImGui::End();
 }

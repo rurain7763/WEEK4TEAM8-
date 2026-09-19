@@ -50,10 +50,8 @@ bool FGizmo::IsMouseOverHandle() const
 	return bIsHoveredAxis; 
 }
 
-void FGizmo::Update(FSceneManager* SceneManager, const FMatrix& ViewProjection)
+void FGizmo::Update(AActor* TargetActor, const FRect& ViewportRect, bool bViewportHovered, const FMatrix& ViewProjection)
 {
-    AActor* TargetActor = SceneManager->GetSelectedActor();
-
     if (!TargetActor)
     {
         Reset();
@@ -70,13 +68,13 @@ void FGizmo::Update(FSceneManager* SceneManager, const FMatrix& ViewProjection)
 
     FVector2 MousePosInScreen = Map(
         FVector2(Input.CursorX, Input.CursorY),
-        FVector2(SceneManager->GetViewportX(), SceneManager->GetViewportY()),
-        FVector2(SceneManager->GetViewportX() + SceneManager->GetViewportWidth(), SceneManager->GetViewportY() + SceneManager->GetViewportHeight()),
+        FVector2(ViewportRect.X, ViewportRect.Y),
+        FVector2(ViewportRect.X + ViewportRect.Width, ViewportRect.Y + ViewportRect.Height),
         FVector2(0.f, 0.f),
         FVector2(Renderer.GetWidth(), Renderer.GetHeight())
     );
 
-    const bool bAllowMouse = SceneManager->IsViewportHovered();
+    const bool bAllowMouse = bViewportHovered;
     bool bDragStarted = false;
 
     if (!Input.IsDown(VK_LBUTTON))
@@ -119,9 +117,6 @@ void FGizmo::Update(FSceneManager* SceneManager, const FMatrix& ViewProjection)
     {
         return;
     }
-
-    const float Sensitivity = 0.01f;
-    const float Amount = FVector2::Dot(MousePosInScreen - PrevMousePos, HandleScreenDirection);
 
     const FTransform Transform = TargetActor->GetTransform();
     if (CurrentOperation == EGIZMO_TYPE::TRANSLATE)
@@ -166,6 +161,9 @@ void FGizmo::Update(FSceneManager* SceneManager, const FMatrix& ViewProjection)
     }
     else if (CurrentOperation == EGIZMO_TYPE::ROTATE)
     {
+        const float Sensitivity = 0.01f;
+        const float Amount = FVector2::Dot(MousePosInScreen - PrevMousePos, HandleScreenDirection);
+
         FQuaternion RotationQ = ToQuaternion(FMatrix::Rotate(Transform.Rotation));
         FQuaternion DeltaQ(AxisDirection, Amount * Sensitivity);
         FQuaternion FinalQ = DeltaQ * RotationQ;
@@ -175,6 +173,9 @@ void FGizmo::Update(FSceneManager* SceneManager, const FMatrix& ViewProjection)
     }
     else if (CurrentOperation == EGIZMO_TYPE::SCALE)
     {
+        const float Sensitivity = 0.01f;
+        const float Amount = FVector2::Dot(MousePosInScreen - PrevMousePos, HandleScreenDirection);
+
         FVector Scale = Transform.Scale + AxisDirection * Amount * Sensitivity;
         Scale.x = FMath::Max(Scale.x, MIN_SCALE);
         Scale.y = FMath::Max(Scale.y, MIN_SCALE);
@@ -186,10 +187,8 @@ void FGizmo::Update(FSceneManager* SceneManager, const FMatrix& ViewProjection)
     PrevMousePos = MousePosInScreen;
 }
 
-void FGizmo::Render(FSceneManager* SceneManager, const FVector& CameraPosition, const FMatrix& ViewProjection)
+void FGizmo::Render(AActor* TargetActor, const FVector& CameraPosition, const FMatrix& ViewProjection)
 {
-    AActor* TargetActor = SceneManager->GetSelectedActor();
-
     HandleScreenSegments.Empty();
 
     if (!TargetActor) 

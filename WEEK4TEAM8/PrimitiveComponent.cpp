@@ -181,7 +181,6 @@ void UPrimitiveComponent::RestoreMeshAsset()
 	mMeshAsset = FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(MeshAssetName, true);
 }
 
-
 void UPrimitiveComponent::Render(FRenderCollector& RenderCollector)
 {
 	if (FShowFlags::Get().IsEnabled(EShowFlag::Primitive))

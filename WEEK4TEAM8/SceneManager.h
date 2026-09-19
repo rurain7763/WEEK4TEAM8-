@@ -16,14 +16,20 @@ class FFrameTimer;
 class FEditorViewportClient;
 class FGraphicsManager;
 class UWorld;
+struct FViewport;
+struct FEditorLayout;
+struct FEditorViewport;
 
 struct FGuiReference
 {
-	const FFrameTimer& FrameTimer;
+	FFrameTimer* FrameTimer;
 	FGraphicsManager* GraphicsManager;
 	FEditorViewportClient* ViewportClient;
-	const FFileManager* FileManager;
+	FFileManager* FileManager;
 	FAssetManager* AssetManager;
+	FEditorLayout* EditorLayout;
+	FEditorViewport* Viewports;
+	int32 ViewportCount = 0;
 };
 
 struct FGuiInputField
@@ -47,9 +53,8 @@ public:
 	~FSceneManager();
 
 	void Tick(float deltaTime);
-	void Update(float deltaTime, FRenderCollector& outCollector);
+	void Render(float deltaTime, FRenderCollector& outCollector);
 	void UpdateGUI(const FGuiReference& guiReference);
-
 
 	const TArray<FRenderInfo> GetAxisRenderInfos();
 
@@ -73,7 +78,6 @@ public:
 	float GetViewportY() const { return mViewportY; }
 	float GetViewportWidth() const { return mViewportWidth; }
 	float GetViewportHeight() const { return mViewportHeight; }
-	bool IsViewportHovered() const { return mbViewportHovered; }
 
 private:
 	static constexpr float MIN_WIDTH_RATIO = 0.2f;
@@ -87,7 +91,6 @@ private:
 	float mViewportY;
 	float mViewportWidth;
 	float mViewportHeight;
-	bool mbViewportHovered = false;
 
 	UWorld* mCurrentWorld = nullptr;
 	AActor* mSelectedActor = nullptr;

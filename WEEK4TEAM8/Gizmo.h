@@ -27,8 +27,8 @@ public:
     void SetOperation(EGIZMO_TYPE Operation);
     EGIZMO_TYPE GetOperation() const;
 
-    void Update(FSceneManager* SceneManager, const FMatrix& ViewProjection);
-    void Render(FSceneManager* SceneManager, const FVector& CameraPosition, const FMatrix& ViewProjection);
+    void Update(AActor* TargetActor, const FRect& ViewportRect, bool bViewportHovered, const FMatrix& ViewProjection);
+    void Render(AActor* TargetActor, const FVector& CameraPosition, const FMatrix& ViewProjection);
     bool IsMouseOverHandle() const;
     bool IsDragging() const { return bIsSelected; }
     void Reset();

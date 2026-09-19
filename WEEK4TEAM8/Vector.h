@@ -224,6 +224,20 @@ struct FRay
 	}
 };
 
+struct FRect
+{
+	union
+	{
+		struct { float X, Y, Width, Height; };
+		float v[4];
+	};
+	
+	FRect() : X(0), Y(0), Width(0), Height(0) {}
+	FRect(float InX, float InY, float InWidth, float InHeight)
+		: X(InX), Y(InY), Width(InWidth), Height(InHeight) {
+	}
+};
+
 // 1. Define the triangle vertices
 struct FVertexSimple
 {

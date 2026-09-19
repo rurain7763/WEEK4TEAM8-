@@ -1,6 +1,6 @@
 ﻿#pragma once
-#include "Vector.h"
 
+#include "Vector.h"
 #include <d3d11.h>
 #include "World.h"
 #include "Camera.h"
@@ -10,6 +10,64 @@
 class AActor;
 class FSceneManager;
 class URenderer;
+struct FRenderTarget2D;
+struct FDepthStencil;
+
+struct SWindow
+{
+	FRect Rect;
+
+	SWindow() : Rect() {}
+
+	virtual void SetRect(const FRect& InRect)
+	{
+		Rect = InRect;
+		Rect.X = FMath::Max(Rect.X, 0.0f);
+		Rect.Y = FMath::Max(Rect.Y, 0.0f);
+		Rect.Width = FMath::Max(Rect.Width, 0.0f);
+		Rect.Height = FMath::Max(Rect.Height, 0.0f);
+	}
+};
+
+struct SSplitter : public SWindow
+{
+	TSharedPtr<SWindow> SideLT; // 좌 또는 상
+	TSharedPtr<SWindow> SideRB; // 우 또는 하
+	float SplitterRatio;
+
+	SSplitter() 
+	{ 
+		SplitterRatio = 0.5f;
+	}
+};
+
+struct SSplitterH : public SSplitter
+{
+	void SetRect(const FRect& InRect) override
+	{
+		SWindow::SetRect(InRect);
+		if (SideLT && SideRB)
+		{
+			float OtherRatio = 1.0f - SplitterRatio;
+			SideLT->SetRect(FRect(Rect.X, Rect.Y, Rect.Width, Rect.Height * SplitterRatio));
+			SideRB->SetRect(FRect(Rect.X, Rect.Y + Rect.Height * SplitterRatio, Rect.Width, Rect.Height * OtherRatio));
+		}
+	}
+};
+
+class SSplitterV : public SSplitter
+{
+	void SetRect(const FRect& InRect) override
+	{
+		SWindow::SetRect(InRect);
+		if (SideLT && SideRB)
+		{
+			float OtherRatio = 1.0f - SplitterRatio;
+			SideLT->SetRect(FRect(Rect.X, Rect.Y, Rect.Width * SplitterRatio, Rect.Height));
+			SideRB->SetRect(FRect(Rect.X + Rect.Width * SplitterRatio, Rect.Y, Rect.Width * OtherRatio, Rect.Height));
+		}
+	}
+};
 
 struct FEditorViewportClient
 {
@@ -19,12 +77,14 @@ public:
 	// 이번 프레임에 수집된 픽킹 대상(RenderCollector.PickTargets)만 훑는다.
 	// 월드의 액터 계층을 다시 내려가지 않는다.
 	// 광선은 ImGui 뷰포트 이미지 기준으로 만든다. 렌더러의 D3D11_VIEWPORT(백버퍼 전체)가 아니다.
-	AActor* PerformMousePicking(float perspectiveRatio, const FRenderCollector& RenderCollector, FSceneManager& SceneManager);
+	AActor* PerformMousePicking(const FRect& ViewportRect, float perspectiveRatio, const FRenderCollector& RenderCollector);
 	float GetFov() const { return mCamera.mFovDegree; }
-	void Update(float deltaTime, FSceneManager* sceneManager, float perspectiveRatio, FRenderCollector& RenderCollector);
-	bool IsMouseHit() const { return bMouseHit; }
+	void Update(float deltaTime, float perspectiveRatio, FRenderCollector& RenderCollector);
 
 	void Reset();
+
+	inline void SetActive(bool bActive) { mbActive = bActive; }
+	inline bool IsActive() const { return mbActive; }
 
 	FCamera& GetCamera() { return mCamera; }
 
@@ -51,9 +111,18 @@ private:
 		FVector& OutNearPoint, FVector& OutFarPoint
 	);
 
-	bool bMouseHit = false;
+	bool mbActive;
 	
 	// RayCast가 이번 프레임에 쏜 광선. 기즈모 드래그가 같은 광선을 다시 쓴다
 	FVector mRayNear;
 	FVector mRayFar;
 };
+
+struct FViewport
+{
+	TSharedPtr<FRenderTarget2D> RenderTarget;
+	TSharedPtr<FDepthStencil> DepthStencil;
+
+	void Resize(URenderer& Renderer, uint32 Width, uint32 Height);
+};
+

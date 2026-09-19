@@ -30,45 +30,45 @@ public:
 		Transform.Rotation = FRotator::LookAt(Transform.Location, Target);
 	}
 
-	FMatrix GetProjectionMatrix(float Aspect, float fovDegree, float n, float f) const
+	FMatrix GetProjectionMatrix() const
 	{
 		//fov 단위는 라디안
 		FMatrix result = FMatrix::Zero; //영벡터
-		float yScale = 1.0f / tanf((fovDegree / 2) * PI / 180); //xScale
-		float xScale = yScale / Aspect;
+		float yScale = 1.0f / tanf((mFovDegree / 2) * PI / 180); //xScale
+		float xScale = yScale / mAspect;
 
 		result.M[0][0] = xScale; //xScale
 		result.M[1][1] = yScale; //yScale
-		result.M[2][2] = f / (f - n); //A 임시
-		result.M[3][2] = -n * f / (f - n); //B 임시
+		result.M[2][2] = mFar / (mFar - mNear); //A 임시
+		result.M[3][2] = -mNear * mFar / (mFar - mNear); //B 임시
 		result.M[2][3] = 1;
 
 		return result;
 	}
 
 	// Transpose matrix for perspective projection.
-	FMatrix GetProjectionT_pMatrix(float n, float f) const
+	FMatrix GetProjectionT_pMatrix() const
 	{
 		FMatrix result = FMatrix::Zero;
 
 		result.M[0][0] = 1.0f;
 		result.M[1][1] = 1.0f;
-		result.M[2][2] = f / (f - n);
+		result.M[2][2] = mFar / (mFar - mNear);
 		result.M[2][3] = 1.0f;
-		result.M[3][2] = -n * f / (f - n);
+		result.M[3][2] = -mNear * mFar / (mFar - mNear);
 
 		return result;
 	}
 
 	// Transpose matrix for orthographic projection.
-	FMatrix GetProjectionT_oMatrix(float d, float n, float f) const
+	FMatrix GetProjectionT_oMatrix(float d) const
 	{
 		FMatrix result = FMatrix::Zero;
 
 		result.M[0][0] = 1.0f / d;
 		result.M[1][1] = 1.0f / d;
-		result.M[2][2] = 1.0f / (f - n);
-		result.M[3][2] = -n / (f - n);
+		result.M[2][2] = 1.0f / (mFar - mNear);
+		result.M[3][2] = -mNear / (mFar - mNear);
 		result.M[3][3] = 1.0f;
 
 		return result;
@@ -76,25 +76,25 @@ public:
 
 	// Transpose matrix for both perspective and orthographic projection.
 	// T_unified = (1 - t) * T_orthographic + t * T_perspective / d
-	FMatrix GetProjectionT_uMatrix(float d, float n, float f, float t) const
+	FMatrix GetProjectionT_uMatrix(float d, float t) const
 	{
 		FMatrix result = FMatrix::Zero;
 
 		result.M[0][0] = 1.0f / d;
 		result.M[1][1] = 1.0f / d;
-		result.M[2][2] = ((1 - t) + t * f / d) / (f - n);
+		result.M[2][2] = ((1 - t) + t * mFar / d) / (mFar - mNear);
 		result.M[2][3] = t / d;
-		result.M[3][2] = -n * ((1 - t) + t * f / d) / (f - n);
+		result.M[3][2] = -mNear * ((1 - t) + t * mFar / d) / (mFar - mNear);
 		result.M[3][3] = 1.0f - t;
 
 		return result;
 	}
 
 	// Scale matrix for projection
-	FMatrix GetProjectionSMatrix(float aspect, float fovDegree, float n, float f) const
+	FMatrix GetProjectionSMatrix() const
 	{
-		float yScale = 1.0f / tanf((fovDegree / 2) * PI / 180); //yScale
-		float xScale = yScale / aspect; //xScale
+		float yScale = 1.0f / tanf((mFovDegree / 2) * PI / 180); //yScale
+		float xScale = yScale / mAspect; //xScale
 
 		FMatrix result = FMatrix::Zero;
 
@@ -107,28 +107,28 @@ public:
 	}
 
 	// Unified matrix for projection
-	FMatrix GetUnifiedProjectionMatrix(float aspect, float fovDegree, float d, float n, float f, float t) const
+	FMatrix GetUnifiedProjectionMatrix(float d, float t) const
 	{
-		const float sy = 1.0f / tanf((fovDegree / 2) * PI / 180); //yScale
-		const float sx = sy / aspect;
+		const float sy = 1.0f / tanf((mFovDegree / 2) * PI / 180); //yScale
+		const float sx = sy / mAspect;
 
-		const float A = ((1.0f - t) + t * f / d) / (f - n);
+		const float A = ((1.0f - t) + t * mFar / d) / (mFar - mNear);
 
 		FMatrix result = FMatrix::Zero;
 		result.M[0][0] = sx / d;
 		result.M[1][1] = sy / d;
 		result.M[2][2] = A;
 		result.M[2][3] = t / d;
-		result.M[3][2] = -n * A;
+		result.M[3][2] = -mNear * A;
 		result.M[3][3] = 1.0f - t;
 
 		return result;
 	}
 
 	// Inverse matrix for unified projection matrix
-	FMatrix GetInverseUnifiedProjectionMatrix(float aspect, float fovDegree, float d, float n, float f, float t) const
+	FMatrix GetInverseUnifiedProjectionMatrix(float d, float t) const
 	{
-		const FMatrix P = GetUnifiedProjectionMatrix(aspect, fovDegree, d, n, f, t);
+		const FMatrix P = GetUnifiedProjectionMatrix(d, t);
 
 		const float A = P.M[2][2];
 		const float B = P.M[2][3];
@@ -148,14 +148,14 @@ public:
 		return result;
 	}
 
-	FMatrix GetOrthographicMatrix(float width, float height, float n, float f) const
+	FMatrix GetOrthographicMatrix(float width, float height) const
 	{
 		FMatrix result = FMatrix::Zero; // 영벡터
 
 		result.M[0][0] = 2.0f / width;
 		result.M[1][1] = 2.0f / height;
-		result.M[2][2] = 1.0f / (f - n);
-		result.M[3][2] = -n / (f - n);
+		result.M[2][2] = 1.0f / (mFar - mNear);
+		result.M[3][2] = -mNear / (mFar - mNear);
 		result.M[3][3] = 1.0f;
 
 		return result;
@@ -173,6 +173,10 @@ public:
 	FVector GetForwardVector() const { return FMatrix::Rotate(Transform.Rotation).GetUnitAxis(EAxis::X); }
 	FVector GetRightVector()   const { return FMatrix::Rotate(Transform.Rotation).GetUnitAxis(EAxis::Y); }
 	FVector GetUpVector()      const { return FMatrix::Rotate(Transform.Rotation).GetUnitAxis(EAxis::Z); }
+
+	float mAspect = 1.0f;
+	float mNear = 0.1f;
+	float mFar = 1000.0f;
 
 	//속력
 	float Speed = 5.f;
