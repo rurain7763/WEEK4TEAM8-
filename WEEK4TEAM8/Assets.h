@@ -61,6 +61,9 @@ public:
 	inline const FAABB& GetLocalBoundingBox() const { return BoundingBox; }
 	inline const TArray<FStaticMeshSection>& GetSections() const { return Sections; }
 
+	const TArray<FStaticMeshBuildVertex>& GetCpuVertices() const { return CpuVertices; }
+	const TArray<uint32>& GetCpuIndices() const { return CpuIndices; }
+
 private:
 	Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer;
 	uint32 VertexCount;
@@ -70,6 +73,9 @@ private:
 
 	FAABB BoundingBox;
 	TArray<FStaticMeshSection> Sections;
+
+	TArray<FStaticMeshBuildVertex> CpuVertices;
+	TArray<uint32> CpuIndices;
 };
 
 class FStaticMeshAssetLoader : public FAssetLoader

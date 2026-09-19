@@ -6,6 +6,8 @@
 #include "Actor.h"
 #include "JsonUtil.h"
 #include "FObjManager.h"
+#include "EngineMathLibrary.h"
+
 
 void UStaticMeshComponent::Initialize(const FString& InAssetPathFileName, FVector Location,
     FRotator Rotation,  FVector Scale)
@@ -144,4 +146,59 @@ void UStaticMeshComponent::GetRenderInfos(TArray<FRenderInfo>* OutRenderInfos) c
             false
             });
     }
+}
+
+bool UStaticMeshComponent::RayCastComponent(const FPickingRay& PickingRay, float& OutHitT) const
+{
+    if (!StaticMesh)
+    {
+        return false;
+    }
+
+    const FMatrix WorldMatrix = GetTransformMatrix().MakeMatrix();
+
+    const FStaticMeshAsset* meshAsset = StaticMesh->GetStaticMeshAsset().get();
+    const auto& vertices = meshAsset->GetCpuVertices();
+    const auto& indices = meshAsset->GetCpuIndices();
+
+    const FAABB BoundingBox = meshAsset->GetLocalBoundingBox().ToWorld(WorldMatrix);
+    if (!RayIntersectsAABB(PickingRay.ToRay(), PickingRay.Length, BoundingBox))
+    {
+        return false;
+    }
+
+    const FMatrix WorldToLocal = WorldMatrix.AffineInverse();
+    if (WorldToLocal == FMatrix::Zero)
+    {
+        return false;
+    }
+
+    const FVector LocalNear = WorldToLocal.TransformPosition(PickingRay.Near);
+    const FVector LocalFar = WorldToLocal.TransformPosition(PickingRay.Far);
+
+    bool bHit = false;
+    float NearestT = FLT_MAX;
+
+    uint32 indexCount = indices.Num();
+
+    for (int32 i = 0; i < indexCount; i += 3)
+    {
+        const FVector V0 = vertices[indices[i]].GetPosition();
+        const FVector V1 = vertices[indices[i + 1]].GetPosition();
+        const FVector V2 = vertices[indices[i + 2]].GetPosition();
+
+        float OutT, OutU, OutV;
+        if (RayIntersectsTriangle(LocalNear, LocalFar, V0, V1, V2, OutT, OutU, OutV) && OutT < NearestT)
+        {
+            NearestT = OutT;
+            bHit = true;
+        }
+    }
+
+    if (bHit)
+    {
+        OutHitT = NearestT;
+    }
+
+    return bHit;
 }
