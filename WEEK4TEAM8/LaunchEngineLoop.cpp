@@ -26,6 +26,7 @@
 #include "FObjImporter.h"
 #include "UStaticMeshComponent.h"
 #include "FObjManager.h"
+#include "Serializers.h"
 
 void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 {
@@ -180,6 +181,36 @@ void FEngineLoop::InitAssetManager()
 	TSharedPtr<FFontAsset> TestFontAsset = mAssetManager->GetAssetAs<FFontAsset>(FName("TestFont"), true);
 	TSharedPtr<FFontAtlasAsset> FontAtlasAsset = MakeShared<FFontAtlasAsset>(FGuid::NewGuid(), FName("TestFontAtlas"), *renderer, TestFontAsset, 512, 512, 2, 2);
 	mAssetManager->RegisterAsset(FontAtlasAsset);
+
+	// Register asset files
+	for (const auto& entry : std::filesystem::recursive_directory_iterator(kDefaultAssetsPath))
+	{
+		if (entry.is_regular_file())
+		{
+			std::filesystem::path FilePath = entry.path();
+			std::filesystem::path Extension = FilePath.extension();
+			
+			if (Extension != ".uasset")
+			{
+				continue;
+			}
+
+			FWindowsBinReader Reader(FilePath);
+			
+			FAssetFileHeader Header;
+			Reader << Header;
+
+			switch (Header.AssetType)
+			{
+				case EAssetType::Texture2D:
+				{
+					TSharedPtr<FFileAssetSource> TextureSource = MakeShared<FFileAssetSource>(FilePath);
+					mAssetManager->RegisterAsset(FName(FilePath.stem().string()), TextureLoader, TextureSource);
+				}
+				break;
+			}
+		}
+	}
 }
 
 void FEngineLoop::Tick(bool bPumpMessages)
@@ -189,7 +220,6 @@ void FEngineLoop::Tick(bool bPumpMessages)
 
 	FrameTimer->StartFrame();
 	float deltaTime = FrameTimer->GetDeltaTime();
-	ConsoleWindow& console = ConsoleWindow::Get();
 
 	FRenderCollector& RenderCollector = mGraphicsManager->GetRenderCollector();
 

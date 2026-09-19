@@ -21,7 +21,7 @@ class FAssetManager
 public:
 	static FAssetManager& Get();
 
-	void RegisterAsset(const TSharedPtr<FAssetLoader>& AssetLoader, const TSharedPtr<FAssetSource>& AssetSource);
+	void RegisterAsset(const FName& AssetName, const TSharedPtr<FAssetLoader>& AssetLoader, const TSharedPtr<FAssetSource>& AssetSource);
 	void RegisterAsset(const FGuid& AssetID, const FName& AssetName, const TSharedPtr<FAssetLoader>& AssetLoader, const TSharedPtr<FAssetSource>& AssetSource);
 	void RegisterAsset(const TSharedPtr<FAsset>& Asset);
 	void UnregisterAsset(const FName& AssetName);

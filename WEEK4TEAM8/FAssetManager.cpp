@@ -7,7 +7,7 @@ FAssetManager& FAssetManager::Get()
 	return *GEngineLoop.GetAssetManager();
 }
 
-void FAssetManager::RegisterAsset(const TSharedPtr<FAssetLoader>& AssetLoader, const TSharedPtr<FAssetSource>& AssetSource)
+void FAssetManager::RegisterAsset(const FName& AssetName, const TSharedPtr<FAssetLoader>& AssetLoader, const TSharedPtr<FAssetSource>& AssetSource)
 {
 	TSharedPtr<FArchive> Archive = AssetSource->CreateArchive();
 
@@ -22,7 +22,7 @@ void FAssetManager::RegisterAsset(const TSharedPtr<FAssetLoader>& AssetLoader, c
 	FAssetMetaInfo MetaInfo;
 	MetaInfo.AssetID = Header.AssetID;
 	MetaInfo.AssetType = AssetLoader->GetAssetType();
-	MetaInfo.AssetName = Header.AssetName;
+	MetaInfo.AssetName = AssetName;
 	MetaInfo.PayloadOffset = Archive->Tell();
 	MetaInfo.AssetLoader = AssetLoader;
 	MetaInfo.AssetSource = AssetSource;

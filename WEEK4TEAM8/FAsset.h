@@ -61,6 +61,5 @@ struct FAssetFileHeader
 	uint32 Version;
 	EAssetType AssetType;
 	FGuid AssetID;
-	FName AssetName;
 };
 

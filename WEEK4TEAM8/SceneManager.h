@@ -7,6 +7,7 @@
 #include "RenderInfo.h"
 #include "enum.h"
 #include "FAssetManager.h"
+#include "FContentBrowser.h"
 
 inline constexpr std::string_view kSceneDataDir = "SceneData\\";
 inline constexpr std::string_view kSceneDataSuffix = ".Scene";
@@ -46,11 +47,14 @@ struct FGuiInputField
 	uint64 LastGUObjectRevision = -1;
 };
 
-class FSceneManager
+class FSceneManager : public FContentBrowserEventHandler
 {
 public:
 	FSceneManager();
 	~FSceneManager();
+
+	void OnNewAssetFile(const FAssetFileHeader& Header, const std::filesystem::path& FilePath) override;
+	void OnDeleteAssetFile(const std::filesystem::path& FilePath) override;
 
 	void Tick(float deltaTime);
 	void Render(float deltaTime, FRenderCollector& outCollector);
@@ -95,6 +99,7 @@ private:
 	UWorld* mCurrentWorld = nullptr;
 	AActor* mSelectedActor = nullptr;
 	FGuiInputField mGuiInputField;
+	FContentBrowser mContentBrowser;
 
 	void updateControlPanelGUI(const FGuiReference& guiReference);
 

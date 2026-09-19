@@ -34,6 +34,7 @@
 #include "TObjectIterator.h"
 #include "UStaticMeshComponent.h"
 #include "LaunchEngineLoop.h"
+#include "FAssetManager.h"
 
 FSceneManager::FSceneManager()
 {
@@ -43,26 +44,35 @@ FSceneManager::FSceneManager()
 	mViewportY = 0;
 	mViewportWidth = WindowApplication.PendingWidth;
 	mViewportHeight = WindowApplication.PendingHeight;
-
-	//mCurrentWorld = FObjectFactory::ConstructObject<UWorld>();
-
-	// Todo: Test code, move to other function
-	//{
-	//	UCubeComponent* cubeComponent = FObjectFactory::ConstructObject<UCubeComponent>(FVector(0), FRotator(), FVector(1));
-	//	AActor* cubeActor = FObjectFactory::ConstructObject<AActor>();
-	//	cubeActor->AddComponent(cubeComponent);
-	//	mCurrentWorld->AddActor(cubeActor);
-
-	//	UCubeComponent* cubeComponent2 = FObjectFactory::ConstructObject<UCubeComponent>(FVector(1, 1, 1), FRotator(), FVector(0.5));
-	//	AActor* cubeActor2 = FObjectFactory::ConstructObject<AActor>();
-	//	cubeActor2->AddComponent(cubeComponent2);
-	//	mCurrentWorld->AddActor(cubeActor2);
-	//}
+	
+	mContentBrowser.Initialize(kDefaultAssetsPath);
+	mContentBrowser.SetEventHandler(this);
 }
 
 FSceneManager::~FSceneManager()
 {
 	delete mCurrentWorld;
+}
+
+void FSceneManager::OnNewAssetFile(const FAssetFileHeader& Header, const std::filesystem::path& FilePath)
+{
+	FAssetManager& AssetManager = FAssetManager::Get();
+
+	if (Header.AssetType == EAssetType::Texture2D)
+	{
+		// TODO: Texture2D AssetLoader와 AssetSource를 생성하고 등록
+	}
+	else
+	{
+		UE_LOG_ERROR("Unsupported asset type");
+	}
+}
+
+void FSceneManager::OnDeleteAssetFile(const std::filesystem::path& FilePath)
+{
+	FAssetManager& AssetManager = FAssetManager::Get();
+
+	AssetManager.UnregisterAsset(FName(FilePath.stem().string()));
 }
 
 void FSceneManager::Tick(float deltaTime)
@@ -235,8 +245,8 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 	updateControlPanelGUI(guiReference);
 	updatePropertyWindowGUI(guiReference);
 	updateObjectListPanelGUI(guiReference);
-
 	ConsoleWindow::Get().Process(mPanelWidth);
+	mContentBrowser.Render();
 }
 
 void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)

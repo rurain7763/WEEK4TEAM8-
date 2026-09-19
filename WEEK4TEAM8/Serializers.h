@@ -91,7 +91,6 @@ struct FArchiveSerializer<FAssetFileHeader>
 		Ar << Value.Version;
 		Ar << Value.AssetType;
 		Ar << Value.AssetID;
-		Ar << Value.AssetName;
 	}
 };
 
