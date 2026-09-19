@@ -65,6 +65,9 @@ void UWorld::AddActor(AActor* actor)
 	assert(getActorIndex(actor->UUID) == -1);
 
 	mActors.Add(actor);
+
+	// TODO: 전처리를 통해 에디터 모드가 아니면 아래 코드를 컴파일하지 않게 막아야함.
+	actor->CreateEditorComponents();
 }
 
 bool UWorld::RemoveActor(uint32 componentUUID)

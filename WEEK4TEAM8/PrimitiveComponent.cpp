@@ -187,13 +187,6 @@ void UPrimitiveComponent::Render(FRenderCollector& RenderCollector)
 		RenderCollector.RenderInfos.Add({ mMeshAsset, mTextureAsset, mePrimitive, GetTransformMatrix().MakeMatrix(),{ mOwner->UUID, mOwner->InternalIndex }, FVector4(0, 0, 0, 0) });
 }
 
-void UPrimitiveComponent::GetRenderInfos(TArray<FRenderInfo>* outRenderInfos) const
-{
-	assert(outRenderInfos);
-
-	outRenderInfos->Add({ mMeshAsset, mTextureAsset, mePrimitive, GetTransformMatrix().MakeMatrix(),{mOwner->UUID, mOwner->InternalIndex}, FVector4(0, 0, 0, 0)});
-}
-
 void UPrimitiveComponent::RegisterPickTarget(FRenderCollector& RenderCollector)
 {
 	RenderCollector.PickTargets.Add(this);

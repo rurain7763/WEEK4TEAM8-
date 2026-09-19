@@ -26,10 +26,7 @@ public:
 
 		Play();
 	}
-	void RestoreRuntimeCamera(FCamera& Camera)
-	{
-		SetBillboardCamera(Camera);
-	}
+
 	void SetAtlas(const TSharedPtr<FSpriteAtlasAsset>& InAtlas);
 	inline const TSharedPtr<FSpriteAtlasAsset>& GetAtlas() const { return Asset; }
 

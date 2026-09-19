@@ -25,7 +25,6 @@ public:
 
 	//virtual void Render();
 	virtual void Render(FRenderCollector& RenderCollector) override;
-	virtual void GetRenderInfos(TArray<FRenderInfo>* outRenderInfos) const override;
 
 	// 프리미티브는 전부 픽킹 대상이다.
 	virtual void RegisterPickTarget(FRenderCollector& RenderCollector) override;
@@ -48,7 +47,6 @@ protected:
 	void RestoreMeshAsset();
 
 protected:
-	//GraphicsManager* mGraphicsManager;
 	EPrimitive mePrimitive;
 	TSharedPtr<FStaticMeshAsset> mMeshAsset;
 	TSharedPtr<FTexture2DAsset> mTextureAsset;

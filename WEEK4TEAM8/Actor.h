@@ -27,6 +27,8 @@ public:
 	bool RemoveComponent(uint32 componentUUID);
 	inline const TArray<UActorComponent*>& GetComponents() const { return mComponents; }
 
+	virtual void CreateEditorComponents();
+
 	FTransform GetTransform() const;
 
 	virtual void Tick(float deltaTime);

@@ -233,6 +233,9 @@ void URenderer::Release()
 	PrimitivePipeline.reset();
 	StencilMarkPipeline.reset();
 	StencilOutlinePipeline.reset();
+	LinePipeline.reset();
+	QuadPipeline.reset();
+	LineStructuredBuffer.reset();
 
 	for (auto& Pair : SamplerStatePool.SamplerStates)
 	{
@@ -529,9 +532,15 @@ void URenderer::RenderQuad(const FRenderQuadInfo& Info) const
 {
 	QuadPipeline->ClearShaderResource();
 	
+	DXGI_FORMAT TextureFormat = DXGI_FORMAT_UNKNOWN;
 	if (Info.TextureSRV)
 	{
 		QuadPipeline->SetShaderResource(0, Info.TextureSRV);
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC Desc{};
+		Info.TextureSRV->GetDesc(&Desc);
+
+		TextureFormat = Desc.Format;
 	}
 
 	QuadPipeline->SetBlendState(Info.BlendMode);
@@ -539,10 +548,7 @@ void URenderer::RenderQuad(const FRenderQuadInfo& Info) const
 
 	BindPipeline(QuadPipeline);
 
-	D3D11_SHADER_RESOURCE_VIEW_DESC Desc{};
-	Info.TextureSRV->GetDesc(&Desc);
-
-	QuadPipeline->UpdateConstantBuffer(0, FQuadConstants{ Info.Model, Info.Color, Info.SubUV, Info.TextureSRV ? 1 : 0, Desc.Format == DXGI_FORMAT_R8_UNORM });
+	QuadPipeline->UpdateConstantBuffer(0, FQuadConstants{ Info.Model, Info.Color, Info.SubUV, Info.TextureSRV ? 1 : 0, TextureFormat == DXGI_FORMAT_R8_UNORM });
 
 	UINT Offset = 0;
 	DeviceContext->IASetVertexBuffers(0, 0, NULL, NULL, &Offset);
@@ -557,7 +563,6 @@ void URenderer::RenderPrimitive(const TSharedPtr<FRenderPipeline>& Pipeline, Mic
 	DeviceContext->IASetVertexBuffers(0, 1, Buffer.GetAddressOf(), &Pipeline->Stride, &Offset);
 	DeviceContext->Draw(NumVertices, 0);
 }
-
 
 void URenderer::RenderPrimitive(Microsoft::WRL::ComPtr<ID3D11Buffer> Buffer, UINT NumVertices, const FMatrix& Model) const
 {

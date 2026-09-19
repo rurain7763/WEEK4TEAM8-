@@ -146,10 +146,30 @@ TSharedPtr<FAsset> FTexture2DAssetLoader::LoadAsset(const FGuid& AssetID, const 
 	int32 Width, Height, Channels;
 	TArray<uint8> ImageData;
 
+#if 0 // 임시 비활성화 나중에는 uasset으로 읽기 때문에 이 코드로 이미지 파일을 읽어야함
 	Ar << Width;
 	Ar << Height;
 	Ar << Channels;
 	Ar << ImageData;
+#else
+	TArray<int8> Memory;
+	if (!TryReadToBytes(Ar, Memory))
+	{
+		UE_LOG_ERROR("Failed to read image data for asset: %s", AssetName.ToString().CStr());
+		return nullptr;
+	}
+	
+	stbi_uc* ImageDataPtr = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(Memory.Data()), static_cast<int>(Memory.Num()), &Width, &Height, &Channels, 4);
+	if (!ImageDataPtr)
+	{
+		UE_LOG_ERROR("Failed to read image info for asset: %s", AssetName.ToString().CStr());
+		return nullptr;
+	}
+
+	ImageData.SetNum(Width * Height * 4); // RGBA로 변환
+	std::memcpy(ImageData.Data(), ImageDataPtr, ImageData.Num());
+	stbi_image_free(ImageDataPtr);
+#endif
 
 	D3D11_TEXTURE2D_DESC TextureDesc = {};
 	TextureDesc.Width = Width;

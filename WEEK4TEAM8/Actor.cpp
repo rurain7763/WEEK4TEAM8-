@@ -1,10 +1,9 @@
 ﻿#include "Actor.h"
-
-#include <format>
-
 #include "JsonUtil.h"
 #include "RenderInfo.h"
 #include "SceneComponent.h"
+#include "UTextComponent.h"
+#include <format>
 
 AActor::~AActor()
 {
@@ -29,10 +28,16 @@ void AActor::SerializeClass(json::JSON& outJson) const
 
 	for (const UActorComponent* component : mComponents)
 	{
+		if (!component->ShouldSerialize())
+		{
+			continue;
+		}
+
 		json::JSON componentJson;
 		component->SerializeClass(componentJson);
 		componentsJson.append(std::move(componentJson));
 	}
+
 	outJson["Properties"]["mComponents"] = componentsJson;
 	outJson["Properties"]["mRootComponentUUID"] = mRootComponent ? mRootComponent->UUID : -1;
 }
@@ -122,6 +127,19 @@ bool AActor::RemoveComponent(uint32 componentUUID)
 	mComponents.RemoveAtSwap(componentIndex);
 
 	return true;
+}
+
+void AActor::CreateEditorComponents()
+{
+	UText3DComponent* Text3DComponent = FObjectFactory::ConstructObject<UText3DComponent>(FVector(0, 0, 1), FRotator(0, 0, 0), FVector(1, 1, 1));
+	Text3DComponent->SetBillboard(true);
+	Text3DComponent->SetText(Utf2Wide(std::format("UUID: {}", UUID)));
+	Text3DComponent->SetFontAtlasAsset(FAssetManager::Get().GetAssetAs<FFontAtlasAsset>(FName("TestFontAtlas")));
+	Text3DComponent->SetDepthState(false, false);
+	Text3DComponent->SetEditorOnly(true);
+	Text3DComponent->SetDoNotSerialize(true);
+
+	AddComponent(Text3DComponent);
 }
 
 FTransform AActor::GetTransform() const

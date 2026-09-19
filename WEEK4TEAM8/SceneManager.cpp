@@ -294,7 +294,7 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 			const FClassInfo* ActorClass = ActorClassInfo[ActorTypeIndex];
 
 			AActor* NewActor = nullptr;
-			if (ActorClass->IsChildOf(UAtlasAnimationComponent::GetClass()))
+			if (ActorClass == UAtlasAnimationComponent::GetClass())
 			{
 				NewActor = FObjectFactory::ConstructObject<AActor>();
 
@@ -304,34 +304,22 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 				AnimComponent->SetRelativeLocation(FVector(0, 0, 0));
 				AnimComponent->SetRelativeRotation(FRotator(0, 0, 0));
 				AnimComponent->SetRelativeScale3D(FVector(1, 1, 1));
-				AnimComponent->SetBillboardCamera(guiReference.ViewportClient->GetCamera());
 				AnimComponent->SetBillboard(true);
 				AnimComponent->SetDepthState(true, false);
 				AnimComponent->Play();
 
 				NewActor->AddRootSceneComponent(AnimComponent);
 			}
-			else if (ActorClass->IsChildOf(UPrimitiveComponent::GetClass()))
+			else if (ActorClass == UPrimitiveComponent::GetClass())
 			{
 				NewActor = FObjectFactory::SpawnPrimitiveActor(
 					mGuiInputField.PrimitiveType,
 					FVector(0, 0, 0), FRotator(0, 0, 0), FVector(1, 1, 1)
 				);
 			}
-			else if (ActorClass->IsChildOf(ASpotLight::GetClass()))
+			else if (ActorClass == ASpotLight::GetClass())
 			{
 				NewActor = FObjectFactory::ConstructObject<ASpotLight>();
-
-				TSharedPtr<FTexture2DAsset> SpotLightTexture = FAssetManager::Get().GetAssetAs<FTexture2DAsset>(FName("SpotLightIcon"), true);
-
-				UPlaneComponent* PlaneComponent = FObjectFactory::ConstructObject<UPlaneComponent>(FVector(0, 0, 0), FRotator(0, 0, 0), FVector(1, 1, 1));
-				PlaneComponent->SetBillboardCamera(guiReference.ViewportClient->GetCamera());
-				PlaneComponent->SetBillboard(true);
-				PlaneComponent->SetTexture(SpotLightTexture);
-				PlaneComponent->SetBlendState(ERenderBlendMode::Transparent);
-				PlaneComponent->SetDepthState(true, false);
-
-				NewActor->AddComponent(PlaneComponent);
 			}
 			else
 			{
@@ -340,15 +328,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 
 			if (NewActor)
 			{
-				UText3DComponent* Text3DComponent = FObjectFactory::ConstructObject<UText3DComponent>(FVector(0, 0, 1), FRotator(0, 0, 0), FVector(1, 1, 1));
-				Text3DComponent->SetBillboardCamera(guiReference.ViewportClient->GetCamera());
-				Text3DComponent->SetBillboard(true);
-				Text3DComponent->SetText(Utf2Wide(std::format("UUID: {}", NewActor->UUID)));
-				Text3DComponent->SetFontAtlasAsset(FAssetManager::Get().GetAssetAs<FFontAtlasAsset>(FName("TestFontAtlas")));
-				Text3DComponent->SetDepthState(false, false);
-				
-				NewActor->AddComponent(Text3DComponent);
-
 				mCurrentWorld->AddActor(NewActor);
 			}
 		}
@@ -424,47 +403,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 
 				// 파일 로드가 실행된 뒤에만 카메라를 초기화한다.
 				guiReference.ViewportClient->Reset();
-
-				// 여기부터 런타임 카메라 재연결
-				FCamera& Camera =
-					guiReference.ViewportClient->GetCamera();
-
-				for (AActor* Actor : mCurrentWorld->GetActors())
-				{
-					if (ASpotLight* SpotLight =
-						Actor->Cast<ASpotLight>())
-					{
-						SpotLight->RestoreRuntimeCamera(Camera);
-					}
-
-					for (UActorComponent* Component :
-						Actor->GetComponents())
-					{
-						if (UAtlasAnimationComponent* Atlas = Component->Cast<UAtlasAnimationComponent>())
-						{
-							Atlas->RestoreRuntimeCamera(Camera);
-						}
-
-
-						if (UText3DComponent* Text = Component->Cast<UText3DComponent>())
-						{
-							Text->RestoreRuntimeResources(Camera);
-
-							// 기존 씬 파일에는 mText가 저장되지 않았으므로
-							// 빈 텍스트라면 UUID 문구를 재생성한다.
-							if (Text->GetText().empty())
-							{
-								Text->SetText(
-									Utf2Wide(
-										FString(
-											std::format("UUID: {}", Actor->UUID)
-										)
-									)
-								);
-							}
-						}
-					}
-				}
 
 				UE_LOG(
 					"Scene loaded: %s",

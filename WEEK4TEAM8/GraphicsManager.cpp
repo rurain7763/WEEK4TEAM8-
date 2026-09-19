@@ -35,12 +35,8 @@ FGraphicsManager::FGraphicsManager(HWND hWindow) :
 FGraphicsManager::~FGraphicsManager()
 {
 	mMeshPipeline.reset();
-
-#if 0
-	mRenderer->ReleaseLineVertexBuffer();
-#endif
+	mRenderCollector.Clear();
 	mRenderer->Release();
-
 	delete mRenderer;
 }
 

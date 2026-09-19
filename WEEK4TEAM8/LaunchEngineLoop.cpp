@@ -81,11 +81,21 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 	console.Init(clientWidth);
 
 	FrameTimer = new FFrameTimer(120);
+
 	mEditorLayout.Initialize(FRect(0, 0, (float)clientWidth, (float)clientHeight));
+	
 	mMainViewport.Window = mEditorLayout.RootWindow;
 	mMainViewport.Viewport = MakeShared<FViewport>();
 	mMainViewport.Viewport->Resize(*mGraphicsManager->GetRenderer(), clientWidth, clientHeight);
 	mMainViewport.Client = MakeShared<FEditorViewportClient>(*mGraphicsManager->GetRenderer());
+
+	for (int32 i = 0; i < 4; ++i)
+	{
+		mSplitViewports[i].Window = mEditorLayout.ViewportWindows[i];
+		mSplitViewports[i].Viewport = MakeShared<FViewport>();
+		mSplitViewports[i].Viewport->Resize(*mGraphicsManager->GetRenderer(), mEditorLayout.ViewportWindows[i]->Rect.Width, mEditorLayout.ViewportWindows[i]->Rect.Height);
+		mSplitViewports[i].Client = MakeShared<FEditorViewportClient>(*mGraphicsManager->GetRenderer());
+	}
 
 	const FVector4 NearTint(1.0f, 0.65f, 0.15f, 0.85f); // 주황 = 가까운 쪽
 	const FVector4 FarTint(0.25f, 0.55f, 1.0f, 0.85f); // 파랑 = 먼 쪽
@@ -106,14 +116,6 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 	mSceneManager->NewScene();
 
 	{
-		//test code
-		//{
-		//	UCubeComponent* cubeComonent = FObjectFactory::ConstructObject<UCubeComponent>(FVector(0), FRotator(), FVector(1));
-		//	AActor* cubeActor = FObjectFactory::ConstructObject<AActor>();
-		//	cubeActor->AddComponent(cubeComonent);
-		//	mSceneManager.GetCurrentWorld()->AddActor(cubeActor);
-		//}
-
 		AActor* ObjActor = FObjectFactory::ConstructObject<AActor>();
 		UStaticMeshComponent* ObjComponent = 
 			FObjectFactory::ConstructObject<UStaticMeshComponent>(FString("Assets/Meshes/TestTriangle.obj"),
@@ -200,7 +202,6 @@ void FEngineLoop::Tick(bool bPumpMessages)
 	}
 
 	mSceneManager->Tick(deltaTime);
-	mSceneManager->Render(deltaTime, RenderCollector);
 
 	mGraphicsManager->UpdateProjectionTransition(deltaTime);
 
@@ -219,17 +220,19 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		Camera.mNear = NearZ;
 		Camera.mFar = FarZ;
 
+		RenderCollector.Clear();
 		RenderCollector.Camera = &Camera;
-
-		FMatrix ViewProjection = Camera.GetViewMatrix() * Camera.GetProjectionMatrix();
 
 		CurrentViewport->Client->Update(deltaTime, mGraphicsManager->GetPerspectiveRatio(), RenderCollector);
 
-		const FInputState& Input = WindowApplication.Input;
+		FMatrix ViewProjection = Camera.GetViewMatrix() * Camera.GetProjectionMatrix();
+
+		mSceneManager->Render(deltaTime, RenderCollector);
 
 		// 마우스 피킹 처리
 		// 뷰포트가 ImGui 창이 되면서 그 위에서는 io.WantCaptureMouse 가 항상 true 다.
 		// 그대로 두면 씬을 클릭해도 선택이 되지 않는다. 카메라/기즈모와 같은 기준을 쓴다.
+		const FInputState& Input = WindowApplication.Input;
 		if (CurrentViewport->Client->IsActive() && Input.WasPressed(VK_LBUTTON) && !CurrentViewport->Client->mGizmo.IsDragging() && !CurrentViewport->Client->mGizmo.IsMouseOverHandle())
 		{
 			AActor* HitActor = CurrentViewport->Client->PerformMousePicking(CurrentViewport->Window->Rect, mGraphicsManager->GetPerspectiveRatio(), RenderCollector);
@@ -305,7 +308,6 @@ void FEngineLoop::Tick(bool bPumpMessages)
 			CurrentViewport->Client->mGizmo.Render(SelectedActor, CurrentViewport->Client->mCamera.Transform.Location, ViewProjection);
 		}
 	}
-	RenderCollector.Clear();
 
 	FGuiReference GuiReference;
 	GuiReference.FrameTimer = FrameTimer;
@@ -327,17 +329,6 @@ void FEngineLoop::Tick(bool bPumpMessages)
 	}
 
 	mSceneManager->UpdateGUI(GuiReference);
-
-	if (mEditorLayout.bIsSplitView && !mSplitViewports[0].Viewport)
-	{
-		for (int32 i = 0; i < 4; ++i)
-		{
-			mSplitViewports[i].Window = mEditorLayout.ViewportWindows[i];
-			mSplitViewports[i].Viewport = MakeShared<FViewport>();
-			mSplitViewports[i].Viewport->Resize(*mGraphicsManager->GetRenderer(), mEditorLayout.ViewportWindows[i]->Rect.Width, mEditorLayout.ViewportWindows[i]->Rect.Height);
-			mSplitViewports[i].Client = MakeShared<FEditorViewportClient>(*mGraphicsManager->GetRenderer());
-		}
-	}
 
 	FRect ViewportRect;
 	ViewportRect.X = mSceneManager->GetViewportX();

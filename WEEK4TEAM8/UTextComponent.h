@@ -27,13 +27,6 @@ public:
 		FTransform ParentTransform = mOwner->GetTransform();
 		SetRelativeLocation(ParentTransform.Location);
 		SetRelativeRotation(ParentTransform.Rotation);
-
-		if (mBillboardCamera && mbBillboard)
-		{
-			FTransform PivotTransform = GetTransformMatrix();
-			FRotator Rotation = FRotator::LookAt(PivotTransform.Location, PivotTransform.Location + mBillboardCamera->GetForwardVector());
-			SetRelativeRotation(Rotation);
-		}
 	}
 
 	void Render(FRenderCollector& RenderCollector) override
@@ -44,6 +37,11 @@ public:
 		}
 
 		FTransform PivotTransform = GetTransformMatrix();
+
+		if (mbBillboard && RenderCollector.Camera)
+		{
+			PivotTransform.Rotation = FRotator::LookAt(PivotTransform.Location, PivotTransform.Location + RenderCollector.Camera->GetForwardVector());
+		}
 
 		FRenderQuadInfo QuadInfo;
 		QuadInfo.Model = PivotTransform.MakeMatrix();
@@ -57,7 +55,6 @@ public:
 		RenderCollector.AddQuadInfo(QuadInfo);
 	}
 
-	inline void SetBillboardCamera(FCamera& camera) { mBillboardCamera = &camera; }
 	inline void SetBillboard(bool billboard) { mbBillboard = billboard; }
 	inline void SetDepthState(bool enableDepthTest, bool enableDepthWrite) { mEnableDepthTest = enableDepthTest; mEnableDepthWrite = enableDepthWrite; }
 	void SetBlendState(ERenderBlendMode InBlendMode) { mBlendMode = InBlendMode; }
@@ -67,7 +64,6 @@ protected:
 	ERenderBlendMode mBlendMode = ERenderBlendMode::Opaque;
 
 private:
-	FCamera* mBillboardCamera = nullptr;
 	bool mbBillboard = false;
 	bool mEnableDepthTest = true;
 	bool mEnableDepthWrite = true;
@@ -120,6 +116,7 @@ class ASpotLight : public AActor
 
 public:
 	ASpotLight() = default;
+	
 	void Initialize()
 	{
 		Super::Initialize();
@@ -148,22 +145,20 @@ public:
 		}
 	}
 
-	void RestoreRuntimeCamera(FCamera& Camera)
+	void CreateEditorComponents() override
 	{
-		for (UActorComponent* Component : GetComponents())
-		{
-			UPlaneComponent* PlaneComponent =
-				Component->Cast<UPlaneComponent>();
+		Super::CreateEditorComponents();
 
-			if (!PlaneComponent)
-			{
-				continue;
-			}
+		UPlaneComponent* PlaneComponent = FObjectFactory::ConstructObject<UPlaneComponent>(FVector(0, 0, 1), FRotator(0, 0, 0), FVector(1, 1, 1));
+		PlaneComponent->SetTexture(FAssetManager::Get().GetAssetAs<FTexture2DAsset>(FName("SpotLightIcon"), true));
+		PlaneComponent->SetBillboard(true);
+		PlaneComponent->SetBlendState(ERenderBlendMode::Transparent);
+		PlaneComponent->SetBillboard(true);
+		PlaneComponent->SetDepthState(true, false);
+		PlaneComponent->SetEditorOnly(true);
+		PlaneComponent->SetDoNotSerialize(true);
 
-			PlaneComponent->SetBillboardCamera(
-				Camera
-			);
-		}
+		AddComponent(PlaneComponent);
 	}
 };
 
@@ -179,62 +174,24 @@ public:
 		Super::SerializeClass(outJson);
 
 		// std::wstring을 UTF-8 문자열로 변환하여 저장
-		outJson["Properties"]["mText"] =
-			Wide2Utf(mText).CStr();
+		outJson["Properties"]["mText"] = Wide2Utf(mText).CStr();
 	}
 
 	void DeserializeClass(const json::JSON& inJson) override
 	{
 		Super::DeserializeClass(inJson);
 
-		const json::JSON& propertiesJson =
-			inJson.at("Properties");
+		const json::JSON& propertiesJson = inJson.at("Properties");
 
 		// 이전 버전 씬 파일과의 호환성을 위해 필수가 아닌 값으로 처리
-		if (propertiesJson.hasKey("mText") &&
-			propertiesJson.at("mText").JSONType() ==
-			json::JSON::Class::String)
+		if (propertiesJson.hasKey("mText") && propertiesJson.at("mText").JSONType() == json::JSON::Class::String)
 		{
-			mText = Utf2Wide(
-				FString(propertiesJson.at("mText").ToString())
-			);
+			mText = Utf2Wide(FString(propertiesJson.at("mText").ToString()));
 		}
 		else
 		{
 			mText.clear();
 		}
-	}
-
-	void RestoreRuntimeResources(FCamera& camera)
-	{
-		SetBillboardCamera(camera);
-		SetBillboard(true);
-
-		SetFontAtlasAsset(
-			FAssetManager::Get().GetAssetAs<FFontAtlasAsset>(
-				FName("TestFontAtlas"),
-				true
-			)
-		);
-
-		SetDepthState(false, false);
-	}
-
-	void Tick(float DeltaTime) override
-	{
-		if (mBillboardCamera && mbBillboard)
-		{
-			// Match the camera's full orientation, including roll.
-			SetRelativeRotation(mBillboardCamera->Transform.Rotation);
-		}
-		
-		FVector Location = mOwner->GetRootComponent()->GetRelativeLocation();
-		// Place billboard labels above the actor along the camera's screen-up axis.
-		const FVector LabelUp = (mBillboardCamera && mbBillboard)
-			? mBillboardCamera->GetUpVector()
-			: FVector(0.f, 0.f, 1.f);
-		Location += LabelUp * 1.0f;
-		SetRelativeLocation(Location);
 	}
 
 	void Render(FRenderCollector& RenderCollector) override
@@ -261,10 +218,6 @@ public:
 		const float WorldLineHeight = fontAtlas->LineHeight() * WorldUnitPerPixel;
 		const float WorldAscender = fontAtlas->Ascender() * WorldUnitPerPixel;
 		const float WorldDescender = fontAtlas->Descender() * WorldUnitPerPixel;
-
-		const FVector CameraForward = RenderCollector.Camera->GetForwardVector();
-		const FVector CameraRight = RenderCollector.Camera->GetRightVector();
-		const FVector CameraUp = RenderCollector.Camera->GetUpVector();
 
 		float TotalWidth = 0.0f;
 		float TotalHeight = 0.0f;
@@ -296,7 +249,15 @@ public:
 		TotalHeight = (WorldAscender - WorldDescender) + (LineCount - 1) * WorldLineHeight;
 
 		// Append the text quads to the output array
+		const FTransform OwnerTransform = mOwner->GetTransform();
 		FTransform PivotTransform = GetTransformMatrix();
+
+		PivotTransform.Location = OwnerTransform.Location;
+		if (mbBillboard && RenderCollector.Camera)
+		{
+			PivotTransform.Rotation = RenderCollector.Camera->Transform.Rotation;
+			PivotTransform.Location += RenderCollector.Camera->GetUpVector();
+		}
 
 		FVector TextLocation = FVector(0.f, -TotalWidth * 0.5f, TotalHeight * 0.5f - WorldAscender);
 		for (wchar_t C : mText)
@@ -341,7 +302,6 @@ public:
 		}
 	}
 
-	inline void SetBillboardCamera(FCamera& camera) { mBillboardCamera = &camera; }
 	inline void SetBillboard(bool billboard) { mbBillboard = billboard; }
 
 	inline void SetText(const std::wstring& text) { mText = text; }
@@ -353,7 +313,6 @@ public:
 	inline void SetDepthState(bool enableDepthTest, bool enableDepthWrite) { mEnableDepthTest = enableDepthTest; mEnableDepthWrite = enableDepthWrite; }
 
 private:
-	FCamera* mBillboardCamera = nullptr;
 	bool mbBillboard = false;
 	std::wstring mText;
 	TSharedPtr<FFontAtlasAsset> mFontAtlasAsset;
