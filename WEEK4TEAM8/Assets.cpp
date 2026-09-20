@@ -392,8 +392,6 @@ TSharedPtr<FAsset> FMaterialAssetLoader::LoadAsset(const FGuid& AssetID, const F
 	FMaterialPayload Payload;
 	FMaterialFileIO::Load(Ar, Payload);
 	
-	float Opacity;
-
 	#if 0
 	FVector AmbientColor, DiffuseColor, SpecularColor;
 	FGuid DiffuseTexture, SpecularTexture, NormalTexture;
@@ -414,7 +412,7 @@ TSharedPtr<FAsset> FMaterialAssetLoader::LoadAsset(const FGuid& AssetID, const F
 									  Payload.DiffuseTexture,
 									  Payload.SpecularTexture,
 									  Payload.NormalTexture,
-									  Opacity
+									  Payload.Opacity
 									  );
 }
 

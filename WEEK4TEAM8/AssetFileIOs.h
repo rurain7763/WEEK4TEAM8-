@@ -89,6 +89,7 @@ struct  FMaterialPayload
 	FGuid DiffuseTexture;
 	FGuid SpecularTexture;
 	FGuid NormalTexture;
+	float Opacity;
 };
 
 class FMaterialFileIO
@@ -103,6 +104,7 @@ public:
 		Ar << OutPayload.DiffuseTexture;
 		Ar << OutPayload.SpecularTexture;
 		Ar << OutPayload.NormalTexture;
+		Ar << OutPayload.Opacity;
 		
 		return true;
 	}
@@ -116,9 +118,10 @@ public:
 		Ar << InPayload.DiffuseTexture;
 		Ar << InPayload.SpecularTexture;
 		Ar << InPayload.NormalTexture;
+		Ar << InPayload.Opacity;
 		
 		return true;
 	}
-
-private:
+	
+	private:
 };

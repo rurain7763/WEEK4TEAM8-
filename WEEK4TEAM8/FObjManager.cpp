@@ -141,7 +141,7 @@ UStaticMesh* FObjManager::LoadObjStaticMesh(const FString& FilePath)
             TSharedPtr<FFileAssetSource> MeshSource = MakeShared<FFileAssetSource>(*MeshUAssetPath);
 
             // 등록 후 가져오기
-            FAssetManager::Get().RegisterAsset(FGuid::NewGuid(), MeshAssetName, MeshLoader, MeshSource);
+            FAssetManager::Get().RegisterAsset(MeshAssetName, MeshLoader, MeshSource);
             StaticMeshAsset = FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(MeshAssetName, true);
         }
     }

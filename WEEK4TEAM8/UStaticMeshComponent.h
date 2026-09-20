@@ -26,8 +26,14 @@ public:
     virtual bool RayCastComponent(const FPickingRay& PickingRay, float& OutHitT) const override;
 
     void SetStaticMesh(UStaticMesh* InStaticMesh);
-    void SetTexture(const TSharedPtr<FTexture2DAsset>& InTexture) { TextureAsset = InTexture; }
+    // void SetTexture(const TSharedPtr<FTexture2DAsset>& InTexture) { TextureAsset = InTexture; }
     UStaticMesh* GetStaticMesh() { return StaticMesh; }
+
+    // 어떤 Material을 쓰게 할 것인지 Setter
+    void SetMaterial(const TSharedPtr<FMaterialAsset>& InMaterial) { MaterialAsset = InMaterial; } 
+    
+    // 어떤 Material을 쓰고 있는지 Getter
+    const TSharedPtr<FMaterialAsset>& GetMaterial() const { return MaterialAsset; }
 
     void SetUseVertexColor(bool bInUseVertexColor) { bUseVertexColor = bInUseVertexColor; }
     bool GetUseVertexColor() const { return bUseVertexColor; }
@@ -35,7 +41,8 @@ public:
     const FVector4& GetColor() const { return Color;  }
 
     UStaticMesh* StaticMesh = nullptr;
-    TSharedPtr<FTexture2DAsset> TextureAsset;
+    // TSharedPtr<FTexture2DAsset> TextureAsset;
+    TSharedPtr<FMaterialAsset> MaterialAsset;
 
 private:
     bool bUseVertexColor = true;

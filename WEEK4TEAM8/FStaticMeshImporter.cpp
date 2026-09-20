@@ -41,12 +41,6 @@ bool FStaticMeshImporter::Import(const std::filesystem::path& InPath, const std:
 
     try
     {
-        FWindowsBinWriter FileWriter(OutPath);
-        
-        FileWriter << OutHead;
-
-        FStaticMeshFileIO::Save(FileWriter, BuildData);
-        
         // FMeshDescription MeshDescription;
         for (FObjMaterialInfo Material : ObjInfo.Materials)
         {
@@ -62,11 +56,11 @@ bool FStaticMeshImporter::Import(const std::filesystem::path& InPath, const std:
                 }
             }
         }
-
+        FWindowsBinWriter FileWriter(OutPath);
+        
         FileWriter << OutHead;
-        FileWriter << BuildData.Vertices;
-        FileWriter << BuildData.Indices;
-        FileWriter << BuildData.Sections;
+
+        FStaticMeshFileIO::Save(FileWriter, BuildData);
     }
     catch(const std::exception& e)
     {

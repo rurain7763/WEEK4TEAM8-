@@ -41,6 +41,7 @@ void FAssetManager::RegisterAsset(const FGuid& AssetID, const FName& AssetName, 
 	}
 
 	FAssetMetaInfo MetaInfo;
+	MetaInfo.AssetID = AssetID;
 	MetaInfo.AssetType = AssetLoader->GetAssetType();
 	MetaInfo.AssetName = AssetName;
 	MetaInfo.PayloadOffset = 0;

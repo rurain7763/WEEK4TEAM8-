@@ -7,6 +7,7 @@
 #include "JsonUtil.h"
 #include "FObjManager.h"
 #include "EngineMathLibrary.h"
+#include "FLogManager.h"
 
 
 void UStaticMeshComponent::Initialize(const FString& InAssetPathFileName, FVector Location,
@@ -24,6 +25,7 @@ void UStaticMeshComponent::InitializeFromStaticMesh(UStaticMesh* InStaticMesh, F
 
 }
 
+// TODO : Texture, Material도 직렬화, 역직렬화 적용 필요함.
 void UStaticMeshComponent::SerializeClass(json::JSON& outJson) const
 {
     USceneComponent::SerializeClass(outJson);
@@ -83,13 +85,12 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
         return;
     }
 
-
-
     for (int32 SectionIndex = 0; SectionIndex < MeshAsset->GetSections().Num(); ++SectionIndex)
     {
         const FStaticMeshSection& Section =  MeshAsset->GetSections()[SectionIndex];
-        TSharedPtr<FMaterialAsset> Material = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
 
+        // 콤보에서 고른 게 있으면 그 material 적용, 없으면 기존 material 사용
+        TSharedPtr<FMaterialAsset> Material = MaterialAsset? MaterialAsset : FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
         const FVector4 MaterialColor = Material
             ? FVector4(
                 Material->GetDiffuseColor().x,
@@ -106,7 +107,7 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
 
         if (!SectionTexture)
         {
-            SectionTexture = TextureAsset;
+            SectionTexture = GetTexture();;
         }
 
         RenderCollector.RenderInfos.Add({
@@ -134,8 +135,9 @@ void UStaticMeshComponent::GetRenderInfos(TArray<FRenderInfo>* OutRenderInfos) c
     for (int32 SectionIndex = 0; SectionIndex < MeshAsset->GetSections().Num(); ++SectionIndex)
     {
         const FStaticMeshSection& Section = MeshAsset->GetSections()[SectionIndex];
-        TSharedPtr<FMaterialAsset> Material = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
 
+        // 콤보에서 고른 게 있으면 그 material 적용, 없으면 기존 material 사용
+        TSharedPtr<FMaterialAsset> Material = MaterialAsset? MaterialAsset : FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
         const FVector4 MaterialColor = Material
             ? FVector4(
                 Material->GetDiffuseColor().x,
@@ -151,7 +153,7 @@ void UStaticMeshComponent::GetRenderInfos(TArray<FRenderInfo>* OutRenderInfos) c
         }
         if (!SectionTexture)
         {
-            SectionTexture = TextureAsset;
+            SectionTexture = GetTexture();;
         }
 
         OutRenderInfos->Add({

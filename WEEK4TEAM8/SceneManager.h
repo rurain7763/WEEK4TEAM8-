@@ -22,6 +22,7 @@ class URenderer;
 struct FViewport;
 struct FEditorLayout;
 struct FEditorViewport;
+class UStaticMesh;
 
 struct FGuiReference
 {
@@ -47,6 +48,9 @@ struct FGuiInputField
 	/* Object Lists */
 	TArray<UObject*> SortedObjectLists;
 	uint64 LastGUObjectRevision = -1;
+
+	// Spawn Actor용
+	UStaticMesh* SelectedStaticMesh = nullptr; 
 };
 
 class FSceneManager : public FContentBrowserEventHandler

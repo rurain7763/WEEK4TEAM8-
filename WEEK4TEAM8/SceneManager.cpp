@@ -59,38 +59,14 @@ void FSceneManager::OnNewAssetFile(const FAssetFileHeader& Header, const std::fi
 {
 	FAssetManager& AssetManager = FAssetManager::Get();
 
-	if (Header.AssetType == EAssetType::Texture2D)
+	if (Header.AssetType == EAssetType::Texture2D ||
+		Header.AssetType == EAssetType::Material ||
+		Header.AssetType == EAssetType::StaticMesh)
 	{
-	
-		// Texture2D AssetLoader와 AssetSource를 생성하고 등록
-		TSharedPtr<FTexture2DAssetLoader> TextureLoader =  MakeShared<FTexture2DAssetLoader>(*mRenderer);
-		TSharedPtr<FFileAssetSource> TextureSource = MakeShared<FFileAssetSource>(FilePath);
-
-		/*FAssetManager::Get().RegisterAsset(
-		FName(FilePath.string()),
- 		TextureLoader,
-		TextureSource
-		);*/
 		FAssetManager::Get().ScanDirectory(
 			FilePath.parent_path(),
 			*mRenderer);
 	}
-	else if (Header.AssetType == EAssetType::StaticMesh)
-	{
-	
-		// StaticMesh AssetLoader와 AssetSource를 생성하고 등록
-		/*TSharedPtr<FStaticMeshAssetLoader> MeshLoader = MakeShared<FStaticMeshAssetLoader>(*mRenderer);
-		TSharedPtr<FFileAssetSource> MeshSource = MakeShared<FFileAssetSource>(FilePath)*/;
-
-		/*FAssetManager::Get().RegisterAsset(
-		FName(FilePath.string()),
- 		MeshLoader,
-		MeshSource*/
-		
-		FAssetManager::Get().ScanDirectory(
-			FilePath.parent_path(),
-			*mRenderer);
-	}	
 	else
 	{
 		UE_LOG_ERROR("Unsupported asset type");
@@ -316,7 +292,8 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 		"GizmoArrow", 
 		"Circle",
 		"SpotLight",
-		"Explosion"
+		"Explosion",
+		"StaticMesh"
 	};
 
 	const FClassInfo* ActorClassInfo[] = {
@@ -326,7 +303,8 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 		UPrimitiveComponent::GetClass(),
 		UPrimitiveComponent::GetClass(),
 		ASpotLight::GetClass(),
-		UAtlasAnimationComponent::GetClass()
+		UAtlasAnimationComponent::GetClass(),
+		UStaticMeshComponent::GetClass()
 	};
 
 	static_assert(IM_ARRAYSIZE(ActorTypeNames) == IM_ARRAYSIZE(ActorClassInfo), "ActorTypeNames and ActorClassInfo must stay the same length");
@@ -336,6 +314,23 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	if (ImGui::Combo("Actor Type", &ActorTypeIndex, ActorTypeNames, IM_ARRAYSIZE(ActorTypeNames)))
 	{
 		mGuiInputField.PrimitiveType = static_cast<EPrimitive>(ActorTypeIndex);
+	}
+
+	const char* CurrentMeshName = mGuiInputField.SelectedStaticMesh
+    ? mGuiInputField.SelectedStaticMesh->GetAssetPathFileName().CStr()
+    : "None";
+
+	if (ImGui::BeginCombo("Static Mesh", CurrentMeshName))
+	{
+    for (TObjectIterator<UStaticMesh> It; It; ++It)
+    {
+        UStaticMesh* Candidate = *It;
+        if (ImGui::Selectable(Candidate->GetAssetPathFileName().CStr()))
+        {
+            mGuiInputField.SelectedStaticMesh = Candidate; // SetStaticMesh 대신 스테이징
+        }
+    }
+    ImGui::EndCombo();
 	}
 	if (ImGui::Button("Spawn"))
 	{
@@ -359,6 +354,23 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 				AnimComponent->Play();
 
 				NewActor->AddRootSceneComponent(AnimComponent);
+			}
+			else if (ActorClass == UStaticMeshComponent::GetClass())
+			{
+				if (!mGuiInputField.SelectedStaticMesh)
+				{
+					UE_LOG_ERROR("No Static Mesh selected to spawn");
+				}
+				
+				NewActor = FObjectFactory::ConstructObject<AActor>();
+
+				UStaticMeshComponent* Component =
+					FObjectFactory::ConstructUnInitializedObject<UStaticMeshComponent>();
+				Component->InitializeFromStaticMesh(
+					mGuiInputField.SelectedStaticMesh,
+					FVector(0, 0, 0), FRotator(0, 0, 0), FVector(1, 1, 1));
+
+				NewActor->AddRootSceneComponent(Component);
 			}
 			else if (ActorClass == UPrimitiveComponent::GetClass())
 			{
@@ -840,63 +852,78 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 			}
 		}
 
-		UStaticMeshComponent* StaticMeshComponent = nullptr;
-		for (UActorComponent* Component : mSelectedActor->GetComponents())
-		{
-			if (Component->IsA<UStaticMeshComponent>())
-			{
-				StaticMeshComponent = Component->Cast<UStaticMeshComponent>();
+		USceneComponent* rootComponent = mSelectedActor->GetRootComponent();
+ 
+		// 지금 선택된 Actor의 Root가 UPrimitive이면 저장 아니면 nullptr
+		UPrimitiveComponent* PrimitiveComponent = (rootComponent && rootComponent->IsA<UPrimitiveComponent>())
+			? rootComponent->Cast<UPrimitiveComponent>() : nullptr;
 
-				break;
-			}
-		}
+		// 그 중에서도 UStaticMesh이면 저장 아니면 nullptr
+		UStaticMeshComponent* StaticMeshComponent = (PrimitiveComponent && PrimitiveComponent->IsA<UStaticMeshComponent>())
+			? PrimitiveComponent->Cast<UStaticMeshComponent>() : nullptr;
+
+		
+		// StaticMesh Actor일 때만 Mesh, Material 리스트를 띄워줌.
 		if (StaticMeshComponent)
 		{
+			// 현재 가진 Mesh가 있으면 그것을, 없으면 None을 콤보박스 이름으로
 			UStaticMesh* CurrentStaticMesh = StaticMeshComponent->GetStaticMesh();
-
-			const FString CurrentPath = CurrentStaticMesh
-				? CurrentStaticMesh->GetAssetPathFileName()
-				: "None";
-
+			const FString CurrentPath = CurrentStaticMesh ? CurrentStaticMesh->GetAssetPathFileName() : "None";
+			
 			if (ImGui::BeginCombo("Static Mesh", CurrentPath.CStr()))
 			{
 				for (TObjectIterator<UStaticMesh> It; It; ++It)
 				{
 					UStaticMesh* CandidateStaticMesh = *It;
-
 					const FString& CandidatePath = CandidateStaticMesh->GetAssetPathFileName();
 					const bool bIsSelected = CurrentStaticMesh == CandidateStaticMesh;
-
+					
 					if (ImGui::Selectable(CandidatePath.CStr(), bIsSelected))
 					{
 						StaticMeshComponent->SetStaticMesh(CandidateStaticMesh);
 					}
-
-					if (bIsSelected)
-					{
-						ImGui::SetItemDefaultFocus();
-					}
+					if (bIsSelected) ImGui::SetItemDefaultFocus();
 				}
+				ImGui::EndCombo();
+			}
+			
+			TArray<FAssetMetaInfo> materialMetaInfos;
+			guiReference.AssetManager->ForEachMetaInfo([&materialMetaInfos](const FAssetMetaInfo& metaInfo) {
+				if (metaInfo.AssetType != EAssetType::Material) return;
+				materialMetaInfos.Add(metaInfo);
+			});
+			
+			// 현재 가진 Material이 있으면 그것을, 없으면 None을 콤보박스 이름으로
+			TSharedPtr<FMaterialAsset> currentMaterial = StaticMeshComponent->GetMaterial();
+			FString currentMaterialName = currentMaterial ? currentMaterial->GetAssetName().ToString() : "None";
 
+			if (ImGui::BeginCombo("Material", currentMaterialName.CStr()))
+			{
+				for (const FAssetMetaInfo& metaInfo : materialMetaInfos)
+				{
+					bool isSelected = (currentMaterialName == metaInfo.AssetName.ToString());
+					if (ImGui::Selectable(metaInfo.AssetName.ToString().CStr(), isSelected))
+					{
+						TSharedPtr<FMaterialAsset> materialAsset =
+							guiReference.AssetManager->GetAssetAs<FMaterialAsset>(metaInfo.AssetID, true);
+						StaticMeshComponent->SetMaterial(materialAsset);
+					}
+					if (isSelected) ImGui::SetItemDefaultFocus();
+				}
 				ImGui::EndCombo();
 			}
 		}
 
-		USceneComponent* rootComponent = mSelectedActor->GetRootComponent();
-		if (rootComponent && rootComponent->IsA<UPrimitiveComponent>() && !rootComponent->IsA<UAtlasAnimationComponent>())
+		// Texture 콤보가 뜨기 위한 조건: Primitive 이되, AtlasAnimation은 아닐 것.
+		if (PrimitiveComponent && !PrimitiveComponent->IsA<UAtlasAnimationComponent>())
 		{
-			UPrimitiveComponent* primitiveComponent = rootComponent->Cast<UPrimitiveComponent>();
-
 			TArray<FString> textureAssetNames;
 			guiReference.AssetManager->ForEachMetaInfo([&textureAssetNames](const FAssetMetaInfo& metaInfo) {
-				if (metaInfo.AssetType != EAssetType::Texture2D)
-				{
-					return;
-				}
-				textureAssetNames.Add(metaInfo.AssetName.ToString()); 
+				if (metaInfo.AssetType != EAssetType::Texture2D) return;
+				textureAssetNames.Add(metaInfo.AssetName.ToString());
 			});
 
-			const TSharedPtr<FTexture2DAsset>& currentTexture = primitiveComponent->GetTexture();
+			const TSharedPtr<FTexture2DAsset>& currentTexture = PrimitiveComponent->GetTexture();
 			FString currentTextureName = currentTexture ? currentTexture->GetAssetName().ToString() : "None";
 			if (ImGui::BeginCombo("Texture", currentTextureName.CStr()))
 			{
@@ -906,12 +933,9 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 					if (ImGui::Selectable(assetName.CStr(), isSelected))
 					{
 						TSharedPtr<FTexture2DAsset> textureAsset = guiReference.AssetManager->GetAssetAs<FTexture2DAsset>(FName(assetName), true);
-						primitiveComponent->SetTexture(textureAsset);
+						PrimitiveComponent->SetTexture(textureAsset);
 					}
-					if (isSelected)
-					{
-						ImGui::SetItemDefaultFocus();
-					}
+					if (isSelected) ImGui::SetItemDefaultFocus();
 				}
 				ImGui::EndCombo();
 			}
