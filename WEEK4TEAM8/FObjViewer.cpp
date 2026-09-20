@@ -30,6 +30,7 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 		ImGui::Text("Triangles: %u", meshAsset->GetCpuIndices().Num() / 3);
 	}
 
+	ImGui::SeparatorText("Transform");
 	if (mViewerActor)
 	{
 		const FTransform& originalTransform = mViewerActor->GetTransform();
@@ -63,6 +64,7 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 		mViewerActor->SetScale(FVector(1.0f, 1.0f, 1.0f));
 	}
 
+	ImGui::SeparatorText("File");
 	if (ImGui::Button("Open OBJ"))
 	{
 		std::filesystem::path targetPath;
@@ -73,6 +75,7 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 				{ FFileFilter{ L"OBJ Files", L"*.obj" } }, L"obj", targetPath))
 			{
 				OpenObj(FString(targetPath.string()));
+				UE_LOG("Successed to load: %s", targetPath.c_str());
 			}
 		}
 		catch (const std::exception& e)
@@ -81,6 +84,7 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 		}
 	}
 
+	ImGui::SeparatorText("View Mode");
 	bool bGrid = FShowFlags::Get().IsEnabled(EShowFlag::Grid);
 	if (ImGui::Checkbox("Grid", &bGrid))
 	{
@@ -108,6 +112,8 @@ void FObjViewer::OpenObj(const FString& filePath)
 
 	if (mViewerActor)
 	{
+		mSceneManager->ResetSelectedActor();
+
 		mSceneManager->GetCurrentWorld()->RemoveActor(mViewerActor->UUID);
 		mViewerActor = nullptr;
 	}
@@ -124,6 +130,7 @@ void FObjViewer::OpenObj(const FString& filePath)
 	mViewerComponent = objComponent;
 	mViewerActor->AddRootSceneComponent(objComponent);
 	mSceneManager->GetCurrentWorld()->AddActor(mViewerActor);
+	//mSceneManager->SetSelectedActor(mViewerActor);
 
 	mLoadedFilePath = filePath;
 }
