@@ -8,7 +8,7 @@ class FObjImporter
 public:
     bool ParseObj(const FString& FilePath,  FObjInfo& OutObjInfo);
     bool ConvertToMeshDescription(const FObjInfo& ObjInfo, FMeshDescription& OutMeshDescription);
-
+    
 private:
     bool ParseFaceVertex(const FString& Token, const FObjInfo& ObjInfo, FObjVertexIndex& OutIndex) const;
     bool ParseMtl(const FString& FilePath, FObjInfo& OutObjInfo);

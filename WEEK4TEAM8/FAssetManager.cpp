@@ -1,6 +1,8 @@
 #include "FAssetManager.h"
 #include "LaunchEngineLoop.h"
 #include "Serializers.h"
+#include "Assets.h"
+#include "FLogManager.h"
 
 FAssetManager& FAssetManager::Get()
 {
@@ -108,6 +110,60 @@ void FAssetManager::UnloadAsset(const FGuid& AssetID)
 			assetLoader->UnloadAsset(asset);
 		}
 		LoadedAssets.Remove(AssetID);
+	}
+}
+
+// 프로그램 시작 시에 호출하여 Directory 스캔하는 함수
+void FAssetManager::ScanDirectory(const std::filesystem::path& RootDir, URenderer& Renderer)
+{
+	for (const auto& Entry : std::filesystem::recursive_directory_iterator(RootDir))
+	{
+		// 폴더이거나 .uasset 파일이 아니면 pass
+		if (Entry.is_directory() || Entry.path().extension() != ".uasset") continue;
+
+		// 이름 중복 해결을 위해 전체 경로
+		FName AssetName(Entry.path().string());
+		FAssetFileHeader Header;
+		
+		try
+		{
+			FWindowsBinReader Reader(Entry.path());
+			Reader << Header;
+
+		}
+		catch(const std::exception& e)
+		{
+			// Header 읽기 실패
+			UE_LOG_ERROR("Failed to read header: %s", Entry.path().string().c_str());
+			continue;
+		}
+
+		TSharedPtr<FAssetLoader> Loader;
+
+		switch (Header.AssetType)
+		{
+			case EAssetType::Texture2D:
+			{
+				Loader = MakeShared<FTexture2DAssetLoader>(Renderer);
+				break;
+			}
+			case EAssetType::StaticMesh:
+			{
+				Loader = MakeShared<FStaticMeshAssetLoader>(Renderer);
+				break;
+			}
+			case EAssetType::Material:
+			{
+				Loader = MakeShared<FMaterialAssetLoader>();
+				break;
+			}
+			default:
+				continue;
+	}
+
+	// Asset 등록
+	RegisterAsset(Header.AssetID, AssetName, Loader, MakeShared<FFileAssetSource>(Entry.path()));
+	
 	}
 }
 

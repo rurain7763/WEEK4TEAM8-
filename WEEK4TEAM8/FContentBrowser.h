@@ -4,6 +4,9 @@
 #include "NativeFileDialog.h"
 #include "AssetFileIOs.h"
 #include <filesystem>
+#include "FTexture2DImporter.h"
+#include "FStaticMeshImporter.h"
+#include "FLogManager.h"
 
 struct FContentBrowserEventHandler
 {
@@ -37,10 +40,22 @@ public:
 		TArray<std::filesystem::path> DeletedAssetFiles;
 
 		ImGui::Begin("Content Browser");
-
+		
 		if (ImGui::Button("Import Texture2D"))
 		{
 			std::filesystem::path TargetPath;
+			FAssetFileHeader Header;
+			
+			if (FNativeFileDialog::OpenFileDialog(CurrentDirectory, { FFileFilter{L"Image Files", L"*.png;*.jpg;"} }, L"", TargetPath))
+			{
+				std::filesystem::path NewFilePath = TargetPath;
+				NewFilePath.replace_extension(".uasset");   // CurrentDirectory 대신 원본 옆에 저장
+				
+				if(FTexture2DImporter::Import(TargetPath, NewFilePath, Header))
+					NewAssetFiles.Emplace(FAssetFileEntry{ Header, NewFilePath });
+			}
+
+			#if 0
 			if (FNativeFileDialog::OpenFileDialog(CurrentDirectory, { FFileFilter{L"Image Files", L"*.png;*.jpg;"} }, L"", TargetPath))
 			{
 				FImagePayload ImagePayload;
@@ -63,8 +78,23 @@ public:
 					}
 				}
 			}
+			#endif
 		}
-
+		if (ImGui::Button("Import StaticMesh"))
+		{
+			std::filesystem::path TargetPath;
+			FAssetFileHeader Header;
+			
+			if (FNativeFileDialog::OpenFileDialog(CurrentDirectory, { FFileFilter{L"Obj Files", L"*.obj;"} }, L"", TargetPath))
+			{
+				std::filesystem::path NewFilePath = TargetPath;
+				NewFilePath.replace_extension(".uasset");   // CurrentDirectory 대신 원본 옆에 저장
+				
+				if(FStaticMeshImporter::Import(TargetPath, NewFilePath, Header))
+					NewAssetFiles.Emplace(FAssetFileEntry{ Header, NewFilePath });
+			}
+			
+		}
 		ImGui::Separator();
 
 		ImGui::Text("Current Directory: %s", CurrentDirectory.string().c_str());
