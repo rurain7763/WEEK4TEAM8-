@@ -150,7 +150,10 @@ public:
 		Super::CreateEditorComponents();
 
 		UPlaneComponent* PlaneComponent = FObjectFactory::ConstructObject<UPlaneComponent>(FVector(0, 0, 1), FRotator(0, 0, 0), FVector(1, 1, 1));
-		PlaneComponent->SetTexture(FAssetManager::Get().GetAssetAs<FTexture2DAsset>(FName("SpotLightIcon"), true));
+		
+		FName SpotLightIconName(std::filesystem::weakly_canonical("Assets/Textures/Icon_SpotLight.uasset").string());
+		PlaneComponent->SetTexture(FAssetManager::Get().GetAssetAs<FTexture2DAsset>(SpotLightIconName, true));
+
 		PlaneComponent->SetBillboard(true);
 		PlaneComponent->SetBlendState(ERenderBlendMode::Transparent);
 		PlaneComponent->SetBillboard(true);

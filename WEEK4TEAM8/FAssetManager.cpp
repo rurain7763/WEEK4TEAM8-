@@ -122,7 +122,7 @@ void FAssetManager::ScanDirectory(const std::filesystem::path& RootDir, URendere
 		if (Entry.is_directory() || Entry.path().extension() != ".uasset") continue;
 
 		// 이름 중복 해결을 위해 전체 경로
-		FName AssetName(Entry.path().string());
+		FName AssetName(std::filesystem::weakly_canonical(Entry.path()).string());
 		FAssetFileHeader Header;
 		
 		try
