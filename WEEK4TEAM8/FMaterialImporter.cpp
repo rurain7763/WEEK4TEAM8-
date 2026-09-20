@@ -39,7 +39,19 @@ bool FMaterialImporter::Import(const FObjMaterialInfo& MaterialInfo, const std::
         FWindowsBinWriter FileWriter(OutPath);
 
         FVector DiffuseColor = MaterialInfo.DiffuseColor;  // const 떼어내기
+        	
+        FMaterialPayload Payload;
 
+        Payload.AmbientColor = DiffuseColor;
+        Payload.DiffuseColor = DiffuseColor;
+        Payload.SpecularColor = ZeroVector;
+        Payload.DiffuseTexture = DiffuseTextureID;
+        Payload.SpecularTexture = EmptyGuid;
+        Payload.NormalTexture = EmptyGuid;
+
+        FMaterialFileIO::Save(FileWriter, Payload);
+
+        #if 0
         FileWriter << OutHead;
         FileWriter << DiffuseColor;              // Ambient Color ( 임시로 diffuse 사용 )
         FileWriter << DiffuseColor;              // Diffuse Color
@@ -47,7 +59,8 @@ bool FMaterialImporter::Import(const FObjMaterialInfo& MaterialInfo, const std::
         FileWriter << DiffuseTextureID;          // Diffuse Texture
         FileWriter << EmptyGuid;                 // Specular Texture ( FGuid-0000 '없음' )
         FileWriter << EmptyGuid;                 // Normal Texture
-        
+        #endif
+
     }
     catch(const std::exception& e)
     {

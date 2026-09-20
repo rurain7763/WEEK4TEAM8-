@@ -9,6 +9,7 @@
 #include "Serializers.h"
 #include "FAssetManager.h"
 #include "FTexture2DImporter.h"
+#include "AssetFileIOs.h"
 
 namespace
 {
@@ -112,13 +113,15 @@ TSharedPtr<FAsset> FStaticMeshAssetLoader::LoadAsset(const FGuid& AssetID, const
 {
 	FStaticMeshBuildData BuildData;
 
+	FStaticMeshFileIO::Load(Ar, BuildData);
+
+	return MakeShared<FStaticMeshAsset>(AssetID, AssetName, Renderer, BuildData);
+	
+	#if 0
 	Ar << BuildData.Vertices;
 	Ar << BuildData.Indices;
 	Ar << BuildData.Sections;
 	
-	return MakeShared<FStaticMeshAsset>(AssetID, AssetName, Renderer, BuildData);
-	
-	#if 0
 	Ar << Positions;
 	Ar << Normals;
 	Ar << TexCoords;
@@ -385,17 +388,30 @@ TSharedPtr<FTexture2DAsset> FMaterialAsset::GetNormalTexture() const
 
 TSharedPtr<FAsset> FMaterialAssetLoader::LoadAsset(const FGuid& AssetID, const FName& AssetName, FArchive& Ar)
 {
+	
+	FMaterialPayload Payload;
+	FMaterialFileIO::Load(Ar, Payload);
+	
+	#if 0
 	FVector AmbientColor, DiffuseColor, SpecularColor;
 	FGuid DiffuseTexture, SpecularTexture, NormalTexture;
-
 	Ar << AmbientColor;
 	Ar << DiffuseColor;
 	Ar << SpecularColor;
 	Ar << DiffuseTexture;
 	Ar << SpecularTexture;
 	Ar << NormalTexture;
+	#endif
 
-	return MakeShared<FMaterialAsset>(AssetID, AssetName, AmbientColor, DiffuseColor, SpecularColor, DiffuseTexture, SpecularTexture, NormalTexture);
+	return MakeShared<FMaterialAsset>(AssetID,
+									  AssetName,
+									  Payload.AmbientColor,
+									  Payload.DiffuseColor,
+									  Payload.SpecularColor,
+									  Payload.DiffuseTexture,
+									  Payload.SpecularTexture,
+									  Payload.NormalTexture
+									  );
 }
 
 void FMaterialAssetLoader::UnloadAsset(TSharedPtr<FAsset> Asset)

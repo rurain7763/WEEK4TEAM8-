@@ -6,7 +6,9 @@
 #include <filesystem>
 #include "FTexture2DImporter.h"
 #include "FStaticMeshImporter.h"
+#include "FMaterialImporter.h"
 #include "FLogManager.h"
+
 
 struct FContentBrowserEventHandler
 {
@@ -95,6 +97,26 @@ public:
 			}
 			
 		}
+		if (ImGui::Button("Import Material"))
+		{
+			std::filesystem::path TargetPath;
+			FAssetFileHeader Header;
+			
+			if (FNativeFileDialog::OpenFileDialog(CurrentDirectory, { FFileFilter{L"MTL Files", L"*.mtl;"} }, L"", TargetPath))
+			{
+				FObjInfo ObjInfo;
+				FObjImporter Importer;
+				Importer.ParseMtl(TargetPath.string(), ObjInfo);
+
+				for (const FObjMaterialInfo& Material : ObjInfo.Materials)
+				{
+					std::filesystem::path MaterialPath = TargetPath.parent_path() / (TargetPath.stem().string() + "_" + Material.Name.CStr() + ".uasset");
+					if(FMaterialImporter::Import(Material, TargetPath.parent_path(), MaterialPath, Header))
+						NewAssetFiles.Emplace(FAssetFileEntry{ Header, MaterialPath });
+				}
+			}
+		}
+
 		ImGui::Separator();
 
 		ImGui::Text("Current Directory: %s", CurrentDirectory.string().c_str());
