@@ -6,6 +6,7 @@ void FContentBrowser::Initialize(const std::filesystem::path& InitDirectory)
 {
 	RootDirectory = InitDirectory;
 	CurrentDirectory = InitDirectory;
+	RefreshCache();
 }
 
 void FContentBrowser::SetEventHandler(FContentBrowserEventHandler* InEventHandler)
@@ -101,24 +102,16 @@ void FContentBrowser::RenderDrawer()
 		if (ImGui::Button("Import Texture2D"))
 		{
 			std::filesystem::path TargetPath;
+			FAssetFileHeader Header;
 			if (FNativeFileDialog::OpenFileDialog(CurrentDirectory, { FFileFilter{ L"Image Files", L"*.png;*.jpg;" } }, L"", TargetPath))
 			{
-				FImagePayload ImagePayload;
-				if (FImageFileIO::Load(TargetPath, ImagePayload))
+				std::filesystem::path NewFilePath = TargetPath;
+				NewFilePath.replace_extension(".uasset");   // CurrentDirectory 대신 원본 옆에 저장
+
+				if (FTexture2DImporter::Import(TargetPath, NewFilePath, Header))
 				{
-					std::filesystem::path NewFilePath = CurrentDirectory;
-					FWindowsBinWriter FileWriter(NewFilePath);
-
-					FAssetFileHeader Header;
-					Header.Version = 1;
-					Header.AssetType = EAssetType::Texture2D;
-					Header.AssetID = FGuid::NewGuid();
-
-					FileWriter << Header;
-					if (FImageFileIO::Save(FileWriter, ImagePayload))
-					{
-						if (EventHandler) EventHandler->OnNewAssetFile(Header, NewFilePath);
-					}
+					//NewAssetFiles.Emplace(FAssetFileEntry{ Header, NewFilePath });
+					RefreshCache();
 				}
 			}
 		}
@@ -135,9 +128,9 @@ void FContentBrowser::RenderDrawer()
 
 				if (FStaticMeshImporter::Import(TargetPath, NewFilePath, Header))
 				{
-
-				}
 					//NewAssetFiles.Emplace(FAssetFileEntry{ Header, NewFilePath });
+					RefreshCache();
+				}
 			}
 
 		}
@@ -192,6 +185,7 @@ void FContentBrowser::RenderDrawer()
 						if (!std::filesystem::equivalent(CurrentDirectory, RootDirectory, clickEc))
 						{
 							CurrentDirectory = CurrentDirectory.parent_path();
+							RefreshCache();
 						}
 					}
 
@@ -232,33 +226,12 @@ void FContentBrowser::RenderDrawer()
 
 			int ItemIndex = 0;
 
-			for (const auto& Entry : std::filesystem::directory_iterator(CurrentDirectory))
+			for (const auto& Item : CachedItems)
 			{
-				const std::filesystem::path& Path = Entry.path();
-				bool bIsDirectory = Entry.is_directory();
-
-				if (!bIsDirectory && Path.extension() != ".uasset")
-				{
-					continue;
-				}
-
-				FString DisplayName = bIsDirectory ? Path.filename().string() : Path.stem().string();
-
-				FAssetFileHeader Header;
-				Header.AssetType = EAssetType::None;
-
-				if (!bIsDirectory)
-				{
-					try
-					{
-						FWindowsBinReader Reader(Path);
-						Reader << Header;
-					}
-					catch (...)
-					{
-						continue;
-					}
-				}
+				const std::filesystem::path& Path = Item.Path;
+				bool bIsDirectory = Item.bIsDirectory;
+				const FString& DisplayName = Item.DisplayName;
+				EAssetType AssetType = Item.AssetType;
 
 				ImGui::PushID(ItemIndex++);
 
@@ -283,6 +256,7 @@ void FContentBrowser::RenderDrawer()
 						if (ImGui::IsItemClicked())
 						{
 							CurrentDirectory = Path;
+							RefreshCache();
 							ImGui::EndGroup();
 							ImGui::PopID();
 							break;
@@ -302,7 +276,7 @@ void FContentBrowser::RenderDrawer()
 					}
 					else
 					{
-						switch (Header.AssetType)
+						switch (AssetType)
 						{
 						case EAssetType::StaticMesh:
 						{
@@ -333,7 +307,8 @@ void FContentBrowser::RenderDrawer()
 							bool bDrawn = false;
 							if (AssetManager)
 							{
-								TSharedPtr<FTexture2DAsset> TextureAsset = AssetManager->GetAssetAs<FTexture2DAsset>(Path.stem().string().c_str(), true);
+								FString AssetKey = NormalizeAssetPath(Path);
+								TSharedPtr<FTexture2DAsset> TextureAsset = AssetManager->GetAssetAs<FTexture2DAsset>(FName(AssetKey), true);
 								if (TextureAsset && TextureAsset->GetSRV())
 								{
 									ImTextureID TexID = (ImTextureID)TextureAsset->GetSRV().Get();
@@ -382,12 +357,12 @@ void FContentBrowser::RenderDrawer()
 					{
 						std::string FullPath = Path.string();
 
-						if (Header.AssetType == EAssetType::StaticMesh)
+						if (AssetType == EAssetType::StaticMesh)
 						{
 							ImGui::SetDragDropPayload(AssetPayloadTags::StaticMesh, FullPath.c_str(), (FullPath.length() + 1) * sizeof(char));
 							ImGui::Text("Mesh: %s", DisplayName.c_str());
 						}
-						else if (Header.AssetType == EAssetType::Texture2D)
+						else if (AssetType == EAssetType::Texture2D)
 						{
 							ImGui::SetDragDropPayload(AssetPayloadTags::Texture2D, FullPath.c_str(), (FullPath.length() + 1) * sizeof(char));
 							ImGui::Text("Texture2D: %s", DisplayName.c_str());
@@ -458,11 +433,6 @@ void FContentBrowser::RenderFolderNode(const std::filesystem::path& DirectoryPat
 		NodeFlags |= ImGuiTreeNodeFlags_Selected;
 	}
 
-	if (CurrentDirectory == DirectoryPath)
-	{
-		NodeFlags |= ImGuiTreeNodeFlags_Selected;
-	}
-
 	if (!bHasSubDirectories)
 	{
 		NodeFlags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
@@ -482,6 +452,7 @@ void FContentBrowser::RenderFolderNode(const std::filesystem::path& DirectoryPat
 	if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
 	{
 		CurrentDirectory = DirectoryPath;
+		RefreshCache();
 	}
 
 	ImGui::SameLine();
@@ -532,4 +503,46 @@ void FContentBrowser::RenderFolderNode(const std::filesystem::path& DirectoryPat
 
 		ImGui::TreePop();
 	}
+}
+
+void FContentBrowser::RefreshCache()
+{
+	CachedItems.clear();
+
+	try
+	{
+		for (const auto& Entry : std::filesystem::directory_iterator(CurrentDirectory))
+		{
+			const std::filesystem::path& Path = Entry.path();
+			bool bIsDirectory = Entry.is_directory();
+
+			if (!bIsDirectory && Path.extension() != ".uasset")
+			{
+				continue;
+			}
+
+			FContentItem Item;
+			Item.Path = Path;
+			Item.bIsDirectory = bIsDirectory;
+			Item.DisplayName = bIsDirectory ? Path.filename().string() : Path.stem().string();
+
+			if (!bIsDirectory)
+			{
+				try
+				{
+					FWindowsBinReader Reader(Path);
+					FAssetFileHeader Header;
+					Reader << Header;
+					Item.AssetType = Header.AssetType;
+				}
+				catch (...)
+				{
+					continue;
+				}
+			}
+
+			CachedItems.push_back(Item);
+		}
+	}
+	catch (...) {}
 }

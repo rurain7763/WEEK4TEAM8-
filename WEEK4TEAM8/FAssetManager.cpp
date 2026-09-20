@@ -35,6 +35,9 @@ void FAssetManager::RegisterAsset(const FName& AssetName, const TSharedPtr<FAsse
 
 void FAssetManager::RegisterAsset(const FGuid& AssetID, const FName& AssetName, const TSharedPtr<FAssetLoader>& AssetLoader, const TSharedPtr<FAssetSource>& AssetSource)
 {
+	FString NormalizedPath = NormalizeAssetPath(std::filesystem::path(AssetName.ToString().CStr()));
+	FName NormalizedKey(NormalizedPath);
+
 	if (NameToAssetID.Contains(AssetName))
 	{
 		return;
@@ -122,7 +125,7 @@ void FAssetManager::ScanDirectory(const std::filesystem::path& RootDir, URendere
 		if (Entry.is_directory() || Entry.path().extension() != ".uasset") continue;
 
 		// 이름 중복 해결을 위해 전체 경로
-		FName AssetName(Entry.path().string());
+		FName AssetName(NormalizeAssetPath(Entry.path()));
 		FAssetFileHeader Header;
 		
 		try

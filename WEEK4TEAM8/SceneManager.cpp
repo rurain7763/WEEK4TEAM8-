@@ -948,21 +948,18 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 				if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload(AssetPayloadTags::Texture2D))
 				{
 					const char* DroppedPathCStr = static_cast<const char*>(Payload->Data);
-					std::filesystem::path DroppedPath(DroppedPathCStr);
+					FString TargetKey = NormalizeAssetPath(std::filesystem::path(DroppedPathCStr));
 
-					std::string AssetNameStr = DroppedPath.stem().string();
-					FName TargetAssetName(AssetNameStr.c_str());
-
-					TSharedPtr<FTexture2DAsset> TextureAsset = guiReference.AssetManager->GetAssetAs<FTexture2DAsset>(TargetAssetName, true);
+					TSharedPtr<FTexture2DAsset> TextureAsset = guiReference.AssetManager->GetAssetAs<FTexture2DAsset>(FName(TargetKey), true);
 
 					if (TextureAsset)
 					{
 						primitiveComponent->SetTexture(TextureAsset);
-							UE_LOG("Success: Texture applied: %s", AssetNameStr.c_str());
+						UE_LOG("Success: Texture applied: %s", TargetKey);
 					}
 					else
 					{
-						UE_LOG_ERROR("Failed: AssetManager has no asset named '%s'", AssetNameStr.c_str());
+						UE_LOG_ERROR("Failed: AssetManager has no asset named '%s'", TargetKey);
 					}
 				}
 

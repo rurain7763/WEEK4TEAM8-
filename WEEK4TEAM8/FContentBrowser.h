@@ -15,6 +15,14 @@ struct FContentBrowserEventHandler
 	virtual void OnDeleteAssetFile(const std::filesystem::path& FilePath) {}
 };
 
+struct FContentItem
+{
+	std::filesystem::path Path;
+	FString DisplayName;
+	bool bIsDirectory = false;
+	EAssetType AssetType = EAssetType::None;
+};
+
 namespace AssetPayloadTags
 {
 	inline constexpr const char* StaticMesh = "DND_ASSET_STATICMESH";
@@ -29,7 +37,14 @@ public:
 
 	void Render();
 
-	void ToggleDrawer() { bIsDrawerOpen = !bIsDrawerOpen; }
+	void ToggleDrawer()
+	{
+		bIsDrawerOpen = !bIsDrawerOpen;
+		if (bIsDrawerOpen)
+		{
+			RefreshCache();
+		}
+	}
 	bool IsDrawerOpen() const { return bIsDrawerOpen; }
 	void SetAssetManager(FAssetManager* InAssetManager) { AssetManager = InAssetManager; }
 private:
@@ -46,4 +61,7 @@ private:
 	bool bIsDrawerOpen = false;
 	float DrawerHeight = 350.0f;
 	const float BottomBarHeight = 28.0f;
+
+	std::vector<FContentItem> CachedItems;
+	void RefreshCache();
 };
