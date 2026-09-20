@@ -8,6 +8,7 @@
 #include "FObjImporter.h"
 #include "Serializers.h"
 #include "FAssetManager.h"
+#include "FTexture2DImporter.h"
 
 namespace
 {
@@ -109,10 +110,15 @@ FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetN
 
 TSharedPtr<FAsset> FStaticMeshAssetLoader::LoadAsset(const FGuid& AssetID, const FName& AssetName, FArchive& Ar)
 {
-	TArray<FVector> Positions;
-	TArray<FVector> Normals;
-	TArray<FVector2> TexCoords;
+	FStaticMeshBuildData BuildData;
 
+	Ar << BuildData.Vertices;
+	Ar << BuildData.Indices;
+	Ar << BuildData.Sections;
+	
+	return MakeShared<FStaticMeshAsset>(AssetID, AssetName, Renderer, BuildData);
+	
+	#if 0
 	Ar << Positions;
 	Ar << Normals;
 	Ar << TexCoords;
@@ -132,8 +138,8 @@ TSharedPtr<FAsset> FStaticMeshAssetLoader::LoadAsset(const FGuid& AssetID, const
 		Vertex.u = TexCoords[i].X;
 		Vertex.v = 1.0f - TexCoords[i].Y; // 텍스처 좌표의 Y축을 뒤집음
 	}
-
-	return MakeShared<FStaticMeshAsset>(AssetID, AssetName, Renderer, Vertices.Data(), static_cast<uint32>(Vertices.Num()));
+	#endif
+	
 }
 
 void FStaticMeshAssetLoader::UnloadAsset(TSharedPtr<FAsset> Asset)
@@ -145,13 +151,13 @@ TSharedPtr<FAsset> FTexture2DAssetLoader::LoadAsset(const FGuid& AssetID, const 
 {
 	int32 Width, Height, Channels;
 	TArray<uint8> ImageData;
-
-#if 0 // 임시 비활성화 나중에는 uasset으로 읽기 때문에 이 코드로 이미지 파일을 읽어야함
+	
 	Ar << Width;
 	Ar << Height;
 	Ar << Channels;
 	Ar << ImageData;
-#else
+
+#if 0
 	TArray<int8> Memory;
 	if (!TryReadToBytes(Ar, Memory))
 	{

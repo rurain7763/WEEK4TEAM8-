@@ -5,6 +5,9 @@
 #include "AssetFileIOs.h"
 #include "FAssetManager.h"
 #include <filesystem>
+#include "FTexture2DImporter.h"
+#include "FStaticMeshImporter.h"
+#include "FLogManager.h"
 
 struct FContentBrowserEventHandler
 {

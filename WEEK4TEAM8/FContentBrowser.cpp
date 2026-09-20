@@ -122,7 +122,25 @@ void FContentBrowser::RenderDrawer()
 				}
 			}
 		}
+		ImGui::SameLine();
+		if (ImGui::Button("Import StaticMesh"))
+		{
+			std::filesystem::path TargetPath;
+			FAssetFileHeader Header;
 
+			if (FNativeFileDialog::OpenFileDialog(CurrentDirectory, { FFileFilter{ L"Obj Files", L"*.obj;" } }, L"", TargetPath))
+			{
+				std::filesystem::path NewFilePath = TargetPath;
+				NewFilePath.replace_extension(".uasset");   // CurrentDirectory 대신 원본 옆에 저장
+
+				if (FStaticMeshImporter::Import(TargetPath, NewFilePath, Header))
+				{
+
+				}
+					//NewAssetFiles.Emplace(FAssetFileEntry{ Header, NewFilePath });
+			}
+
+		}
 		ImGui::SameLine();
 		ImGui::Text(" | Current: %s", CurrentDirectory.string().c_str());
 
@@ -217,9 +235,30 @@ void FContentBrowser::RenderDrawer()
 			for (const auto& Entry : std::filesystem::directory_iterator(CurrentDirectory))
 			{
 				const std::filesystem::path& Path = Entry.path();
-				FString FileName = Path.filename().string();
 				bool bIsDirectory = Entry.is_directory();
-				std::string Extension = Path.extension().string();
+
+				if (!bIsDirectory && Path.extension() != ".uasset")
+				{
+					continue;
+				}
+
+				FString DisplayName = bIsDirectory ? Path.filename().string() : Path.stem().string();
+
+				FAssetFileHeader Header;
+				Header.AssetType = EAssetType::None;
+
+				if (!bIsDirectory)
+				{
+					try
+					{
+						FWindowsBinReader Reader(Path);
+						Reader << Header;
+					}
+					catch (...)
+					{
+						continue;
+					}
+				}
 
 				ImGui::PushID(ItemIndex++);
 
@@ -238,7 +277,7 @@ void FContentBrowser::RenderDrawer()
 						ImU32 BgColor = bActive ? IM_COL32(255, 255, 255, 40) : IM_COL32(255, 255, 255, 20);
 						DrawList->AddRectFilled(PMin, PMax, BgColor, 4.0f);
 					}
-					// 폴더 아이콘
+
 					if (bIsDirectory)
 					{
 						if (ImGui::IsItemClicked())
@@ -248,6 +287,7 @@ void FContentBrowser::RenderDrawer()
 							ImGui::PopID();
 							break;
 						}
+
 						ImU32 TabColor = bActive ? 0xFF80C0E0 : (bHovered ? 0xFF99D0F0 : 0xFF70B0D0);
 						ImU32 BodyColor = bActive ? 0xFF90D0F8 : (bHovered ? 0xFFAAE0FF : 0xFF80C0E8);
 
@@ -260,98 +300,103 @@ void FContentBrowser::RenderDrawer()
 						DrawList->AddRectFilled(BodyMin, BodyMax, BodyColor, 6.0f);
 						DrawList->AddRect(BodyMin, BodyMax, 0x55000000, 6.0f, 0, 1.5f);
 					}
-					// obj 파일 아이콘
-					else if (Extension == ".obj")
-					{
-						ImVec2 Center = ImVec2((PMin.x + PMax.x) * 0.5f, (PMin.y + PMax.y) * 0.5f - 4.0f);
-						const float HalfSize = 16.0f;
-						const float Offset = 8.0f;
-
-						ImVec2 F_TL = ImVec2(Center.x - HalfSize, Center.y - HalfSize + Offset * 0.5f);
-						ImVec2 F_BR = ImVec2(Center.x + HalfSize - Offset, Center.y + HalfSize);
-
-						ImVec2 B_TL = ImVec2(F_TL.x + Offset, F_TL.y - Offset);
-						ImVec2 B_BR = ImVec2(F_BR.x + Offset, F_BR.y - Offset);
-
-						ImU32 CubeColor = bActive ? 0xFF00FFFF : (bHovered ? 0xFF66FFFF : 0xFF00D2D2);
-						ImU32 FillColor = (CubeColor & 0x00FFFFFF) | 0x22000000;
-
-						DrawList->AddRectFilled(F_TL, F_BR, FillColor);
-						DrawList->AddRect(F_TL, F_BR, CubeColor, 0.0f, 0, 1.5f);
-						DrawList->AddRect(B_TL, B_BR, CubeColor, 0.0f, 0, 1.5f);
-
-						DrawList->AddLine(F_TL, B_TL, CubeColor, 1.5f);
-						DrawList->AddLine(ImVec2(F_BR.x, F_TL.y), ImVec2(B_BR.x, B_TL.y), CubeColor, 1.5f);
-						DrawList->AddLine(ImVec2(F_TL.x, F_BR.y), ImVec2(B_TL.x, B_BR.y), CubeColor, 1.5f);
-						DrawList->AddLine(F_BR, B_BR, CubeColor, 1.5f);
-					}
-					// 텍스처 이미지 파일 아이콘
-					else if (Extension == ".jpg" || Extension == ".png")
-					{
-						if (AssetManager)
-						{
-							TSharedPtr<FTexture2DAsset> TextureAsset = AssetManager->GetAssetAs<FTexture2DAsset>(Path.stem().string().c_str(), true);
-							if (TextureAsset && TextureAsset->GetSRV())
-							{
-								ImTextureID TexID = (ImTextureID)TextureAsset->GetSRV().Get();
-								ImVec2 ImgMin = ImVec2(PMin.x + 8.0f, PMin.y + 8.0f);
-								ImVec2 ImgMax = ImVec2(PMax.x - 8.0f, PMax.y - 8.0f);
-								DrawList->AddImage(TexID, ImgMin, ImgMax);
-								DrawList->AddRect(ImgMin, ImgMax, 0x44FFFFFF, 2.0f);
-							}
-						}
-					}
-					// 기타 파일 아이콘
 					else
 					{
-						ImVec2 Center = ImVec2((PMin.x + PMax.x) * 0.5f, (PMin.y + PMax.y) * 0.5f - 4.0f);
+						switch (Header.AssetType)
+						{
+						case EAssetType::StaticMesh:
+						{
+							ImVec2 Center = ImVec2((PMin.x + PMax.x) * 0.5f, (PMin.y + PMax.y) * 0.5f - 4.0f);
+							const float HalfSize = 16.0f;
+							const float Offset = 8.0f;
 
-						const float HalfW = 14.0f;
-						const float HalfH = 18.0f;
-						const float Fold = 8.0f;
+							ImVec2 F_TL = ImVec2(Center.x - HalfSize, Center.y - HalfSize + Offset * 0.5f);
+							ImVec2 F_BR = ImVec2(Center.x + HalfSize - Offset, Center.y + HalfSize);
+							ImVec2 B_TL = ImVec2(F_TL.x + Offset, F_TL.y - Offset);
+							ImVec2 B_BR = ImVec2(F_BR.x + Offset, F_BR.y - Offset);
 
-						ImVec2 DocTL = ImVec2(Center.x - HalfW, Center.y - HalfH);
-						ImVec2 DocBR = ImVec2(Center.x + HalfW, Center.y + HalfH);
+							ImU32 CubeColor = bActive ? 0xFF00FFFF : (bHovered ? 0xFF66FFFF : 0xFF00D2D2);
+							ImU32 FillColor = (CubeColor & 0x00FFFFFF) | 0x22000000;
 
-						ImU32 PaperColor = bActive ? 0xFFCCCCCC : (bHovered ? 0xFFFFFFFF : 0xFFE0E0E0);
-						ImU32 BorderColor = 0x88000000;
-						ImU32 LineColor = 0x55000000;
+							DrawList->AddRectFilled(F_TL, F_BR, FillColor);
+							DrawList->AddRect(F_TL, F_BR, CubeColor, 0.0f, 0, 1.5f);
+							DrawList->AddRect(B_TL, B_BR, CubeColor, 0.0f, 0, 1.5f);
 
-						DrawList->AddRectFilled(DocTL, DocBR, PaperColor, 2.0f);
-						DrawList->AddRect(DocTL, DocBR, BorderColor, 2.0f, 0, 1.2f);
+							DrawList->AddLine(F_TL, B_TL, CubeColor, 1.5f);
+							DrawList->AddLine(ImVec2(F_BR.x, F_TL.y), ImVec2(B_BR.x, B_TL.y), CubeColor, 1.5f);
+							DrawList->AddLine(ImVec2(F_TL.x, F_BR.y), ImVec2(B_TL.x, B_BR.y), CubeColor, 1.5f);
+							DrawList->AddLine(F_BR, B_BR, CubeColor, 1.5f);
+							break;
+						}
+						case EAssetType::Texture2D:
+						{
+							bool bDrawn = false;
+							if (AssetManager)
+							{
+								TSharedPtr<FTexture2DAsset> TextureAsset = AssetManager->GetAssetAs<FTexture2DAsset>(Path.stem().string().c_str(), true);
+								if (TextureAsset && TextureAsset->GetSRV())
+								{
+									ImTextureID TexID = (ImTextureID)TextureAsset->GetSRV().Get();
+									ImVec2 ImgMin = ImVec2(PMin.x + 8.0f, PMin.y + 8.0f);
+									ImVec2 ImgMax = ImVec2(PMax.x - 8.0f, PMax.y - 8.0f);
+									DrawList->AddImage(TexID, ImgMin, ImgMax);
+									DrawList->AddRect(ImgMin, ImgMax, 0x44FFFFFF, 2.0f);
+									bDrawn = true;
+								}
+							}
 
-						ImVec2 FoldA = ImVec2(DocBR.x - Fold, DocTL.y);
-						ImVec2 FoldB = ImVec2(DocBR.x, DocTL.y + Fold);
-						ImVec2 FoldC = ImVec2(DocBR.x - Fold, DocTL.y + Fold);
+							if (!bDrawn)
+							{
+								DrawList->AddRectFilled(ImVec2(PMin.x + 8.0f, PMin.y + 8.0f), ImVec2(PMax.x - 8.0f, PMax.y - 8.0f), 0xFF444444, 4.0f);
+							}
+							break;
+						}
+						case EAssetType::Material:
+						{
+							ImVec2 Center = ImVec2((PMin.x + PMax.x) * 0.5f, (PMin.y + PMax.y) * 0.5f - 4.0f);
+							DrawList->AddCircleFilled(Center, 18.0f, 0xFF44AA44);
+							DrawList->AddCircle(Center, 18.0f, 0xFF88FF88, 0, 2.0f);
+							break;
+						}
+						default:
+						{
+							ImVec2 Center = ImVec2((PMin.x + PMax.x) * 0.5f, (PMin.y + PMax.y) * 0.5f - 4.0f);
+							const float HalfW = 14.0f, HalfH = 18.0f, Fold = 8.0f;
+							ImVec2 DocTL = ImVec2(Center.x - HalfW, Center.y - HalfH);
+							ImVec2 DocBR = ImVec2(Center.x + HalfW, Center.y + HalfH);
 
-						DrawList->AddTriangleFilled(FoldA, FoldB, FoldC, 0xFFB0B0B0);
-						DrawList->AddTriangle(FoldA, FoldB, FoldC, BorderColor, 1.0f);
+							DrawList->AddRectFilled(DocTL, DocBR, 0xFFE0E0E0, 2.0f);
+							DrawList->AddRect(DocTL, DocBR, 0x88000000, 2.0f, 0, 1.2f);
 
-						float LineStartX = DocTL.x + 4.0f;
-						float LineEndX = DocBR.x - 4.0f;
-						DrawList->AddLine(ImVec2(LineStartX, DocTL.y + 14.0f), ImVec2(DocBR.x - Fold - 2.0f, DocTL.y + 14.0f), LineColor, 1.2f);
-						DrawList->AddLine(ImVec2(LineStartX, DocTL.y + 20.0f), ImVec2(LineEndX, DocTL.y + 20.0f), LineColor, 1.2f);
-						DrawList->AddLine(ImVec2(LineStartX, DocTL.y + 26.0f), ImVec2(LineStartX + 12.0f, DocTL.y + 26.0f), LineColor, 1.2f);
+							ImVec2 FoldA = ImVec2(DocBR.x - Fold, DocTL.y);
+							ImVec2 FoldB = ImVec2(DocBR.x, DocTL.y + Fold);
+							ImVec2 FoldC = ImVec2(DocBR.x - Fold, DocTL.y + Fold);
+							DrawList->AddTriangleFilled(FoldA, FoldB, FoldC, 0xFFB0B0B0);
+							DrawList->AddTriangle(FoldA, FoldB, FoldC, 0x88000000, 1.0f);
+							break;
+						}
+						}
 					}
 
 					if (!bIsDirectory && ImGui::BeginDragDropSource())
 					{
-						if (Extension == ".obj")
+						std::string FullPath = Path.string();
+
+						if (Header.AssetType == EAssetType::StaticMesh)
 						{
-							std::string FullPath = Path.string();
 							ImGui::SetDragDropPayload(AssetPayloadTags::StaticMesh, FullPath.c_str(), (FullPath.length() + 1) * sizeof(char));
-							ImGui::Text("Mesh: %s", FileName.c_str());
+							ImGui::Text("Mesh: %s", DisplayName.c_str());
 						}
-						else if (Extension == ".jpg" || Extension == ".png")
+						else if (Header.AssetType == EAssetType::Texture2D)
 						{
-							std::string FullPath = Path.string();
 							ImGui::SetDragDropPayload(AssetPayloadTags::Texture2D, FullPath.c_str(), (FullPath.length() + 1) * sizeof(char));
-							ImGui::Text("Texture2D: %s", FileName.c_str());
+							ImGui::Text("Texture2D: %s", DisplayName.c_str());
 						}
+
 						ImGui::EndDragDropSource();
 					}
 
-					std::string TruncatedName = FileName;
+					std::string TruncatedName = DisplayName.ToString();
 					if (TruncatedName.length() > 9)
 					{
 						TruncatedName = TruncatedName.substr(0, 7) + "..";
@@ -362,7 +407,7 @@ void FContentBrowser::RenderDrawer()
 
 				if (ImGui::IsItemHovered())
 				{
-					ImGui::SetTooltip("%s", FileName.c_str());
+					ImGui::SetTooltip("%s", DisplayName.c_str());
 				}
 
 				float LastItemX2 = ImGui::GetItemRectMax().x;

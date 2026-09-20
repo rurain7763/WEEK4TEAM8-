@@ -29,6 +29,7 @@ public:
 
 	virtual bool Serialize(void* Data, uint64 Size) = 0;
 
+	// int, float, double 등 (enum 제외)
 	template <typename T>
 	requires (CArchiveArithmetic<T> && !std::is_enum_v<T>)
 	FArchive& operator<<(T& Value)
@@ -37,6 +38,7 @@ public:
 		return *this;
 	}
 
+	// enum 타입
 	template <typename T>
 	requires std::is_enum_v<T>
 	FArchive& operator<<(T& Value)
@@ -50,6 +52,7 @@ public:
 		return *this;
 	}
 
+	// 그 외 사용자 정의 타입
 	template<typename T>
 	requires (!CArchiveArithmetic<T> && !std::is_enum_v<T>)
 	FArchive& operator<<(T& Value)
@@ -64,6 +67,7 @@ private:
 	EArchiveMode Mode;
 };
 
+// 커스텀 struct/class 직렬화 포인트를 위한 기본 템플릿
 template <typename T>
 struct FArchiveSerializer
 {
@@ -73,6 +77,7 @@ struct FArchiveSerializer
 	}
 };
 
+// TArray<T> 전용 직렬화
 template <typename T>
 inline  FArchive& operator<<(FArchive& Ar, TArray<T>& Array)
 {
@@ -119,6 +124,7 @@ inline  FArchive& operator<<(FArchive& Ar, TArray<T>& Array)
 	return Ar;
 }
 
+// 바이너리 파일 쓰기 아카이브
 class FWindowsBinWriter : public FArchive
 {
 public:
@@ -194,6 +200,7 @@ private:
 	HANDLE FileHandle = INVALID_HANDLE_VALUE;
 };
 
+// 바이너리 파일 읽기 아카이브
 class FWindowsBinReader : public FArchive
 {
 public:

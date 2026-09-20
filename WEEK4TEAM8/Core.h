@@ -145,6 +145,7 @@ public:
 	FString ToLower() const;
 	FString ToUpper() const;
 
+	std::string ToString() const;
 	FString& operator+=(std::string_view str);
 	FString& operator+=(const FString& str);
 

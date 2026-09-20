@@ -6,6 +6,8 @@
 #include "TArray.h"
 #include "FGuid.h"
 
+class URenderer;
+
 struct FAssetMetaInfo
 {
 	FGuid AssetID;
@@ -25,6 +27,9 @@ public:
 	void RegisterAsset(const FGuid& AssetID, const FName& AssetName, const TSharedPtr<FAssetLoader>& AssetLoader, const TSharedPtr<FAssetSource>& AssetSource);
 	void RegisterAsset(const TSharedPtr<FAsset>& Asset);
 	void UnregisterAsset(const FName& AssetName);
+
+	// 프로그램 시작 시에 호출하여 Directory 스캔하는 함수
+	void ScanDirectory(const std::filesystem::path& RootDir, URenderer& Renderer);
 
 	TSharedPtr<FAsset> LoadAsset(const FName& AssetName);
 	TSharedPtr<FAsset> LoadAsset(const FGuid& AssetID);
