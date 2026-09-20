@@ -98,7 +98,7 @@ public:
 		return mMeshAsset->GetLocalBoundingBox().ToWorld(GetTransformMatrix().MakeMatrix());
 	}
 
-	const TArray<FVertexSimple>& GetMeshVertices() const override
+	const TArray<FVertex>& GetMeshVertices() const override
 	{
 		if (!mMeshAsset)
 		{

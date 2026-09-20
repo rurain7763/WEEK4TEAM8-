@@ -14,7 +14,7 @@ namespace
 {
 void CalculateNormals(FStaticMeshBuildData& MeshData)
 {
-	for (FStaticMeshBuildVertex& Vertex : MeshData.Vertices)
+	for (FVertex& Vertex : MeshData.Vertices)
 	{
 		Vertex.Normal = FVector(0.0f);
 	}
@@ -39,7 +39,7 @@ void CalculateNormals(FStaticMeshBuildData& MeshData)
 		MeshData.Vertices[Index2].Normal += FaceNormal;
 	}
 
-	for (FStaticMeshBuildVertex& Vertex : MeshData.Vertices)
+	for (FVertex& Vertex : MeshData.Vertices)
 	{
 		if (Vertex.Normal.LengthSquared() > SMALL_NUMBER)
 		{
@@ -52,7 +52,7 @@ void CalculateNormals(FStaticMeshBuildData& MeshData)
 	}
 }
 
-FStaticMeshBuildData BuildFromSimpleVertices(const FVertexSimple* InVertices, uint32 InVertexCount,
+FStaticMeshBuildData BuildFromVertices(const FVertex* InVertices, uint32 InVertexCount,
 	const uint32* InIndices, uint32 InIndexCount)
 {
 	FStaticMeshBuildData BuildData;
@@ -60,13 +60,7 @@ FStaticMeshBuildData BuildFromSimpleVertices(const FVertexSimple* InVertices, ui
 
 	for (uint32 Index = 0; Index < InVertexCount; ++Index)
 	{
-		const FVertexSimple& Source = InVertices[Index];
-		BuildData.Vertices.Add({
-			FVector(Source.x, Source.y, Source.z),
-			FVector(0.0f),
-			FVector4(Source.r, Source.g, Source.b, Source.a),
-			FVector2(Source.u, Source.v)
-		});
+		BuildData.Vertices.Add(InVertices[Index]);
 	}
 
 	if (InIndices && InIndexCount > 0)
@@ -86,6 +80,9 @@ FStaticMeshBuildData BuildFromSimpleVertices(const FVertexSimple* InVertices, ui
 		}
 	}
 
+	FStaticMeshSection& Section = BuildData.Sections.Emplace();
+	Section.FirstIndex = 0;
+	Section.IndexCount = static_cast<uint32>(BuildData.Indices.Num());
 	CalculateNormals(BuildData);
 	return BuildData;
 }
@@ -96,34 +93,25 @@ TSharedPtr<FArchive> FFileAssetSource::CreateArchive()
 	return MakeShared<FWindowsBinReader>(FilePath);
 }
 
-FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount)
+FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertex* InVertices, uint32 InVertexCount)
 	: FStaticMeshAsset(InAssetID, InAssetName, InRenderer,
-		BuildFromSimpleVertices(InVertices, InVertexCount, nullptr, 0))
+		BuildFromVertices(InVertices, InVertexCount, nullptr, 0))
 {
-	Vertices.SetNum(InVertexCount);
-	std::memcpy(Vertices.Data(), InVertices, sizeof(FVertexSimple) * InVertexCount);
 }
 
-FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount)
+FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertex* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount)
 	: FStaticMeshAsset(InAssetID, InAssetName, InRenderer,
-		BuildFromSimpleVertices(InVertices, InVertexCount, InIndices, InIndexCount))
+		BuildFromVertices(InVertices, InVertexCount, InIndices, InIndexCount))
 {
-	Vertices.SetNum(InVertexCount);
-	std::memcpy(Vertices.Data(), InVertices, sizeof(FVertexSimple) * InVertexCount);
-
-	Indices.SetNum(InIndexCount);
-	std::memcpy(Indices.Data(), InIndices, sizeof(uint32) * InIndexCount);
-
-	FStaticMeshSection& Section = Sections.Emplace();
-	Section.FirstIndex = 0;
-	Section.IndexCount = InIndexCount;
 }
 
 FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMeshBuildData& InBuildData)
 	: FAsset(InAssetID, InAssetName, EAssetType::StaticMesh)
+	, Vertices(InBuildData.Vertices)
+	, Indices(InBuildData.Indices)
 	, Sections(InBuildData.Sections)
 {
-	for (const FStaticMeshBuildVertex& Source : InBuildData.Vertices)
+	for (const FVertex& Source : InBuildData.Vertices)
 	{
 		BoundingBox.ExpandToInclude(Source.Pos);
 	}
@@ -167,28 +155,6 @@ TSharedPtr<FAsset> FStaticMeshAssetLoader::LoadAsset(const FGuid& AssetID, const
 	Ar << BuildData.Sections;
 	
 	return MakeShared<FStaticMeshAsset>(AssetID, AssetName, Renderer, BuildData);
-	
-	#if 0
-	Ar << Positions;
-	Ar << Normals;
-	Ar << TexCoords;
-
-	TArray<FVertexSimple> Vertices;
-	for (int32 i = 0; i < Positions.Num(); ++i)
-	{
-		FVertexSimple& Vertex = Vertices.Emplace();
-
-		Vertex.x = Positions[i].x;
-		Vertex.y = Positions[i].y;
-		Vertex.z = Positions[i].z;
-		Vertex.r = 1.0f;
-		Vertex.g = 1.0f;
-		Vertex.b = 1.0f;
-		Vertex.a = 1.0f;
-		Vertex.u = TexCoords[i].X;
-		Vertex.v = 1.0f - TexCoords[i].Y; // 텍스처 좌표의 Y축을 뒤집음
-	}
-	#endif
 	
 }
 

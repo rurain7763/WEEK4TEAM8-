@@ -49,8 +49,8 @@ class FStaticMeshAsset : public FAsset
 {
 public:
 	FStaticMeshAsset() = default;
-	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount);
-	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount);
+	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertex* InVertices, uint32 InVertexCount);
+	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertex* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount);
 	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMeshBuildData& InBuildData);
 
 	Microsoft::WRL::ComPtr<ID3D11Buffer> GetVertexBuffer() const;
@@ -60,11 +60,8 @@ public:
 	inline uint32 GetSubMeshCount() const { return Sections.Num(); }
 	inline const FAABB& GetLocalBoundingBox() const { return BoundingBox; }
 	inline const TArray<FStaticMeshSection>& GetSections() const { return Sections; }
-	inline const TArray<FVertexSimple>& GetVertices() const { return Vertices; }
+	inline const TArray<FVertex>& GetVertices() const { return Vertices; }
 	inline const TArray<uint32>& GetIndices() const { return Indices; }
-
-	const TArray<FStaticMeshBuildVertex>& GetCpuVertices() const { return CpuVertices; }
-	const TArray<uint32>& GetCpuIndices() const { return CpuIndices; }
 
 private:
 	TSharedPtr<FVertexBuffer> VertexBuffer;
@@ -73,13 +70,10 @@ private:
 
 	FAABB BoundingBox;
 
-	TArray<FVertexSimple> Vertices;
+	TArray<FVertex> Vertices;
 	TArray<uint32> Indices;
 
 	TArray<FStaticMeshSection> Sections;
-
-	TArray<FStaticMeshBuildVertex> CpuVertices;
-	TArray<uint32> CpuIndices;
 };
 
 class FStaticMeshAssetLoader : public FAssetLoader

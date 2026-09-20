@@ -43,7 +43,7 @@ bool FStaticMeshBuilder::Build (const FMeshDescription& MeshDescription,
 
                 const FMeshVertexPosition& MeshVertex =  MeshDescription.Vertices[VertexID];
 
-                FStaticMeshBuildVertex RenderVertex;
+                FVertex RenderVertex;
                 RenderVertex.Pos = MeshVertex.Position;
                 RenderVertex.Normal = VertexInstance.Normal;
                 RenderVertex.Color = VertexInstance.Color;

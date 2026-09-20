@@ -12,7 +12,8 @@ FRenderPipeline::FRenderPipeline(ID3D11Device* InDevice, ID3D11DeviceContext* In
 	, DepthStencilStatePool(InDepthStencilStatePool)
 	, BlendStatePool(InBlendStatePool)
 {
-	BlendState = InBlendStatePool->GetOrCreateBlendState(Device, ERenderBlendMode::Opaque);
+	FBlendStateKey Key{ ERenderBlendMode::Opaque, true };
+	BlendState = InBlendStatePool->GetOrCreateBlendState(Device, Key);
 }
 
 FRenderPipeline::~FRenderPipeline()
@@ -136,9 +137,10 @@ void FRenderPipeline::SetDepthStencilState(bool bEnableDepthTest, bool bEnableDe
 	DepthStencilState = DepthStencilStatePool->GetOrCreateDepthStencilState(Device, Key);
 }
 
-void FRenderPipeline::SetBlendState(ERenderBlendMode BlendMode)
+void FRenderPipeline::SetBlendState(ERenderBlendMode BlendMode, bool bColorWriteEnable)
 {
-	BlendState = BlendStatePool->GetOrCreateBlendState(Device, BlendMode);
+	FBlendStateKey Key{ BlendMode, bColorWriteEnable };
+	BlendState = BlendStatePool->GetOrCreateBlendState(Device, Key);
 }
 
 void FRenderPipeline::SetShader(const FString& ShaderPath)
@@ -163,7 +165,7 @@ void FRenderPipeline::SetShader(const FString& ShaderPath)
 	};
 
 	Device->CreateInputLayout(Layout, ARRAYSIZE(Layout), VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), &InputLayout);
-	Stride = sizeof(FStaticMeshBuildVertex);
+	Stride = sizeof(FVertex);
 
 	VertexShaderCSO->Release();
 	PixelShaderCSO->Release();

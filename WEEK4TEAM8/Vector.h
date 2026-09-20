@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "MathUtility.h"
 
@@ -78,6 +78,14 @@ typedef struct FVector
         y -= Others.y;
         z -= Others.z;
     }
+
+	FVector& operator*=(float Scalar)
+	{
+		x *= Scalar;
+		y *= Scalar;
+		z *= Scalar;
+		return *this;
+	}
 
 	void operator/=(float Scalar)
 	{
@@ -241,14 +249,4 @@ struct FRect
 	FRect(float InX, float InY, float InWidth, float InHeight)
 		: X(InX), Y(InY), Width(InWidth), Height(InHeight) {
 	}
-};
-
-// 1. Define the triangle vertices
-struct FVertexSimple
-{
-	float x, y, z;    // Position
-	float r, g, b, a; // Color
-	float u, v;       // Texture coordinates
-
-	FVector GetPosition() const { return FVector(x, y, z); }
 };

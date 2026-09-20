@@ -22,7 +22,7 @@ public:
 
 	FAABB GetBoundingBox() const override;
 
-	const TArray<FVertexSimple>& GetMeshVertices() const override
+	const TArray<FVertex>& GetMeshVertices() const override
 	{
 		if (mMeshAsset)
 		{

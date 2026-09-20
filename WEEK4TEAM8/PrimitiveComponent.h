@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "SceneComponent.h"
 #include "Assets.h"
@@ -30,7 +30,7 @@ public:
 	virtual void RegisterPickTarget(FRenderCollector& RenderCollector) override;
 
 	virtual FAABB GetBoundingBox() const;
-	virtual const TArray<FVertexSimple>& GetMeshVertices() const;
+	virtual const TArray<FVertex>& GetMeshVertices() const;
 	virtual const TArray<uint32>& GetMeshIndices() const;
 
 	// 광선과 이 컴포넌트의 충돌을 판정한다.

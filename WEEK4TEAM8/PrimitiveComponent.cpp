@@ -1,4 +1,4 @@
-﻿
+
 #include "PrimitiveComponent.h"
 
 #include <format>
@@ -71,14 +71,14 @@ FAABB UPrimitiveComponent::GetBoundingBox() const
 	return FAABB();
 }
 
-const TArray<FVertexSimple>& UPrimitiveComponent::GetMeshVertices() const
+const TArray<FVertex>& UPrimitiveComponent::GetMeshVertices() const
 {
-	return TArray<FVertexSimple>();
+	static const TArray<FVertex> EmptyVertices; return EmptyVertices;
 }
 
 const TArray<uint32>& UPrimitiveComponent::GetMeshIndices() const
 {
-	return TArray<uint32>();
+	static const TArray<uint32> EmptyIndices; return EmptyIndices;
 }
 
 bool UPrimitiveComponent::RayCastComponent(const FPickingRay& PickingRay, float& OutHitT) const
@@ -93,7 +93,7 @@ bool UPrimitiveComponent::RayCastComponent(const FPickingRay& PickingRay, float&
 	}
 
 	// 메시 충돌체를 이용한 광선-삼각형 충돌 판정
-	const TArray<FVertexSimple>& vertices = GetMeshVertices();
+	const TArray<FVertex>& vertices = GetMeshVertices();
 	const TArray<uint32>& indices = GetMeshIndices();
 
 	const FMatrix WorldToLocal = WorldMatrix.AffineInverse();

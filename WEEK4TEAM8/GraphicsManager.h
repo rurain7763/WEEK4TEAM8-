@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "Matrix.h"
 #include "Enum.h"
@@ -28,17 +28,8 @@ public:
 
 	//void Prepare(const Camera* mCamera);
 	void Prepare(const FCamera* Camera,float viewportWidth, float viewportHeight, const FViewport& viewport);
-	void GizmoPrepare();
 
-	// 표시 옵션은 FShowFlags가 들고 있다. 여기서 중계하지 않는다.
-#if 0
-	static FVector GetPrimitiveCenter(EPrimitive type);
-	static FVector GetPrimitiveHalfExtent(EPrimitive type);
-	void RenderHighLight(const FRenderInfo& RI);
-#else
 	void RenderHighLight(const TArray<UPrimitiveComponent*>& Primitives);
-#endif
-
 	void Render();
 
 	void Display();
@@ -61,12 +52,6 @@ public:
 	URenderer* GetRenderer() const;
 	void OnResize(UINT width, UINT height);
 
-	//Highlight
-	//Line batch
-	// 호출 즉시 그리지 않고 배열에 쌓는다. FlushLines()에서 한 번에 그린다.
-	void DrawLine(const FVector& start, const FVector& end, const FVector4& color);
-	void FlushLines();
-
 	// Projection ratio smoothing
 	void StartProjectionTransition(bool orthographic);
 	bool IsOrthographicTarget() const;
@@ -79,6 +64,15 @@ public:
 	void SetGridGap(int32 GridGap);
 
 private:
+	struct FOutlineConstants
+	{
+		FVector4 OutlineColor;
+		int32 StencilTexWidth;
+		int32 StencilTexHeight;
+		int32 OutlineRadius;
+		int32 Padding;
+	};
+
 	URenderer* mRenderer;
 	FMatrix mViewMatrix;
 	FMatrix mProjectionMatrix;
@@ -91,10 +85,6 @@ private:
 	FVector mCameraForward;
 	float mCameraFovDegree = 60.0f;
 	float mCameraOrthoDistance = 10.0f;
-
-	// Graphics config
-	// 이번 프레임에 쌓인 선분. 정점 2개가 선분 하나
-	TArray<FVertexSimple> mLineVertices;
 
 	EViewModeIndex mViewModeIndex = EViewModeIndex::VMI_Lit;
 	bool mbPerspectiveProjection;

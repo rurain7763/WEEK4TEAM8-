@@ -1,4 +1,4 @@
-﻿#include "Renderer.h"
+#include "Renderer.h"
 
 constexpr uint32 MaxLineInstances = 1024;
 
@@ -24,12 +24,6 @@ namespace
 
 void URenderer::Create(HWND hWindow)
 {
-#if 0
-	CreateStencilMarkState();
-	CreateStencilOutlineState();
-	CreateNoColorWriteBlendState();
-	CreateRasterizerState();
-#else 
 	CreateDeviceAndSwapChain(hWindow);
 	CreateFrameBuffer();
 	CreateDepthStencilBuffer();
@@ -48,24 +42,6 @@ void URenderer::Create(HWND hWindow)
 	PrimitivePipeline->AddConstantBuffer<FConstants>();
 	PrimitivePipeline->AddConstantBuffer<FMatrix>();
 	PrimitivePipeline->SetSamplerState(0, D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP);
-
-	StencilMarkPipeline = CreateRenderPipeline();
-	StencilMarkPipeline->SetRasterRizerState(D3D11_CULL_BACK);
-	StencilMarkPipeline->SetDepthStencilState(false, false, D3D11_COMPARISON_ALWAYS, D3D11_STENCIL_OP_REPLACE);
-	StencilMarkPipeline->SetBlendState(ERenderBlendMode::NoColorWrite);
-	StencilMarkPipeline->SetShader("Assets/Shaders/StaticMeshShader.hlsl");
-	StencilMarkPipeline->AddConstantBuffer<FConstants>();
-	StencilMarkPipeline->AddConstantBuffer<FMatrix>();
-	StencilMarkPipeline->SetSamplerState(0, D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP);
-
-	StencilOutlinePipeline = CreateRenderPipeline();
-	StencilOutlinePipeline->SetRasterRizerState(D3D11_CULL_BACK);
-	StencilOutlinePipeline->SetDepthStencilState(false, false, D3D11_COMPARISON_NOT_EQUAL, D3D11_STENCIL_OP_KEEP);
-	StencilOutlinePipeline->SetBlendState(ERenderBlendMode::Opaque);
-	StencilOutlinePipeline->SetShader("Assets/Shaders/StaticMeshShader.hlsl");
-	StencilOutlinePipeline->AddConstantBuffer<FConstants>();
-	StencilOutlinePipeline->AddConstantBuffer<FMatrix>();
-	StencilOutlinePipeline->SetSamplerState(0, D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP);
 
 	Line2DPipeline = CreateRenderPipeline();
 	Line2DPipeline->SetRasterRizerState(D3D11_CULL_NONE);
@@ -106,7 +82,6 @@ void URenderer::Create(HWND hWindow)
 	QuadPipeline->AddConstantBuffer<FQuadConstants>();
 	QuadPipeline->AddConstantBuffer<FMatrix>();
 	QuadPipeline->SetSamplerState(0, D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP);
-#endif
 }
 
 void URenderer::CreateDeviceAndSwapChain(HWND hWindow)
@@ -194,35 +169,6 @@ void URenderer::ReleaseFrameBuffer()
 	}
 }
 
-#if 0
-// 선분은 매 프레임 내용이 바뀌므로 IMMUTABLE로는 만들 수 없다.
-// DYNAMIC + CPU_ACCESS_WRITE 라야 Map으로 덮어쓸 수 있다. (상수 버퍼와 같은 조합)
-void URenderer::CreateLineVertexBuffer(uint32 maxVertices)
-{
-	D3D11_BUFFER_DESC vertexbufferdesc = {};
-	vertexbufferdesc.ByteWidth = maxVertices * sizeof(FVertexSimple);
-	vertexbufferdesc.Usage = D3D11_USAGE_DYNAMIC;
-	vertexbufferdesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	vertexbufferdesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-
-	if (SUCCEEDED(Device->CreateBuffer(&vertexbufferdesc, nullptr, &LineVertexBuffer)))
-	{
-		LineVertexCapacity = maxVertices;
-	}
-}
-
-void URenderer::ReleaseLineVertexBuffer()
-{
-	if (LineVertexBuffer)
-	{
-		LineVertexBuffer->Release();
-		LineVertexBuffer = nullptr;
-	}
-
-	LineVertexCapacity = 0;
-}
-#endif
-
 void URenderer::Release()
 {
 	DeviceContext->ClearState();
@@ -233,8 +179,6 @@ void URenderer::Release()
 	Circle2DPipeline.reset();
 	Line2DPipeline.reset();
 	PrimitivePipeline.reset();
-	StencilMarkPipeline.reset();
-	StencilOutlinePipeline.reset();
 	LinePipeline.reset();
 	QuadPipeline.reset();
 	LineStructuredBuffer.reset();
@@ -251,14 +195,11 @@ void URenderer::Release()
 	}
 	DepthStencilStatePool.DepthStencilStates.Empty();
 
-	for (auto& BlendState : BlendStatePool.BlendStates)
+	for (auto& Pair : BlendStatePool.BlendStates)
 	{
-		if (BlendState)
-		{
-			BlendState->Release();
-			BlendState = nullptr;
-		}
+		Pair.second->Release();
 	}
+	BlendStatePool.BlendStates.Empty();	
 
 	DeviceContext->OMSetRenderTargets(0, nullptr, nullptr);
 	DepthStencilView->Release();
@@ -290,8 +231,6 @@ void URenderer::Prepare(const FMatrix& ViewProjectionMatrix)
 
 	LinePipeline->UpdateConstantBuffer(0, CameraConstants);
 	PrimitivePipeline->UpdateConstantBuffer(1, ViewProjectionMatrix);
-	StencilMarkPipeline->UpdateConstantBuffer(1, ViewProjectionMatrix);
-	StencilOutlinePipeline->UpdateConstantBuffer(1, ViewProjectionMatrix);
 	QuadPipeline->UpdateConstantBuffer(1, ViewProjectionMatrix);
 }
 
@@ -301,24 +240,24 @@ TSharedPtr<FIndexBuffer> URenderer::CreateIndexBuffer(const uint32* Indices, UIN
 	IndexBufferDesc.ByteWidth = Count * sizeof(uint32);
 	IndexBufferDesc.Usage = Usage;
 	IndexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	IndexBufferDesc.CPUAccessFlags = (Usage == D3D11_USAGE_DYNAMIC) ? D3D11_CPU_ACCESS_WRITE : 0;
 
-	Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer;
+	TSharedPtr<FIndexBuffer> IndexBuffer = MakeShared<FIndexBuffer>();
 	if (Indices)
 	{
 		D3D11_SUBRESOURCE_DATA IndexBufferSRD = { Indices };
-		Device->CreateBuffer(&IndexBufferDesc, &IndexBufferSRD, IndexBuffer.GetAddressOf());
+		Device->CreateBuffer(&IndexBufferDesc, &IndexBufferSRD, IndexBuffer->Buffer.GetAddressOf());
 	}
 	else
 	{
-		Device->CreateBuffer(&IndexBufferDesc, nullptr, IndexBuffer.GetAddressOf());
+		Device->CreateBuffer(&IndexBufferDesc, nullptr, IndexBuffer->Buffer.GetAddressOf());
 	}
 
-	TSharedPtr<FIndexBuffer> IndexBufferPtr = MakeShared<FIndexBuffer>();
-	IndexBufferPtr->DeviceContext = DeviceContext;
-	IndexBufferPtr->Buffer = IndexBuffer;
-	IndexBufferPtr->IndexCount = Count;
+	IndexBuffer->DeviceContext = DeviceContext;
+	IndexBuffer->Buffer = IndexBuffer->Buffer;
+	IndexBuffer->IndexCount = Count;
 
-	return IndexBufferPtr;
+	return IndexBuffer;
 }
 
 Microsoft::WRL::ComPtr<ID3D11Texture2D> URenderer::CreateTexture2D(const D3D11_TEXTURE2D_DESC& Desc, const void* InitialData)
@@ -409,6 +348,13 @@ TSharedPtr<FDepthStencil> URenderer::CreateDepthStencil(uint32 Width, uint32 Hei
 	DsvDesc.Texture2D.MipSlice = 0;
 	Device->CreateDepthStencilView(DepthStencil->Texture.Get(), &DsvDesc, DepthStencil->DSV.GetAddressOf());
 
+	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc{};
+	SRVDesc.Format = DXGI_FORMAT_X24_TYPELESS_G8_UINT;
+	SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	SRVDesc.Texture2D.MostDetailedMip = 0;
+	SRVDesc.Texture2D.MipLevels = 1;
+	Device->CreateShaderResourceView(DepthStencil->Texture.Get(), &SRVDesc, DepthStencil->SRV.GetAddressOf());
+
 	DepthStencil->Width = Width;
 	DepthStencil->Height = Height;
 
@@ -462,20 +408,18 @@ void URenderer::BindPipeline(const TSharedPtr<FRenderPipeline>& Pipeline, uint32
 	}
 }
 
-void URenderer::RSUpdateState()
-{
-	DeviceContext->RSSetState(RasterizerState[0]);
-}
-
 void URenderer::BindFrameBuffer()
 {
 	DeviceContext->OMSetRenderTargets(1, &FrameBufferRTV, nullptr);
 	DeviceContext->RSSetViewports(1, &ViewportInfo);
+
+	BindedRenderTarget = nullptr;
+	BindedDepthStencil = nullptr;
 }
 
 void URenderer::BindRenderTarget(const TSharedPtr<FRenderTarget2D>& RenderTarget, const TSharedPtr<FDepthStencil>& DepthStencil, bool bClear)
 {
-	DeviceContext->OMSetRenderTargets(1, RenderTarget->RTV.GetAddressOf(), DepthStencil->DSV.Get());
+	DeviceContext->OMSetRenderTargets(1, RenderTarget->RTV.GetAddressOf(), DepthStencil ? DepthStencil->DSV.Get() : nullptr);
 	if (bClear)
 	{
 		DeviceContext->ClearRenderTargetView(RenderTarget->RTV.Get(), ClearColor);
@@ -495,6 +439,20 @@ void URenderer::BindRenderTarget(const TSharedPtr<FRenderTarget2D>& RenderTarget
 	Viewport.MaxDepth = 1.0f;
 
 	DeviceContext->RSSetViewports(1, &Viewport);
+
+	BindedRenderTarget = RenderTarget;
+	BindedDepthStencil = DepthStencil;
+}
+
+void URenderer::Render(const TSharedPtr<FRenderPipeline>& Pipeline, UINT NumVertices) const
+{
+	BindPipeline(Pipeline);
+
+	UINT Offset = 0;
+	ID3D11Buffer* NullVB = nullptr;
+	UINT Stride = 0;
+	DeviceContext->IASetVertexBuffers(0, 1, &NullVB, &Stride, &Offset);
+	DeviceContext->Draw(NumVertices, 0);
 }
 
 void URenderer::RenderLines(const TArray<FRenderLineInfo>& Lines) const
@@ -507,7 +465,7 @@ void URenderer::RenderLines(const TArray<FRenderLineInfo>& Lines) const
 	while (Remaining > 0)
 	{
 		uint32 BatchSize = FGenericPlatformMath::Min(Remaining, MaxLineInstances);
-		LineStructuredBuffer->UpdateStructuredBuffer(Offset, BatchSize);
+		LineStructuredBuffer->UpdateBuffer(Offset, BatchSize);
 
 		UINT OffsetIndex = 0;
 		DeviceContext->IASetVertexBuffers(0, 0, NULL, NULL, &OffsetIndex);
@@ -515,52 +473,6 @@ void URenderer::RenderLines(const TArray<FRenderLineInfo>& Lines) const
 
 		Remaining -= BatchSize;
 		Offset += BatchSize;
-	}
-}
-
-void URenderer::RenderHighlight(Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer, UINT NumVertices, Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer, UINT NumIndices, const FMatrix& Model, const FMatrix& OutlineModel, const FVector4& OutlineColor) const
-{
-	const bool bIndexed = IndexBuffer && NumIndices > 0;
-	
-	FConstants StencilConstants;
-	StencilConstants.Matrix = Model;
-	StencilConstants.Color = FVector4(1.f, 1.f, 1.f, 1.f);
-	StencilConstants.UVOffset = FVector2(0.0f, 0.0f);
-	StencilConstants.UseVertexColor = 0;
-	StencilConstants.HasTexture = 0;
-
-	StencilMarkPipeline->UpdateConstantBuffer(0, StencilConstants);
-	
-	FRenderInfo RenderInfo;
-	RenderInfo.VertexBuffer = VertexBuffer;
-	RenderInfo.IndexBuffer = IndexBuffer;
-	RenderInfo.VertexCount = NumVertices;
-	RenderInfo.IndexCount = NumIndices;
-
-	if (bIndexed)
-	{
-		RenderPrimitiveIndexed(StencilMarkPipeline, RenderInfo, 1);
-	}
-	else
-	{
-		RenderPrimitive(StencilMarkPipeline, VertexBuffer, NumVertices);
-	}
-
-	FConstants OutlineConstants;
-	OutlineConstants.Matrix = OutlineModel;
-	OutlineConstants.Color = OutlineColor;
-	OutlineConstants.UVOffset = FVector2(0.0f, 0.0f);
-	OutlineConstants.UseVertexColor = 0;
-	OutlineConstants.HasTexture = 0;
-
-	StencilOutlinePipeline->UpdateConstantBuffer(0, OutlineConstants);
-	if (bIndexed)
-	{
-		RenderPrimitiveIndexed(StencilOutlinePipeline, RenderInfo, 1);
-	}
-	else
-	{
-		RenderPrimitive(StencilOutlinePipeline, VertexBuffer, NumVertices);
 	}
 }
 
@@ -587,7 +499,9 @@ void URenderer::RenderQuad(const FRenderQuadInfo& Info) const
 	QuadPipeline->UpdateConstantBuffer(0, FQuadConstants{ Info.Model, Info.Color, Info.SubUV, Info.TextureSRV ? 1 : 0, TextureFormat == DXGI_FORMAT_R8_UNORM });
 
 	UINT Offset = 0;
-	DeviceContext->IASetVertexBuffers(0, 0, NULL, NULL, &Offset);
+	ID3D11Buffer* NullVB = nullptr;
+	UINT Stride = 0;
+	DeviceContext->IASetVertexBuffers(0, 1, &NullVB, &Stride, &Offset);
 	DeviceContext->Draw(6, 0);
 }
 
@@ -667,7 +581,9 @@ void URenderer::RenderLine2D(const FVector2& Start, const FVector2& End, const F
 	BindPipeline(Line2DPipeline);
 
 	UINT Offset = 0;
-	DeviceContext->IASetVertexBuffers(0, 0, NULL, NULL, &Offset);
+	ID3D11Buffer* NullVB = nullptr;
+	UINT Stride = 0;
+	DeviceContext->IASetVertexBuffers(0, 1, &NullVB, &Stride, &Offset);
 	DeviceContext->Draw(6, 0);
 }
 
@@ -678,7 +594,9 @@ void URenderer::RenderCircle2D(const FVector2& Center, const FVector4& Color, fl
 	BindPipeline(Circle2DPipeline);
 
 	UINT Offset = 0;
-	DeviceContext->IASetVertexBuffers(0, 0, NULL, NULL, &Offset);
+	ID3D11Buffer* NullVB = nullptr;
+	UINT Stride = 0;
+	DeviceContext->IASetVertexBuffers(0, 1, &NullVB, &Stride, &Offset);
 	DeviceContext->Draw(6, 0);
 }
 
@@ -689,7 +607,9 @@ void URenderer::RenderTriangle2D(const FVector2& Center, const FVector4& Color, 
 	BindPipeline(Triangle2DPipeline);
 
 	UINT Offset = 0;
-	DeviceContext->IASetVertexBuffers(0, 0, NULL, NULL, &Offset);
+	ID3D11Buffer* NullVB = nullptr;
+	UINT Stride = 0;
+	DeviceContext->IASetVertexBuffers(0, 1, &NullVB, &Stride, &Offset);
 	DeviceContext->Draw(3, 0);
 }
 
@@ -705,7 +625,9 @@ void URenderer::RenderWorldAxis(const FMatrix& View, const FMatrix& Projection, 
 	BindPipeline(WorldAxisPipeline);
 
 	UINT Offset = 0;
-	DeviceContext->IASetVertexBuffers(0, 0, NULL, NULL, &Offset);
+	ID3D11Buffer* NullVB = nullptr;
+	UINT Stride = 0;
+	DeviceContext->IASetVertexBuffers(0, 1, &NullVB, &Stride, &Offset);
 	DeviceContext->Draw(6, 0);
 }
 
@@ -716,8 +638,17 @@ void URenderer::RenderWorldGrid(const FMatrix& ViewProjection, const FVector& Ca
 	BindPipeline(WorldGridPipeline);
 
 	UINT Offset = 0;
-	DeviceContext->IASetVertexBuffers(0, 0, NULL, NULL, &Offset);
+	ID3D11Buffer* NullVB = nullptr;
+	UINT Stride = 0;
+	DeviceContext->IASetVertexBuffers(0, 1, &NullVB, &Stride, &Offset);
 	DeviceContext->Draw(6, 0);
+}
+
+void URenderer::ClearAllShaderResources() const
+{
+	ID3D11ShaderResourceView* nullSRVs[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT] = {};
+	DeviceContext->VSSetShaderResources(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, nullSRVs);
+	DeviceContext->PSSetShaderResources(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, nullSRVs);
 }
 
 //=============================================
@@ -741,83 +672,10 @@ void URenderer::CreateDepthStencilBuffer()
 	Device->CreateDepthStencilView(DepthStencilBuffer, &DsvDesc, &DepthStencilView);
 }
 
-#if 0
-void URenderer::CreateStencilMarkState()
-{
-	D3D11_DEPTH_STENCIL_DESC desc = {};
-	// 아웃라인 패스가 깊이를 무시하므로 마킹도 깊이를 무시해야 짝이 맞는다.
-	// 가려진 픽셀까지 전부 마킹해야 실루엣 내부가 비지 않는다.
-	desc.DepthEnable = FALSE;
-	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;  // 깊이는 건드리지 않는다
-	desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
-
-	desc.StencilEnable = TRUE;							// 스텐실 사용
-	desc.StencilReadMask = 0xFF;
-	desc.StencilWriteMask = 0xFF;
-
-	// 실루엣에 덮이는 모든 픽셀에 StencilRef를 기록
-	desc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-	desc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE;
-	desc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_REPLACE;
-	desc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	desc.BackFace = desc.FrontFace;
-
-	Device->CreateDepthStencilState(&desc, &StencilMarkState);
-}
-
-void URenderer::CreateStencilOutlineState()
-{
-	D3D11_DEPTH_STENCIL_DESC desc = {};
-	desc.DepthEnable = FALSE;							// 항상 위에 그린다
-	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-
-	desc.StencilEnable = TRUE;
-	desc.StencilReadMask = 0xFF;
-	desc.StencilWriteMask = 0x00;						// 읽기만, 쓰지 않는다
-
-	// 마킹된 곳(=원본 실루엣)은 통과 못 함 -> 바깥 테두리만 남는다
-	desc.FrontFace.StencilFunc = D3D11_COMPARISON_NOT_EQUAL;
-	desc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	desc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
-	desc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	desc.BackFace = desc.FrontFace;
-
-	Device->CreateDepthStencilState(&desc, &StencilOutlineState);
-}
-
-// 렌더타겟에 색을 전혀 쓰지 않는 상태. 스텐실 마킹 전용 패스에 쓴다
-void URenderer::CreateNoColorWriteBlendState()
-{
-	D3D11_BLEND_DESC desc = {};
-	desc.RenderTarget[0].BlendEnable = FALSE;
-	desc.RenderTarget[0].RenderTargetWriteMask = 0;
-
-	Device->CreateBlendState(&desc, &NoColorWriteBlendState);
-}
-#endif
-
 void URenderer::OnResize(UINT width, UINT height)
 {
 	if (!SwapChain || width == 0 || height == 0) return;
 
-#if 0
-	//해상도에 의존하는 프레임 버퍼와 뎁스 스텐실 버퍼를 재생성한다.
-	DeviceContext->OMSetRenderTargets(0, nullptr, nullptr);
-	ReleaseFrameBuffer();
-	ReleaseDepthStencilBuffer();
-
-	HRESULT hr = SwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
-	if (FAILED(hr)) return;
-
-	DXGI_SWAP_CHAIN_DESC desc;
-	SwapChain->GetDesc(&desc);
-
-	ViewportInfo = { viewportWidth, 0.0f, static_cast<float>(width) - viewportWidth, viewportHeight, 0.0f, 1.0f };
-
-	//상태는 이전에 생성한 걸 그대로 재사용
-	CreateFrameBuffer();
-	CreateDepthStencilBuffer(width, height);
-#else
 	DeviceContext->OMSetRenderTargets(0, 0, 0);
 
 	FrameBuffer->Release();
@@ -834,6 +692,5 @@ void URenderer::OnResize(UINT width, UINT height)
 
 	CreateFrameBuffer();
 	CreateDepthStencilBuffer();
-#endif
 }
 

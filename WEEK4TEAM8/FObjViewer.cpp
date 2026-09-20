@@ -27,9 +27,9 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 	{
 		const auto& meshAsset = mViewerComponent->GetMesh();
 
-		ImGui::Text("Vertices: %u", meshAsset->GetCpuVertices().Num());
+		ImGui::Text("Vertices: %u", meshAsset->GetVertices().Num());
 		//ImGui::Text("Indices: %u", meshAsset->GetCpuIndices().Num());
-		ImGui::Text("Triangles: %u", meshAsset->GetCpuIndices().Num() / 3);
+		ImGui::Text("Triangles: %u", meshAsset->GetIndices().Num() / 3);
 	}
 
 	ImGui::SeparatorText("Transform");

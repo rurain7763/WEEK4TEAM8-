@@ -42,7 +42,7 @@ struct FMeshDescription
     TArray<FPolygonGroup> PolygonGroups;
 };
 
-struct FStaticMeshBuildVertex
+struct FVertex
 {
     FVector Pos;
     FVector Normal;
@@ -62,7 +62,7 @@ struct FStaticMeshSection
 
 struct FStaticMeshBuildData
 {
-    TArray<FStaticMeshBuildVertex> Vertices;
+    TArray<FVertex> Vertices;
     TArray<uint32> Indices;
     TArray<FStaticMeshSection> Sections;
 };
