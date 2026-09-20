@@ -387,15 +387,17 @@ TSharedPtr<FAsset> FMaterialAssetLoader::LoadAsset(const FGuid& AssetID, const F
 {
 	FVector AmbientColor, DiffuseColor, SpecularColor;
 	FGuid DiffuseTexture, SpecularTexture, NormalTexture;
+	float Opacity;
 
 	Ar << AmbientColor;
 	Ar << DiffuseColor;
+	Ar << Opacity;
 	Ar << SpecularColor;
 	Ar << DiffuseTexture;
 	Ar << SpecularTexture;
 	Ar << NormalTexture;
 
-	return MakeShared<FMaterialAsset>(AssetID, AssetName, AmbientColor, DiffuseColor, SpecularColor, DiffuseTexture, SpecularTexture, NormalTexture);
+	return MakeShared<FMaterialAsset>(AssetID, AssetName, AmbientColor, DiffuseColor, SpecularColor, DiffuseTexture, SpecularTexture, NormalTexture, Opacity);
 }
 
 void FMaterialAssetLoader::UnloadAsset(TSharedPtr<FAsset> Asset)
@@ -408,14 +410,15 @@ FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetN
 	, VertexCount(static_cast<uint32>(InBuildData.Vertices.Num()))
 	, Sections(InBuildData.Sections)
 {
+	CpuVertices = InBuildData.Vertices;
+	CpuIndices = InBuildData.Indices;
+
 	for (const FStaticMeshBuildVertex& Source : InBuildData.Vertices)
 	{
 		BoundingBox.ExpandToInclude(Source.Pos);
 	}
 
 	VertexBuffer = InRenderer.CreateVertexBuffer(InBuildData.Vertices.Data(), VertexCount);
-	// Sections refer to offsets in the single cooked index stream.  Keep that
-	// stream in one GPU buffer so FirstIndex remains valid when rendering.
 	if (!InBuildData.Indices.IsEmpty())
 	{
 		SubMeshIndexBuffers.Add(InRenderer.CreateIndexBuffer(

@@ -132,6 +132,29 @@ bool FObjImporter::ConvertToMeshDescription(const FObjInfo& ObjInfo, FMeshDescri
             return false;
         }
 
+        const FObjVertexIndex& FirstIndex = Face.Vertices[0];
+        const FObjVertexIndex& SecondIndex = Face.Vertices[1];
+        const FObjVertexIndex& ThirdIndex = Face.Vertices[2];
+        if (FirstIndex.PositionIndex < 0 || SecondIndex.PositionIndex < 0 || ThirdIndex.PositionIndex < 0
+            || FirstIndex.PositionIndex >= ObjInfo.Positions.Num()
+            || SecondIndex.PositionIndex >= ObjInfo.Positions.Num()
+            || ThirdIndex.PositionIndex >= ObjInfo.Positions.Num())
+        {
+            return false;
+        }
+
+        FVector GeneratedNormal = FVector::cross(
+            ObjInfo.Positions[SecondIndex.PositionIndex] - ObjInfo.Positions[FirstIndex.PositionIndex],
+            ObjInfo.Positions[ThirdIndex.PositionIndex] - ObjInfo.Positions[FirstIndex.PositionIndex]);
+        if (!GeneratedNormal.IsNearlyZero())
+        {
+            GeneratedNormal.Normalize();
+        }
+        else
+        {
+            GeneratedNormal = FVector(0, 0, 1);
+        }
+
         TArray<FVertexInstanceID> FaceInstanceIDs;
 
         for (const FObjVertexIndex& ObjIndex : Face.Vertices)
@@ -152,6 +175,10 @@ bool FObjImporter::ConvertToMeshDescription(const FObjInfo& ObjInfo, FMeshDescri
 
                 VertexInstance.TexCoord = ObjInfo.UVs[ObjIndex.UVIndex];
             }
+            else
+            {
+                VertexInstance.TexCoord = FVector2(0, 0);
+            }
 
             if (ObjIndex.NormalIndex >= 0)
             {
@@ -161,6 +188,10 @@ bool FObjImporter::ConvertToMeshDescription(const FObjInfo& ObjInfo, FMeshDescri
                 }
 
                 VertexInstance.Normal = ObjInfo.Normals[ObjIndex.NormalIndex];
+            }
+            else
+            {
+                VertexInstance.Normal = GeneratedNormal;
             }
 
             VertexInstance.Color = FVector4(1, 1, 1, 1);
@@ -190,23 +221,45 @@ bool FObjImporter::ConvertToMeshDescription(const FObjInfo& ObjInfo, FMeshDescri
 
 bool FObjImporter::ParseFaceVertex(const FString& Token, const FObjInfo& ObjInfo, FObjVertexIndex& OutIndex) const
 {
-    int32 RawPositionIndex = -1;
-    int32 RawUVIndex = -1;
-    int32 RawNormalIndex = -1;
+    const std::string Value = Token.CStr();
+    const size_t FirstSlash = Value.find('/');
+    const size_t SecondSlash = FirstSlash == std::string::npos ? std::string::npos : Value.find('/', FirstSlash + 1);
 
-    const int32 ParseCount = std::sscanf(Token.CStr(), "%d/%d/%d",
-        &RawPositionIndex, &RawUVIndex, &RawNormalIndex);
-
-    if (ParseCount != 3)
+    auto ParseIndex = [](const std::string& Text, int32 ElementCount, int32& OutValue) -> bool
     {
-        return false;
-    }
-    
-    OutIndex.PositionIndex = ResolveObjIndex(RawPositionIndex, ObjInfo.Positions.Num());
-    OutIndex.UVIndex = ResolveObjIndex(RawUVIndex, ObjInfo.UVs.Num());
-    OutIndex.NormalIndex = ResolveObjIndex(RawNormalIndex, ObjInfo.Normals.Num());
+        if (Text.empty())
+        {
+            OutValue = -1;
+            return true;
+        }
 
-    return true;
+        try
+        {
+            size_t ParsedCharacters = 0;
+            const int32 RawIndex = std::stoi(Text, &ParsedCharacters);
+            if (ParsedCharacters != Text.size() || RawIndex == 0)
+            {
+                return false;
+            }
+
+            OutValue = RawIndex > 0 ? RawIndex - 1 : ElementCount + RawIndex;
+            return OutValue >= 0 && OutValue < ElementCount;
+        }
+        catch (const std::exception&)
+        {
+            return false;
+        }
+    };
+
+    const std::string PositionText = Value.substr(0, FirstSlash);
+    const std::string UVText = FirstSlash == std::string::npos
+        ? ""
+        : Value.substr(FirstSlash + 1, (SecondSlash == std::string::npos ? Value.size() : SecondSlash) - FirstSlash - 1);
+    const std::string NormalText = SecondSlash == std::string::npos ? "" : Value.substr(SecondSlash + 1);
+
+    return ParseIndex(PositionText, ObjInfo.Positions.Num(), OutIndex.PositionIndex)
+        && ParseIndex(UVText, ObjInfo.UVs.Num(), OutIndex.UVIndex)
+        && ParseIndex(NormalText, ObjInfo.Normals.Num(), OutIndex.NormalIndex);
 }
 
 

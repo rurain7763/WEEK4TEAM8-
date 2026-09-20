@@ -8,6 +8,7 @@
 #include "Renderer.h"
 #include "FileManager.h"
 #include "FTexture2DImporter.h"
+#include "Serializers.h"
 
 #include <filesystem>
 #include "FLogManager.h"
@@ -82,28 +83,28 @@ UStaticMesh* FObjManager::LoadObjStaticMesh(const FString& FilePath)
 
         if (!Texture)
         {
-            std::optional<std::filesystem::path> NewTexturePath =
-                    FTexture2DImporter::GetorImport(TexturePath);
-            
+            std::optional<std::filesystem::path> NewTexturePath = FTexture2DImporter::GetorImport(TexturePath);
+
             if (!NewTexturePath)
             {
                 UE_LOG_ERROR("Failed to import texture: %s", TexturePath.string().c_str());
                 continue;
             }
+            
+            FAssetFileHeader TextureHeader;
+            FWindowsBinReader Reader(*NewTexturePath);
+            Reader << TextureHeader;
 
-            TSharedPtr<FFileAssetSource> TextureSource =
-				MakeShared<FFileAssetSource>(*NewTexturePath);
+            TSharedPtr<FFileAssetSource> TextureSource = MakeShared<FFileAssetSource>(*NewTexturePath);
 
             FAssetManager::Get().RegisterAsset(
-                FGuid::NewGuid(),
                 TextureAssetName,
                 TextureLoader,
                 TextureSource);
 
-            Texture =
-                FAssetManager::Get().GetAssetAs<FTexture2DAsset>(
-                    TextureAssetName,
-                    true);
+            Texture = FAssetManager::Get().GetAssetAs<FTexture2DAsset>(
+                TextureHeader.AssetID,
+                true);
         }
 
         if (Texture)
@@ -118,7 +119,7 @@ UStaticMesh* FObjManager::LoadObjStaticMesh(const FString& FilePath)
 
     FAssetManager::Get().RegisterAsset(StaticMeshAsset);
 
-    UStaticMesh* StaticMesh =FObjectFactory::ConstructObject<UStaticMesh>();
+    UStaticMesh* StaticMesh = FObjectFactory::ConstructObject<UStaticMesh>();
     if (!StaticMesh)
     {
         return nullptr;
