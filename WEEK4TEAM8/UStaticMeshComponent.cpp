@@ -17,6 +17,13 @@ void UStaticMeshComponent::Initialize(const FString& InAssetPathFileName, FVecto
     StaticMesh = FObjManager::LoadObjStaticMesh(InAssetPathFileName);
 }
 
+void UStaticMeshComponent::InitializeFromStaticMesh(UStaticMesh* InStaticMesh, FVector Location, FRotator Rotation, FVector Scale)
+{
+    USceneComponent::Initialize(Location, Rotation, Scale);
+    StaticMesh = InStaticMesh;
+
+}
+
 void UStaticMeshComponent::SerializeClass(json::JSON& outJson) const
 {
     USceneComponent::SerializeClass(outJson);
@@ -76,19 +83,27 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
         return;
     }
 
-    for (const FStaticMeshSection& Section : MeshAsset->GetSections())
+
+
+    for (int32 SectionIndex = 0; SectionIndex < MeshAsset->GetSections().Num(); ++SectionIndex)
     {
-        const FObjMaterialInfo* Material =  StaticMesh->FindMaterial(static_cast<std::string>(Section.MaterialName));
+        const FStaticMeshSection& Section =  MeshAsset->GetSections()[SectionIndex];
+        TSharedPtr<FMaterialAsset> Material = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
 
         const FVector4 MaterialColor = Material
             ? FVector4(
-                Material->DiffuseColor.x,
-                Material->DiffuseColor.y,
-                Material->DiffuseColor.z,
-                Material->Opacity)
+                Material->GetDiffuseColor().x,
+                Material->GetDiffuseColor().y,
+                Material->GetDiffuseColor().z,
+                Material->GetOpacity())
             : FVector4(1, 1, 1, 1);
 
-        TSharedPtr<FTexture2DAsset> SectionTexture = StaticMesh->GetDiffuseTexture(Section.MaterialName);
+        TSharedPtr<FTexture2DAsset> SectionTexture = Material ? Material->GetDiffuseTexture() : nullptr;
+        if (!SectionTexture)
+        {
+            SectionTexture = StaticMesh->GetDiffuseTexture(Section.MaterialName);
+        }
+
         if (!SectionTexture)
         {
             SectionTexture = TextureAsset;
@@ -100,10 +115,10 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
             EPrimitive::EP_Cube,
             GetTransformMatrix().MakeMatrix(),
             { mOwner->UUID, mOwner->InternalIndex },
-            MaterialColor,
+            bUseVertexColor ? MaterialColor : Color,
             Section.FirstIndex,
             Section.IndexCount,
-            false
+            bUseVertexColor
             });
     }
 }
@@ -116,19 +131,24 @@ void UStaticMeshComponent::GetRenderInfos(TArray<FRenderInfo>* OutRenderInfos) c
     }
 
     const TSharedPtr<FStaticMeshAsset>& MeshAsset = StaticMesh->GetStaticMeshAsset();
-    for (const FStaticMeshSection& Section : MeshAsset->GetSections())
+    for (int32 SectionIndex = 0; SectionIndex < MeshAsset->GetSections().Num(); ++SectionIndex)
     {
-        const FObjMaterialInfo* Material =  StaticMesh->FindMaterial(static_cast<std::string>(Section.MaterialName));
+        const FStaticMeshSection& Section = MeshAsset->GetSections()[SectionIndex];
+        TSharedPtr<FMaterialAsset> Material = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
 
         const FVector4 MaterialColor = Material
             ? FVector4(
-                Material->DiffuseColor.x,
-                Material->DiffuseColor.y,
-                Material->DiffuseColor.z,
-                Material->Opacity)
+                Material->GetDiffuseColor().x,
+                Material->GetDiffuseColor().y,
+                Material->GetDiffuseColor().z,
+                Material->GetOpacity())
             : FVector4(1, 1, 1, 1);
 
-        TSharedPtr<FTexture2DAsset> SectionTexture = StaticMesh->GetDiffuseTexture(Section.MaterialName);
+        TSharedPtr<FTexture2DAsset> SectionTexture = Material ? Material->GetDiffuseTexture() : nullptr;
+        if (!SectionTexture)
+        {
+            SectionTexture = StaticMesh->GetDiffuseTexture(Section.MaterialName);
+        }
         if (!SectionTexture)
         {
             SectionTexture = TextureAsset;
@@ -140,10 +160,10 @@ void UStaticMeshComponent::GetRenderInfos(TArray<FRenderInfo>* OutRenderInfos) c
             EPrimitive::EP_Cube,
             GetTransformMatrix().MakeMatrix(),
             { mOwner->UUID, mOwner->InternalIndex },
-            MaterialColor,
+            bUseVertexColor ? MaterialColor : Color,
             Section.FirstIndex,
             Section.IndexCount,
-            false
+            bUseVertexColor
             });
     }
 }

@@ -65,7 +65,7 @@ struct FArchiveSerializer<FStaticMeshSection>
 		Ar << Value.FirstIndex;
 		Ar << Value.IndexCount;
 		Ar << Value.MaterialName;
-		
+		Ar << Value.MaterialAssetID;
 	}
 };
 

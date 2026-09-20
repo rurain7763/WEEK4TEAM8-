@@ -17,7 +17,8 @@ class FObjViewer
 public:
     void Initialize(FSceneManager& InSceneManager);
     void UpdateObjGUI(FGraphicsManager& InGraphicsManager);
-    void OpenObj(const FString& filePath);
+    void OpenObj(const std::filesystem::path& FilePath);
+    void OpenStaticMeshAsset(const std::filesystem::path& FilePath);
 
 private:
     AActor* mViewerActor = nullptr;

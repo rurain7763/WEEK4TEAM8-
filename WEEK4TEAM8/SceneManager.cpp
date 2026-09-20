@@ -66,26 +66,30 @@ void FSceneManager::OnNewAssetFile(const FAssetFileHeader& Header, const std::fi
 		TSharedPtr<FTexture2DAssetLoader> TextureLoader =  MakeShared<FTexture2DAssetLoader>(*mRenderer);
 		TSharedPtr<FFileAssetSource> TextureSource = MakeShared<FFileAssetSource>(FilePath);
 
-		FAssetManager::Get().RegisterAsset(
-		FGuid::NewGuid(),
-		FName(FilePath.stem().string()),
+		/*FAssetManager::Get().RegisterAsset(
+		FName(FilePath.string()),
  		TextureLoader,
 		TextureSource
-		);
+		);*/
+		FAssetManager::Get().ScanDirectory(
+			FilePath.parent_path(),
+			*mRenderer);
 	}
 	else if (Header.AssetType == EAssetType::StaticMesh)
 	{
 	
 		// StaticMesh AssetLoader와 AssetSource를 생성하고 등록
-		TSharedPtr<FStaticMeshAssetLoader> MeshLoader = MakeShared<FStaticMeshAssetLoader>(*mRenderer);
-		TSharedPtr<FFileAssetSource> MeshSource = MakeShared<FFileAssetSource>(FilePath);
+		/*TSharedPtr<FStaticMeshAssetLoader> MeshLoader = MakeShared<FStaticMeshAssetLoader>(*mRenderer);
+		TSharedPtr<FFileAssetSource> MeshSource = MakeShared<FFileAssetSource>(FilePath)*/;
 
-		FAssetManager::Get().RegisterAsset(
-		FGuid::NewGuid(),
-		FName(FilePath.stem().string()),
+		/*FAssetManager::Get().RegisterAsset(
+		FName(FilePath.string()),
  		MeshLoader,
-		MeshSource
-		);	 	
+		MeshSource*/
+		
+		FAssetManager::Get().ScanDirectory(
+			FilePath.parent_path(),
+			*mRenderer);
 	}	
 	else
 	{
@@ -97,7 +101,7 @@ void FSceneManager::OnDeleteAssetFile(const std::filesystem::path& FilePath)
 {
 	FAssetManager& AssetManager = FAssetManager::Get();
 
-	AssetManager.UnregisterAsset(FName(FilePath.stem().string()));
+	AssetManager.UnregisterAsset(FName(FilePath.string()));
 }
 
 void FSceneManager::Tick(float deltaTime)

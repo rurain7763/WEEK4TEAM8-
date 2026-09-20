@@ -3,6 +3,7 @@
 #include "Core.h"
 #include "TArray.h"
 #include "Vector.h"
+#include "FGuid.h"
 
 using FVertexID = uint32;  // Position
 using FVertexInstanceID = uint32;
@@ -56,6 +57,7 @@ struct FStaticMeshSection
     uint32 FirstIndex = 0;
     uint32 IndexCount = 0;
     FString MaterialName;
+    FGuid MaterialAssetID;
 };
 
 struct FStaticMeshBuildData

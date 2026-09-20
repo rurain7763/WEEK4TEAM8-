@@ -387,15 +387,17 @@ TSharedPtr<FAsset> FMaterialAssetLoader::LoadAsset(const FGuid& AssetID, const F
 {
 	FVector AmbientColor, DiffuseColor, SpecularColor;
 	FGuid DiffuseTexture, SpecularTexture, NormalTexture;
+	float Opacity;
 
 	Ar << AmbientColor;
 	Ar << DiffuseColor;
+	Ar << Opacity;
 	Ar << SpecularColor;
 	Ar << DiffuseTexture;
 	Ar << SpecularTexture;
 	Ar << NormalTexture;
 
-	return MakeShared<FMaterialAsset>(AssetID, AssetName, AmbientColor, DiffuseColor, SpecularColor, DiffuseTexture, SpecularTexture, NormalTexture);
+	return MakeShared<FMaterialAsset>(AssetID, AssetName, AmbientColor, DiffuseColor, SpecularColor, DiffuseTexture, SpecularTexture, NormalTexture, Opacity);
 }
 
 void FMaterialAssetLoader::UnloadAsset(TSharedPtr<FAsset> Asset)

@@ -9,11 +9,13 @@
 #include "FLogManager.h"
 #include "GraphicsManager.h"
 #include "ShowFlags.h"
+#include "FAssetManager.h"
+#include "FArchive.h"
+#include "UStaticMesh.h"
 
 void FObjViewer::Initialize(FSceneManager& InSceneManager)
 {
 	mSceneManager = &InSceneManager;
-	OpenObj(FString("Assets/Meshes/TestTriangle.obj"));
 	FShowFlags::Get().SetEnabled(EShowFlag::UUIDText, false);  //
 }
 
@@ -26,7 +28,7 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 		const auto& meshAsset = mViewerComponent->GetStaticMesh()->GetStaticMeshAsset();
 
 		ImGui::Text("Vertices: %u", meshAsset->GetCpuVertices().Num());
-		ImGui::Text("Indices: %u", meshAsset->GetCpuIndices().Num());
+		//ImGui::Text("Indices: %u", meshAsset->GetCpuIndices().Num());
 		ImGui::Text("Triangles: %u", meshAsset->GetCpuIndices().Num() / 3);
 	}
 
@@ -64,6 +66,58 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 		mViewerActor->SetScale(FVector(1.0f, 1.0f, 1.0f));
 	}
 
+	ImGui::SeparatorText("Appearance");
+	if (mViewerComponent)
+	{
+		bool bUseVertexColor = mViewerComponent->GetUseVertexColor();
+		if (ImGui::Checkbox("Use Vertex Color", &bUseVertexColor))
+		{
+			mViewerComponent->SetUseVertexColor(bUseVertexColor);
+		}
+
+		FVector4 Color = mViewerComponent->GetColor();
+
+		if (ImGui::ColorEdit4("Color", &Color.x))
+		{
+			mViewerComponent->SetColor(Color);
+		}
+
+	}
+
+	ImGui::SeparatorText("Materials");
+
+	if (mViewerComponent && mViewerComponent->GetStaticMesh())
+	{
+		const TSharedPtr<FStaticMeshAsset>& MeshAsset = mViewerComponent->GetStaticMesh()->GetStaticMeshAsset();
+
+		for (int32 SectionIndex = 0; SectionIndex < MeshAsset->GetSections().Num(); ++SectionIndex)
+		{
+			const FStaticMeshSection& Section = MeshAsset->GetSections()[SectionIndex];
+			TSharedPtr<FMaterialAsset> Material = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
+
+			ImGui::Text("Section %d", SectionIndex);
+
+			if (!Material)
+			{
+				ImGui::TextDisabled("Material: None");
+				continue;
+			}
+
+			ImGui::Text("Material: %s", Material->GetAssetName().ToString().CStr());
+
+			TSharedPtr<FTexture2DAsset> Texture = Material->GetDiffuseTexture();
+			if (!Texture)
+			{
+				ImGui::TextDisabled("Diffuse Texture: None");
+				continue;
+			}
+
+			ImGui::Text("Diffuse Texture: %s", Texture->GetAssetName().ToString().CStr());
+
+			ImGui::Image( reinterpret_cast<ImTextureID>(Texture->GetSRV().Get()),ImVec2(96.0f, 96.0f));
+		}
+	}
+
 	ImGui::SeparatorText("File");
 	if (ImGui::Button("Open OBJ"))
 	{
@@ -74,8 +128,27 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 			if (FNativeFileDialog::OpenFileDialog(kDefaultOBJPath,
 				{ FFileFilter{ L"OBJ Files", L"*.obj" } }, L"obj", targetPath))
 			{
-				OpenObj(FString(targetPath.string()));
-				UE_LOG("Successed to load: %s", targetPath.c_str());
+				OpenObj(targetPath);
+				UE_LOG("Successed to load: %s", targetPath.string().c_str());
+			}
+		}
+		catch (const std::exception& e)
+		{
+			UE_LOG_ERROR("Failed to load: %s", e.what());
+		}
+	}
+
+	if (ImGui::Button("Open UAsset"))
+	{
+		std::filesystem::path targetPath;
+
+		try
+		{
+			if (FNativeFileDialog::OpenFileDialog(kDefaultOBJPath,
+				{ FFileFilter{ L"UAsset Files", L"*.uasset" } }, L"obj", targetPath))
+			{
+				OpenStaticMeshAsset(targetPath);
+				UE_LOG("Successed to load: %s", targetPath.string().c_str());
 			}
 		}
 		catch (const std::exception& e)
@@ -103,8 +176,10 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 
 }
 
-void FObjViewer::OpenObj(const FString& filePath)
+void FObjViewer::OpenObj(const std::filesystem::path& FilePath)
 {
+	const FString AssetPath(FilePath.string());
+
 	if (!mSceneManager)
 	{
 		return;
@@ -122,7 +197,7 @@ void FObjViewer::OpenObj(const FString& filePath)
 
 	UStaticMeshComponent* objComponent =
 		FObjectFactory::ConstructObject<UStaticMeshComponent>(
-			filePath,
+			AssetPath,
 			FVector(0, 0, 0),
 			FRotator(0, 0, 0),
 			FVector(1, 1, 1));
@@ -132,5 +207,63 @@ void FObjViewer::OpenObj(const FString& filePath)
 	mSceneManager->GetCurrentWorld()->AddActor(mViewerActor);
 	//mSceneManager->SetSelectedActor(mViewerActor);
 
-	mLoadedFilePath = filePath;
+	mLoadedFilePath = AssetPath;
+}
+
+void FObjViewer::OpenStaticMeshAsset(const std::filesystem::path& FilePath)
+{
+	FAssetFileHeader Header;
+
+	try
+	{
+		FWindowsBinReader Reader(FilePath);
+		Reader << Header;
+	}
+	catch (const std::exception& e)
+	{
+		UE_LOG_ERROR("Failed to read asset: %s", FilePath.string().c_str());
+		return;
+	}
+
+	if (Header.AssetType != EAssetType::StaticMesh)
+	{
+		UE_LOG_ERROR("Selected file is not a StaticMesh: %s", FilePath.string().c_str());
+		return;
+	}
+
+	TSharedPtr<FStaticMeshAsset> MeshAsset = 
+		FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(Header.AssetID, true);
+
+	if (!MeshAsset)
+	{
+		UE_LOG_ERROR("Failed to load StaticMesh asset: %s", FilePath.string().c_str());
+		return;
+	}
+
+	if (mViewerActor)
+	{
+		mSceneManager->ResetSelectedActor();
+		mSceneManager->GetCurrentWorld()->RemoveActor(mViewerActor->UUID);
+		mViewerActor = nullptr;
+	}
+
+	UStaticMesh* StaticMesh = FObjectFactory::ConstructUnInitializedObject<UStaticMesh>();
+
+	StaticMesh->SetCookedStaticMeshAsset(MeshAsset, FString(FilePath.string()), {});
+
+	UStaticMeshComponent* Component =
+		FObjectFactory::ConstructUnInitializedObject<UStaticMeshComponent>();
+
+	Component->InitializeFromStaticMesh(
+		StaticMesh,
+		FVector(0, 0, 0),
+		FRotator(0, 0, 0),
+		FVector(1, 1, 1));
+
+	mViewerActor = FObjectFactory::ConstructObject<AActor>();
+	mViewerActor->AddRootSceneComponent(Component);
+	mSceneManager->GetCurrentWorld()->AddActor(mViewerActor);
+
+	mViewerComponent = Component;
+	mLoadedFilePath = FString(FilePath.string());
 }
