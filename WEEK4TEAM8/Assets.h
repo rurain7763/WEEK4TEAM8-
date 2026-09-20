@@ -61,6 +61,9 @@ public:
 	inline const FAABB& GetLocalBoundingBox() const { return BoundingBox; }
 	inline const TArray<FStaticMeshSection>& GetSections() const { return Sections; }
 
+	const TArray<FStaticMeshBuildVertex>& GetCpuVertices() const { return CpuVertices; }
+	const TArray<uint32>& GetCpuIndices() const { return CpuIndices; }
+
 private:
 	Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer;
 	uint32 VertexCount;
@@ -70,6 +73,9 @@ private:
 
 	FAABB BoundingBox;
 	TArray<FStaticMeshSection> Sections;
+
+	TArray<FStaticMeshBuildVertex> CpuVertices;
+	TArray<uint32> CpuIndices;
 };
 
 class FStaticMeshAssetLoader : public FAssetLoader
@@ -223,7 +229,8 @@ private:
 class FMaterialAsset : public FAsset
 {
 public:
-	FMaterialAsset(const FGuid& InAssetID, const FName& InAssetName, const FVector& InAmbientColor, const FVector& InDiffuseColor, const FVector& InSpecularColor, const FGuid& InDiffuseTexture, const FGuid& InSpecularTexture, const FGuid& InNormalTexture)
+	FMaterialAsset(const FGuid& InAssetID, const FName& InAssetName, const FVector& InAmbientColor, const FVector& InDiffuseColor, 
+		const FVector& InSpecularColor, const FGuid& InDiffuseTexture, const FGuid& InSpecularTexture, const FGuid& InNormalTexture, const float InOpacity)
 		: FAsset(InAssetID, InAssetName, EAssetType::Material)
 		, AmbientColor(InAmbientColor)
 		, DiffuseColor(InDiffuseColor)
@@ -231,8 +238,12 @@ public:
 		, DiffuseTexture(InDiffuseTexture)
 		, SpecularTexture(InSpecularTexture)
 		, NormalTexture(InNormalTexture)
+		, Opacity(InOpacity)
 	{
 	}
+
+	const FVector& GetDiffuseColor() const { return DiffuseColor; }
+	const float& GetOpacity() const { return Opacity; }
 
 	inline bool HasDiffuseTexture() const { return DiffuseTexture.IsValid(); }
 	TSharedPtr<FTexture2DAsset> GetDiffuseTexture() const;
@@ -250,6 +261,7 @@ private:
 	FGuid DiffuseTexture;
 	FGuid SpecularTexture;
 	FGuid NormalTexture;
+	float Opacity;
 };
 
 class FMaterialAssetLoader : public FAssetLoader

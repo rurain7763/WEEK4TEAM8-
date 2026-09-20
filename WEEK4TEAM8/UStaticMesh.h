@@ -11,8 +11,10 @@ class UStaticMesh : public UObject
 	REFLECT_CLASS(UStaticMesh, UObject)
 
 public:
-    void SetStaticMeshAsset(const TSharedPtr<FStaticMeshAsset>& InStaticMeshAsset,
-        const FString& InAssetPathFileName, const TArray<FObjMaterialInfo>& InMaterials,
+    void SetStaticMeshAsset(
+        const TSharedPtr<FStaticMeshAsset>& InStaticMeshAsset,
+        const FString& InAssetPathFileName,
+        const TArray<FObjMaterialInfo>& InMaterials,
         const TMap<FString, TSharedPtr<FTexture2DAsset>>& InDiffuseTextures)
     {
         StaticMeshAsset = InStaticMeshAsset;
@@ -21,8 +23,17 @@ public:
         DiffuseTextures = InDiffuseTextures;
     }
 
-    const TSharedPtr<FStaticMeshAsset>& GetStaticMeshAsset() const { return StaticMeshAsset; }
+    void SetCookedStaticMeshAsset(
+        const TSharedPtr<FStaticMeshAsset>& InStaticMeshAsset,
+        const FString& InAssetPathFileName,
+        const TArray<TSharedPtr<FMaterialAsset>>& InSectionMaterials)
+    {
+        StaticMeshAsset = InStaticMeshAsset;
+        AssetPathFileName = InAssetPathFileName;
+        SectionMaterials = InSectionMaterials;
+    }
 
+    const TSharedPtr<FStaticMeshAsset>& GetStaticMeshAsset() const { return StaticMeshAsset; }
     const FString& GetAssetPathFileName() const { return AssetPathFileName; }
 
     const FObjMaterialInfo* FindMaterial(const std::string& MaterialName) const
@@ -43,9 +54,21 @@ public:
         return FoundTexture ? *FoundTexture : nullptr;
     }
 
+    TSharedPtr<FMaterialAsset> GetSectionMaterial(int32 SectionIndex) const
+    {
+        if (SectionIndex < 0 || SectionIndex >= SectionMaterials.Num())
+        {
+            return nullptr;
+        }
+        return SectionMaterials[SectionIndex];
+    }
+
 private:
     TSharedPtr<FStaticMeshAsset> StaticMeshAsset;
     FString AssetPathFileName;
+
     TArray<FObjMaterialInfo> Materials;
     TMap < FString, TSharedPtr<FTexture2DAsset>> DiffuseTextures;
+
+    TArray<TSharedPtr<FMaterialAsset>> SectionMaterials;
 };

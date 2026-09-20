@@ -41,7 +41,6 @@ void FAssetManager::RegisterAsset(const FGuid& AssetID, const FName& AssetName, 
 	}
 
 	FAssetMetaInfo MetaInfo;
-	MetaInfo.AssetID = AssetID;
 	MetaInfo.AssetType = AssetLoader->GetAssetType();
 	MetaInfo.AssetName = AssetName;
 	MetaInfo.PayloadOffset = 0;
@@ -162,7 +161,7 @@ void FAssetManager::ScanDirectory(const std::filesystem::path& RootDir, URendere
 	}
 
 	// Asset 등록
-	RegisterAsset(Header.AssetID, AssetName, Loader, MakeShared<FFileAssetSource>(Entry.path()));
+	RegisterAsset(AssetName, Loader, MakeShared<FFileAssetSource>(Entry.path()));
 	
 	}
 }

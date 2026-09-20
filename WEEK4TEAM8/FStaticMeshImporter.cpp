@@ -53,7 +53,20 @@ bool FStaticMeshImporter::Import(const std::filesystem::path& InPath, const std:
             std::filesystem::path MaterialPath = OutPath.parent_path() / (OutPath.stem().string() + "_" + Material.Name.CStr() + ".uasset");
             FAssetFileHeader MaterialHeader;
             FMaterialImporter::Import(Material, InPath.parent_path(), MaterialPath, MaterialHeader);
+            
+            for (FStaticMeshSection& Section : BuildData.Sections)
+            {
+                if (Section.MaterialName == Material.Name)
+                {
+                    Section.MaterialAssetID = MaterialHeader.AssetID;
+                }
+            }
         }
+
+        FileWriter << OutHead;
+        FileWriter << BuildData.Vertices;
+        FileWriter << BuildData.Indices;
+        FileWriter << BuildData.Sections;
     }
     catch(const std::exception& e)
     {

@@ -9,6 +9,8 @@
 #include "FileManager.h"
 #include "FTexture2DImporter.h"
 #include "FStaticMeshImporter.h"
+#include "Serializers.h"
+
 
 #include <filesystem>
 #include "FLogManager.h"
@@ -89,29 +91,29 @@ UStaticMesh* FObjManager::LoadObjStaticMesh(const FString& FilePath)
         // 없으면 GetorImport로 .uasset 생성 or 반환
         if (!Texture)
         {
-            std::optional<std::filesystem::path> NewTexturePath =
-                    FTexture2DImporter::GetorImport(TexturePath);
-            
+            std::optional<std::filesystem::path> NewTexturePath = FTexture2DImporter::GetorImport(TexturePath);
+
             if (!NewTexturePath)
             {
                 UE_LOG_ERROR("Failed to import texture: %s", TexturePath.string().c_str());
                 continue;
             }
+            
+            FAssetFileHeader TextureHeader;
+            FWindowsBinReader Reader(*NewTexturePath);
+            Reader << TextureHeader;
 
-            TSharedPtr<FFileAssetSource> TextureSource =
-				MakeShared<FFileAssetSource>(*NewTexturePath);
+            TSharedPtr<FFileAssetSource> TextureSource = MakeShared<FFileAssetSource>(*NewTexturePath);
 
             // AssetManager에 등록
             FAssetManager::Get().RegisterAsset(
-                FGuid::NewGuid(),
                 TextureAssetName,
                 TextureLoader,
                 TextureSource);
 
-            Texture =
-                FAssetManager::Get().GetAssetAs<FTexture2DAsset>(
-                    TextureAssetName,
-                    true);
+            Texture = FAssetManager::Get().GetAssetAs<FTexture2DAsset>(
+                TextureHeader.AssetID,
+                true);
         }
 
         // DiffuseTextures 맵에 저장
