@@ -24,13 +24,6 @@ FEditorViewportClient::FEditorViewportClient(URenderer& InRenderer)
 	, mGizmo(InRenderer)
 	, mbActive(true)
 {
-	char Value[64] = {};
-	GetPrivateProfileStringA("Camera", "Sensitivity", "", Value, sizeof(Value), ".\\editor.ini");
-	float Sensitivity = 0.1f;
-	if (sscanf_s(Value, "%f", &Sensitivity) == 1 && Sensitivity >= 0.01f && Sensitivity <= 1.0f)
-	{
-		mCamera.SetSensitivity(Sensitivity);
-	}
 }
 
 AActor* FEditorViewportClient::PerformMousePicking(const FRect& ViewportRect, float perspectiveRatio, const FRenderCollector& RenderCollector)

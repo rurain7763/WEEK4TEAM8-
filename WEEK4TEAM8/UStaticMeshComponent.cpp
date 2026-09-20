@@ -14,24 +14,14 @@ void UStaticMeshComponent::Initialize(const FString& InAssetPathFileName, FVecto
     FRotator Rotation,  FVector Scale)
 {
     USceneComponent::Initialize(Location, Rotation, Scale);
-    //SetMeshAsset(InMeshAssetName);
-    StaticMesh = FObjManager::LoadObjStaticMesh(InAssetPathFileName);
 }
 
-void UStaticMeshComponent::InitializeFromStaticMesh(UStaticMesh* InStaticMesh, FVector Location, FRotator Rotation, FVector Scale)
-{
-    USceneComponent::Initialize(Location, Rotation, Scale);
-    StaticMesh = InStaticMesh;
-
-}
-
-// TODO : Texture, Material도 직렬화, 역직렬화 적용 필요함.
 void UStaticMeshComponent::SerializeClass(json::JSON& outJson) const
 {
     USceneComponent::SerializeClass(outJson);
 
-    //outJson["Properties"]["MeshAssetName"] = MeshAssetName.ToString().CStr();
-    outJson["Properties"]["ObjStaticMeshAsset"] = StaticMesh ? StaticMesh->GetAssetPathFileName().CStr() : "";
+	FGuid AssetID = mMeshAsset ? mMeshAsset->GetAssetID() : FGuid();
+	outJson["Properties"]["ObjStaticMeshAsset"] = FGuidToJson(AssetID);
 }
 
 void UStaticMeshComponent::DeserializeClass(const json::JSON& inJson)
@@ -51,18 +41,18 @@ void UStaticMeshComponent::DeserializeClass(const json::JSON& inJson)
     {
         throw std::runtime_error("UStaticMeshComponent: ObjStaticMeshAsset property is required");
     }
-    if (PropertiesJson.at("ObjStaticMeshAsset").JSONType() != json::JSON::Class::String)
+
+    if (PropertiesJson.at("ObjStaticMeshAsset").JSONType() != json::JSON::Class::Object)
     {
-        throw std::runtime_error("UStaticMeshComponent: ObjStaticMeshAsset property requires a string");
+        throw std::runtime_error("UStaticMeshComponent: ObjStaticMeshAsset property requires an object");
     }
 
-    const FString AssetPathFileName = PropertiesJson.at("ObjStaticMeshAsset").ToString();
-    SetStaticMesh(FObjManager::LoadObjStaticMesh(AssetPathFileName));
-}
+	FGuid AssetID = FGuidFromJson(PropertiesJson.at("ObjStaticMeshAsset"));
 
-void UStaticMeshComponent::SetStaticMesh(UStaticMesh* InStaticMesh)
-{
-    StaticMesh = InStaticMesh;
+	if (AssetID.IsValid())
+	{
+		mMeshAsset = FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(AssetID, true);
+	}
 }
 
 //void UStaticMeshComponent::SetMeshAsset(const FName& InMeshAssetName)
@@ -73,24 +63,22 @@ void UStaticMeshComponent::SetStaticMesh(UStaticMesh* InStaticMesh)
 
 void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
 {
-    if (!StaticMesh)
+    if (!mMeshAsset)
     {
         return;
     }
     
-    const TSharedPtr<FStaticMeshAsset>& MeshAsset = StaticMesh->GetStaticMeshAsset();
-
     if (!FShowFlags::Get().IsEnabled(EShowFlag::Primitive))
     {
         return;
     }
 
-    for (int32 SectionIndex = 0; SectionIndex < MeshAsset->GetSections().Num(); ++SectionIndex)
+    for (int32 SectionIndex = 0; SectionIndex < mMeshAsset->GetSections().Num(); ++SectionIndex)
     {
-        const FStaticMeshSection& Section =  MeshAsset->GetSections()[SectionIndex];
+        const FStaticMeshSection& Section = mMeshAsset->GetSections()[SectionIndex];
+        TSharedPtr<FMaterialAsset> Material = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
 
         // 콤보에서 고른 게 있으면 그 material 적용, 없으면 기존 material 사용
-        TSharedPtr<FMaterialAsset> Material = MaterialAsset? MaterialAsset : FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
         const FVector4 MaterialColor = Material
             ? FVector4(
                 Material->GetDiffuseColor().x,
@@ -100,127 +88,30 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
             : FVector4(1, 1, 1, 1);
 
         TSharedPtr<FTexture2DAsset> SectionTexture = Material ? Material->GetDiffuseTexture() : nullptr;
-        if (!SectionTexture)
-        {
-            SectionTexture = StaticMesh->GetDiffuseTexture(Section.MaterialName);
-        }
 
-        if (!SectionTexture)
-        {
-            SectionTexture = GetTexture();;
-        }
+        FRenderInfo RenderInfo;
+        RenderInfo.VertexBuffer = mMeshAsset->GetVertexBuffer();
+        RenderInfo.IndexBuffer = mMeshAsset->GetIndexBuffer();
+        RenderInfo.StartIndex = Section.FirstIndex;
+        RenderInfo.IndexCount = Section.IndexCount;
+        RenderInfo.Texture = SectionTexture;
+        RenderInfo.UVOffset = mUVOffset;
+        RenderInfo.ePrimitive = EPrimitive::EP_StaticMesh;
+        RenderInfo.Model = GetTransformMatrix().MakeMatrix();
+        RenderInfo.Color = bUseVertexColor ? MaterialColor : Color;
+        RenderInfo.UseVertexColor = bUseVertexColor;
+        RenderInfo.ObjectInternalIndex = mOwner->InternalIndex;
 
-        RenderCollector.RenderInfos.Add({
-            MeshAsset,
-            SectionTexture,
-            EPrimitive::EP_Cube,
-            GetTransformMatrix().MakeMatrix(),
-            { mOwner->UUID, mOwner->InternalIndex },
-            bUseVertexColor ? MaterialColor : Color,
-            Section.FirstIndex,
-            Section.IndexCount,
-            bUseVertexColor
-            });
+        RenderCollector.RenderInfos.Add(RenderInfo);
     }
 }
 
-void UStaticMeshComponent::GetRenderInfos(TArray<FRenderInfo>* OutRenderInfos) const
+FAABB UStaticMeshComponent::GetBoundingBox() const
 {
-    if (!OutRenderInfos || !StaticMesh)
-    {
-        return;
-    }
+	if (!mMeshAsset)
+	{
+		return FAABB();
+	}
 
-    const TSharedPtr<FStaticMeshAsset>& MeshAsset = StaticMesh->GetStaticMeshAsset();
-    for (int32 SectionIndex = 0; SectionIndex < MeshAsset->GetSections().Num(); ++SectionIndex)
-    {
-        const FStaticMeshSection& Section = MeshAsset->GetSections()[SectionIndex];
-
-        // 콤보에서 고른 게 있으면 그 material 적용, 없으면 기존 material 사용
-        TSharedPtr<FMaterialAsset> Material = MaterialAsset? MaterialAsset : FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
-        const FVector4 MaterialColor = Material
-            ? FVector4(
-                Material->GetDiffuseColor().x,
-                Material->GetDiffuseColor().y,
-                Material->GetDiffuseColor().z,
-                Material->GetOpacity())
-            : FVector4(1, 1, 1, 1);
-
-        TSharedPtr<FTexture2DAsset> SectionTexture = Material ? Material->GetDiffuseTexture() : nullptr;
-        if (!SectionTexture)
-        {
-            SectionTexture = StaticMesh->GetDiffuseTexture(Section.MaterialName);
-        }
-        if (!SectionTexture)
-        {
-            SectionTexture = GetTexture();;
-        }
-
-        OutRenderInfos->Add({
-            MeshAsset,
-            SectionTexture,
-            EPrimitive::EP_Cube,
-            GetTransformMatrix().MakeMatrix(),
-            { mOwner->UUID, mOwner->InternalIndex },
-            bUseVertexColor ? MaterialColor : Color,
-            Section.FirstIndex,
-            Section.IndexCount,
-            bUseVertexColor
-            });
-    }
-}
-
-bool UStaticMeshComponent::RayCastComponent(const FPickingRay& PickingRay, float& OutHitT) const
-{
-    if (!StaticMesh)
-    {
-        return false;
-    }
-
-    const FMatrix WorldMatrix = GetTransformMatrix().MakeMatrix();
-
-    const FStaticMeshAsset* meshAsset = StaticMesh->GetStaticMeshAsset().get();
-    const auto& vertices = meshAsset->GetCpuVertices();
-    const auto& indices = meshAsset->GetCpuIndices();
-
-    const FAABB BoundingBox = meshAsset->GetLocalBoundingBox().ToWorld(WorldMatrix);
-    if (!RayIntersectsAABB(PickingRay.ToRay(), PickingRay.Length, BoundingBox))
-    {
-        return false;
-    }
-
-    const FMatrix WorldToLocal = WorldMatrix.AffineInverse();
-    if (WorldToLocal == FMatrix::Zero)
-    {
-        return false;
-    }
-
-    const FVector LocalNear = WorldToLocal.TransformPosition(PickingRay.Near);
-    const FVector LocalFar = WorldToLocal.TransformPosition(PickingRay.Far);
-
-    bool bHit = false;
-    float NearestT = FLT_MAX;
-
-    uint32 indexCount = indices.Num();
-
-    for (int32 i = 0; i < indexCount; i += 3)
-    {
-        const FVector V0 = vertices[indices[i]].GetPosition();
-        const FVector V1 = vertices[indices[i + 1]].GetPosition();
-        const FVector V2 = vertices[indices[i + 2]].GetPosition();
-
-        float OutT, OutU, OutV;
-        if (RayIntersectsTriangle(LocalNear, LocalFar, V0, V1, V2, OutT, OutU, OutV) && OutT < NearestT)
-        {
-            NearestT = OutT;
-            bHit = true;
-        }
-    }
-
-    if (bHit)
-    {
-        OutHitT = NearestT;
-    }
-
-    return bHit;
+	return mMeshAsset->GetLocalBoundingBox().ToWorld(GetTransformMatrix().MakeMatrix());
 }

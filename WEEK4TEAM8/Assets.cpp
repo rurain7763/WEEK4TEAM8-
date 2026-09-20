@@ -15,7 +15,7 @@ namespace
 {
 void CalculateNormals(FStaticMeshBuildData& MeshData)
 {
-	for (FStaticMeshBuildVertex& Vertex : MeshData.Vertices)
+	for (FVertex& Vertex : MeshData.Vertices)
 	{
 		Vertex.Normal = FVector(0.0f);
 	}
@@ -40,7 +40,7 @@ void CalculateNormals(FStaticMeshBuildData& MeshData)
 		MeshData.Vertices[Index2].Normal += FaceNormal;
 	}
 
-	for (FStaticMeshBuildVertex& Vertex : MeshData.Vertices)
+	for (FVertex& Vertex : MeshData.Vertices)
 	{
 		if (Vertex.Normal.LengthSquared() > SMALL_NUMBER)
 		{
@@ -53,7 +53,7 @@ void CalculateNormals(FStaticMeshBuildData& MeshData)
 	}
 }
 
-FStaticMeshBuildData BuildFromSimpleVertices(const FVertexSimple* InVertices, uint32 InVertexCount,
+FStaticMeshBuildData BuildFromVertices(const FVertex* InVertices, uint32 InVertexCount,
 	const uint32* InIndices, uint32 InIndexCount)
 {
 	FStaticMeshBuildData BuildData;
@@ -61,13 +61,7 @@ FStaticMeshBuildData BuildFromSimpleVertices(const FVertexSimple* InVertices, ui
 
 	for (uint32 Index = 0; Index < InVertexCount; ++Index)
 	{
-		const FVertexSimple& Source = InVertices[Index];
-		BuildData.Vertices.Add({
-			FVector(Source.x, Source.y, Source.z),
-			FVector(0.0f),
-			FVector4(Source.r, Source.g, Source.b, Source.a),
-			FVector2(Source.u, Source.v)
-		});
+		BuildData.Vertices.Add(InVertices[Index]);
 	}
 
 	if (InIndices && InIndexCount > 0)
@@ -87,6 +81,9 @@ FStaticMeshBuildData BuildFromSimpleVertices(const FVertexSimple* InVertices, ui
 		}
 	}
 
+	FStaticMeshSection& Section = BuildData.Sections.Emplace();
+	Section.FirstIndex = 0;
+	Section.IndexCount = static_cast<uint32>(BuildData.Indices.Num());
 	CalculateNormals(BuildData);
 	return BuildData;
 }
@@ -97,16 +94,57 @@ TSharedPtr<FArchive> FFileAssetSource::CreateArchive()
 	return MakeShared<FWindowsBinReader>(FilePath);
 }
 
-FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount)
+FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertex* InVertices, uint32 InVertexCount)
 	: FStaticMeshAsset(InAssetID, InAssetName, InRenderer,
-		BuildFromSimpleVertices(InVertices, InVertexCount, nullptr, 0))
+		BuildFromVertices(InVertices, InVertexCount, nullptr, 0))
 {
 }
 
-FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount)
+FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertex* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount)
 	: FStaticMeshAsset(InAssetID, InAssetName, InRenderer,
-		BuildFromSimpleVertices(InVertices, InVertexCount, InIndices, InIndexCount))
+		BuildFromVertices(InVertices, InVertexCount, InIndices, InIndexCount))
 {
+}
+
+FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMeshBuildData& InBuildData)
+	: FAsset(InAssetID, InAssetName, EAssetType::StaticMesh)
+	, Vertices(InBuildData.Vertices)
+	, Indices(InBuildData.Indices)
+	, Sections(InBuildData.Sections)
+{
+	for (const FVertex& Source : InBuildData.Vertices)
+	{
+		BoundingBox.ExpandToInclude(Source.Pos);
+	}
+	
+	VertexBuffer = InRenderer.CreateVertexBuffer(InBuildData.Vertices.Data(), static_cast<uint32>(InBuildData.Vertices.Num()));
+
+	// Sections refer to offsets in the single cooked index stream.  Keep that
+	// stream in one GPU buffer so FirstIndex remains valid when rendering.
+	if (!InBuildData.Indices.IsEmpty())
+	{
+		IndexBuffer = InRenderer.CreateIndexBuffer(InBuildData.Indices.Data(), static_cast<uint32>(InBuildData.Indices.Num()));
+	}
+}
+
+Microsoft::WRL::ComPtr<ID3D11Buffer> FStaticMeshAsset::GetVertexBuffer() const
+{
+	return VertexBuffer->Buffer;
+}
+
+uint32 FStaticMeshAsset::GetVertexCount() const
+{
+	return VertexBuffer->VertexCount;
+}
+
+Microsoft::WRL::ComPtr<ID3D11Buffer> FStaticMeshAsset::GetIndexBuffer() const
+{
+	return IndexBuffer->Buffer;
+}
+
+uint32 FStaticMeshAsset::GetIndexCount() const
+{
+	return IndexBuffer->IndexCount;
 }
 
 TSharedPtr<FAsset> FStaticMeshAssetLoader::LoadAsset(const FGuid& AssetID, const FName& AssetName, FArchive& Ar)
@@ -116,32 +154,6 @@ TSharedPtr<FAsset> FStaticMeshAssetLoader::LoadAsset(const FGuid& AssetID, const
 	FStaticMeshFileIO::Load(Ar, BuildData);
 
 	return MakeShared<FStaticMeshAsset>(AssetID, AssetName, Renderer, BuildData);
-	
-	#if 0
-	Ar << BuildData.Vertices;
-	Ar << BuildData.Indices;
-	Ar << BuildData.Sections;
-	
-	Ar << Positions;
-	Ar << Normals;
-	Ar << TexCoords;
-
-	TArray<FVertexSimple> Vertices;
-	for (int32 i = 0; i < Positions.Num(); ++i)
-	{
-		FVertexSimple& Vertex = Vertices.Emplace();
-
-		Vertex.x = Positions[i].x;
-		Vertex.y = Positions[i].y;
-		Vertex.z = Positions[i].z;
-		Vertex.r = 1.0f;
-		Vertex.g = 1.0f;
-		Vertex.b = 1.0f;
-		Vertex.a = 1.0f;
-		Vertex.u = TexCoords[i].X;
-		Vertex.v = 1.0f - TexCoords[i].Y; // 텍스처 좌표의 Y축을 뒤집음
-	}
-	#endif
 	
 }
 
@@ -421,25 +433,3 @@ void FMaterialAssetLoader::UnloadAsset(TSharedPtr<FAsset> Asset)
 	// NOTE: Nothing to do for now
 }
 
-FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMeshBuildData& InBuildData)
-	: FAsset(InAssetID, InAssetName, EAssetType::StaticMesh)
-	, VertexCount(static_cast<uint32>(InBuildData.Vertices.Num()))
-	, Sections(InBuildData.Sections)
-{
-	CpuVertices = InBuildData.Vertices;
-	CpuIndices = InBuildData.Indices;
-
-	for (const FStaticMeshBuildVertex& Source : InBuildData.Vertices)
-	{
-		BoundingBox.ExpandToInclude(Source.Pos);
-	}
-
-	VertexBuffer = InRenderer.CreateVertexBuffer(InBuildData.Vertices.Data(), VertexCount);
-	if (!InBuildData.Indices.IsEmpty())
-	{
-		SubMeshIndexBuffers.Add(InRenderer.CreateIndexBuffer(
-			InBuildData.Indices.Data(),
-			static_cast<uint32>(InBuildData.Indices.Num())));
-		SubMeshIndexCounts.Add(static_cast<uint32>(InBuildData.Indices.Num()));
-	}
-}

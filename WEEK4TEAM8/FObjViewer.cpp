@@ -23,13 +23,13 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 {
 	ImGui::Begin("OBJ Viewer");
 
-	if (mViewerComponent && mViewerComponent->GetStaticMesh())
+	if (mViewerComponent && mViewerComponent->GetMesh())
 	{
-		const auto& meshAsset = mViewerComponent->GetStaticMesh()->GetStaticMeshAsset();
+		const auto& meshAsset = mViewerComponent->GetMesh();
 
-		ImGui::Text("Vertices: %u", meshAsset->GetCpuVertices().Num());
+		ImGui::Text("Vertices: %u", meshAsset->GetVertices().Num());
 		//ImGui::Text("Indices: %u", meshAsset->GetCpuIndices().Num());
-		ImGui::Text("Triangles: %u", meshAsset->GetCpuIndices().Num() / 3);
+		ImGui::Text("Triangles: %u", meshAsset->GetIndices().Num() / 3);
 	}
 
 	ImGui::SeparatorText("Transform");
@@ -86,9 +86,9 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 
 	ImGui::SeparatorText("Materials");
 
-	if (mViewerComponent && mViewerComponent->GetStaticMesh())
+	if (mViewerComponent && mViewerComponent->GetMesh())
 	{
-		const TSharedPtr<FStaticMeshAsset>& MeshAsset = mViewerComponent->GetStaticMesh()->GetStaticMeshAsset();
+		const TSharedPtr<FStaticMeshAsset>& MeshAsset = mViewerComponent->GetMesh();
 
 		for (int32 SectionIndex = 0; SectionIndex < MeshAsset->GetSections().Num(); ++SectionIndex)
 		{
@@ -251,14 +251,8 @@ void FObjViewer::OpenStaticMeshAsset(const std::filesystem::path& FilePath)
 
 	StaticMesh->SetCookedStaticMeshAsset(MeshAsset, FString(FilePath.string()), {});
 
-	UStaticMeshComponent* Component =
-		FObjectFactory::ConstructUnInitializedObject<UStaticMeshComponent>();
-
-	Component->InitializeFromStaticMesh(
-		StaticMesh,
-		FVector(0, 0, 0),
-		FRotator(0, 0, 0),
-		FVector(1, 1, 1));
+	UStaticMeshComponent* Component = FObjectFactory::ConstructObject<UStaticMeshComponent>(FVector(0, 0, 0), FRotator(0, 0, 0), FVector(1, 1, 1));
+	Component->SetMesh(MeshAsset);
 
 	mViewerActor = FObjectFactory::ConstructObject<AActor>();
 	mViewerActor->AddRootSceneComponent(Component);

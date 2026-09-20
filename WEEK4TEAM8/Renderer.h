@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "Core.h"
 #include <d3d11.h>
@@ -20,9 +20,9 @@ struct FConstants
 {
 	FMatrix Matrix;
 	FVector4 Color;
+	FVector2 UVOffset;
 	int32 UseVertexColor;
 	int32 HasTexture;
-	int32 Padding[2];
 };
 
 struct FLine2DConstants
@@ -221,32 +221,43 @@ private:
 	TMap<FDepthStencilStateKey, ID3D11DepthStencilState*, FDepthStencilStateKeyHash> DepthStencilStates;
 };
 
+struct FBlendStateKey
+{
+	ERenderBlendMode BlendMode;
+	bool bColorWriteEnable = true;
+
+	bool operator==(const FBlendStateKey& Other) const
+	{
+		return BlendMode == Other.BlendMode && bColorWriteEnable == Other.bColorWriteEnable;
+	}
+};
+
+struct FBlendStateKeyHash
+{
+	std::size_t operator()(const FBlendStateKey& Key) const
+	{
+		return std::hash<int>()(static_cast<int>(Key.BlendMode)) ^ (std::hash<bool>()(Key.bColorWriteEnable) << 1);
+	}
+};
+
 class FBlendStatePool
 {
 public:
-	FBlendStatePool()
+	ID3D11BlendState* GetOrCreateBlendState(ID3D11Device* Device, const FBlendStateKey& Key)
 	{
-		for (int i = 0; i < static_cast<int>(ERenderBlendMode::Count); ++i)
-		{
-			BlendStates[i] = nullptr;
-		}
-	}
-
-	ID3D11BlendState* GetOrCreateBlendState(ID3D11Device* Device, ERenderBlendMode BlendMode)
-	{
-		ID3D11BlendState* Result = BlendStates[static_cast<int>(BlendMode)];
+		ID3D11BlendState** Result = BlendStates.Find(Key);
 		if (Result)
 		{
-			return Result;
+			return *Result;
 		}
 
 		CD3D11_BLEND_DESC BlendDesc = {};
 		BlendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ZERO;
 		BlendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
 		BlendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-		BlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+		BlendDesc.RenderTarget[0].RenderTargetWriteMask = Key.bColorWriteEnable ? D3D11_COLOR_WRITE_ENABLE_ALL : 0;
 
-		switch (BlendMode)
+		switch (Key.BlendMode)
 		{
 		case ERenderBlendMode::Opaque:
 		case ERenderBlendMode::Masked:
@@ -264,10 +275,6 @@ public:
 			BlendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
 			BlendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
 			break;
-		case ERenderBlendMode::NoColorWrite:
-			BlendDesc.RenderTarget[0].BlendEnable = FALSE;
-			BlendDesc.RenderTarget[0].RenderTargetWriteMask = 0;
-			break;
 		}
 
 		ID3D11BlendState* BlendState = nullptr;
@@ -277,7 +284,7 @@ public:
 			return nullptr;
 		}
 
-		BlendStates[static_cast<int>(BlendMode)] = BlendState;
+		BlendStates.Add(Key, BlendState);
 
 		return BlendState;
 	}
@@ -285,7 +292,7 @@ public:
 private:
 	friend class URenderer;
 
-	ID3D11BlendState* BlendStates[static_cast<int>(ERenderBlendMode::Count)];
+	TMap<FBlendStateKey, ID3D11BlendState*, FBlendStateKeyHash> BlendStates;
 };
 
 struct FRenderTarget2D
@@ -301,8 +308,52 @@ struct FDepthStencil
 {
 	Microsoft::WRL::ComPtr<ID3D11Texture2D> Texture;
 	Microsoft::WRL::ComPtr<ID3D11DepthStencilView> DSV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> SRV;
 	UINT Width;
 	UINT Height;
+};
+
+struct FVertexBuffer
+{
+	ID3D11DeviceContext* DeviceContext;
+	
+	Microsoft::WRL::ComPtr<ID3D11Buffer> Buffer;
+	UINT VertexSize;
+	UINT VertexCount;
+
+	void UpdateBuffer(const void* Data, uint32 DataCount)
+	{
+		D3D11_MAPPED_SUBRESOURCE Mapped{};
+		DeviceContext->Map(Buffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped);
+		std::memcpy(Mapped.pData, Data, DataCount * VertexSize);
+		DeviceContext->Unmap(Buffer.Get(), 0);
+	}
+
+	inline uint32 GetBufferSize() const
+	{
+		return VertexSize * VertexCount;
+	}
+};
+
+struct FIndexBuffer
+{
+	ID3D11DeviceContext* DeviceContext;
+	
+	Microsoft::WRL::ComPtr<ID3D11Buffer> Buffer;
+	UINT IndexCount;
+
+	void UpdateBuffer(const void* Data, uint32 DataCount)
+	{
+		D3D11_MAPPED_SUBRESOURCE Mapped{};
+		DeviceContext->Map(Buffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped);
+		std::memcpy(Mapped.pData, Data, DataCount * sizeof(uint32));
+		DeviceContext->Unmap(Buffer.Get(), 0);
+	}
+
+	inline uint32 GetBufferSize() const
+	{
+		return sizeof(uint32) * IndexCount;
+	}
 };
 
 struct FStructuredBuffer
@@ -314,7 +365,7 @@ struct FStructuredBuffer
 	UINT ElementSize;
 	UINT ElementCount;
 
-	void UpdateStructuredBuffer(const void* Data, uint32 DataCount)
+	void UpdateBuffer(const void* Data, uint32 DataCount)
 	{
 		D3D11_BOX Box = {};
 		Box.left = 0;
@@ -335,34 +386,34 @@ public:
 	void Create(HWND hWindow);
 	void Release();
 
-#if 0
-	void CreateLineVertexBuffer(uint32 maxVertices);
-
-	void CreateStencilMarkState();
-	void CreateStencilOutlineState();
-	void CreateNoColorWriteBlendState();
-
-	//release
-	void ReleaseLineVertexBuffer();
-#endif
-
 	template <typename T>
-	Microsoft::WRL::ComPtr<ID3D11Buffer> CreateVertexBuffer(T* Vertices, UINT Count)
+	TSharedPtr<FVertexBuffer> CreateVertexBuffer(const T* Vertices, UINT Count, D3D11_USAGE Usage = D3D11_USAGE_IMMUTABLE)
 	{
 		D3D11_BUFFER_DESC VertexBufferDesc = {};
 		VertexBufferDesc.ByteWidth = sizeof(T) * Count;
-		VertexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
+		VertexBufferDesc.Usage = Usage;
 		VertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		VertexBufferDesc.CPUAccessFlags = (Usage == D3D11_USAGE_DYNAMIC) ? D3D11_CPU_ACCESS_WRITE : 0;
 
-		D3D11_SUBRESOURCE_DATA VertexBufferSRD = { Vertices };
+		TSharedPtr<FVertexBuffer> VertexBuffer = MakeShared<FVertexBuffer>();
+		VertexBuffer->DeviceContext = DeviceContext;
+		VertexBuffer->VertexSize = sizeof(T);
+		VertexBuffer->VertexCount = Count;
 
-		Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer;
-		Device->CreateBuffer(&VertexBufferDesc, &VertexBufferSRD, VertexBuffer.GetAddressOf());
+		if (Vertices)
+		{
+			D3D11_SUBRESOURCE_DATA VertexBufferSRD = { Vertices };
+			Device->CreateBuffer(&VertexBufferDesc, &VertexBufferSRD, VertexBuffer->Buffer.GetAddressOf());
+		}
+		else
+		{
+			Device->CreateBuffer(&VertexBufferDesc, nullptr, VertexBuffer->Buffer.GetAddressOf());
+		}
 
 		return VertexBuffer;
 	}
 
-	Microsoft::WRL::ComPtr<ID3D11Buffer> CreateIndexBuffer(const uint32* Indices, UINT Count);
+	TSharedPtr<FIndexBuffer> CreateIndexBuffer(const uint32* Indices, UINT Count, D3D11_USAGE Usage = D3D11_USAGE_IMMUTABLE);
 
 	Microsoft::WRL::ComPtr<ID3D11Texture2D> CreateTexture2D(const D3D11_TEXTURE2D_DESC& Desc, const void* InitialData = nullptr);
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> CreateShaderResourceView(Microsoft::WRL::ComPtr<ID3D11Texture2D> Texture, const D3D11_SHADER_RESOURCE_VIEW_DESC* Desc = nullptr);
@@ -399,47 +450,38 @@ public:
 	TSharedPtr<FRenderTarget2D> CreateRenderTarget2D(uint32 Width, uint32 Height, DXGI_FORMAT Format);
 	TSharedPtr<FDepthStencil> CreateDepthStencil(uint32 Width, uint32 Height);
 	
-	//Update
-	void RSUpdateState();
-
 	//Rendering
 	void Prepare(const FMatrix& ViewProjectionMatrix);
-#if 0
-	void RenderLines(const FVertexSimple* vertices, uint32 numVertices);
-#endif
 
 	TSharedPtr<FRenderPipeline> CreateRenderPipeline();
-
-	void BindPipeline(const TSharedPtr<FRenderPipeline>& Pipeline) const;
 
 	void BindFrameBuffer();
 	void BindRenderTarget(const TSharedPtr<FRenderTarget2D>& RenderTarget, const TSharedPtr<FDepthStencil>& DepthStencil, bool bClear = true);
 
-	void RenderLines(const TArray<FRenderLineInfo>& Lines) const;
+	void Render(const TSharedPtr<FRenderPipeline>& Pipeline, UINT NumVertices) const;
 
-	void RenderHighlight(Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer, UINT NumVertices, Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer, UINT NumIndices, const FMatrix& Model, const FMatrix& OutlineModel, const FVector4& OutlineColor) const;
+	void RenderLines(const TArray<FRenderLineInfo>& Lines) const;
 
 	void RenderQuad(const FRenderQuadInfo& Info) const;
 
 	void RenderPrimitive(const TSharedPtr<FRenderPipeline>& Pipeline, Microsoft::WRL::ComPtr<ID3D11Buffer> Buffer, UINT NumVertices) const;
 	void RenderPrimitive(Microsoft::WRL::ComPtr<ID3D11Buffer> Buffer, UINT NumVertices, const FMatrix& Model) const;
 	void RenderPrimitive(Microsoft::WRL::ComPtr<ID3D11Buffer> Buffer, UINT NumVertices, const FMatrix& Model, const FVector4& Color) const;
-	void RenderPrimitiveIndexed(Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer, Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer, UINT NumIndices, const FMatrix& Model) const;
-	void RenderPrimitiveIndexed(const TSharedPtr<FRenderPipeline>& Pipeline, Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer, Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer,
-		UINT NumIndices, UINT StartIndex = 0) const;
+	void RenderPrimitiveIndexed(const FRenderInfo& RenderInfo, uint32 StencilRef = 0) const;
+	void RenderPrimitiveIndexed(const TSharedPtr<FRenderPipeline>& Pipeline, const FRenderInfo& RenderInfo, uint32 StencilRef = 0) const;
 
 	void RenderLine2D(const FVector2& Start, const FVector2& End, const FVector4& Color, float Thickness = 1.0f) const;
 	void RenderCircle2D(const FVector2& Center, const FVector4& Color, float Radius = 1.0f) const;
 	void RenderTriangle2D(const FVector2& Center, const FVector4& Color, float Size = 1.0f, float Rotation = 0.0f) const;
-	// Thickness is the full world-space width, matching the grid's 0.001 half-width.
+
 	void RenderWorldAxis(const FMatrix& View, const FMatrix& Projection, const FVector4& Color, const FVector& Axis, float Thickness = 0.002f) const;
 	void RenderWorldGrid(const FMatrix& ViewProjection, const FVector& CameraLocation, float GridGap) const;
 
+	void ClearAllShaderResources() const;
+
 	void SwapBuffer();
 
-	//=============================================
 	//해상도 변경 시 호출
-	//void OnResize(UINT Width, UINT Height);
 	void OnResize(UINT width, UINT height);
 
 	FORCEINLINE uint32 GetWidth() const { return Width; }
@@ -448,6 +490,8 @@ public:
 	FORCEINLINE ID3D11Device* GetDevice() const { return Device; }
 	FORCEINLINE ID3D11DeviceContext* GetDeviceContext() const { return DeviceContext; }
 	FORCEINLINE void SetViewModeIndex(EViewModeIndex InViewModeIndex) { ViewModeIndex = InViewModeIndex; }
+	FORCEINLINE TSharedPtr<FRenderTarget2D> GetBindedRenderTarget() const { return BindedRenderTarget; }
+	FORCEINLINE TSharedPtr<FDepthStencil> GetBindedDepthStencil() const { return BindedDepthStencil; }
 
 private:
 	void CreateDeviceAndSwapChain(HWND hWindow);
@@ -457,6 +501,8 @@ private:
 	void ReleaseFrameBuffer();
 
 	void CreateDepthStencilBuffer();
+
+	void BindPipeline(const TSharedPtr<FRenderPipeline>& Pipeline, uint32 StencilRef = 0) const;
 
 private:
     ID3D11Device* Device = nullptr;
@@ -473,12 +519,13 @@ private:
 	ID3D11Texture2D* DepthStencilBuffer = nullptr;			// 실제 깊이값이 저장될 메모리
 	ID3D11DepthStencilView* DepthStencilView = nullptr;		// 그 메모리를 "출력 대상"으로 보는 뷰
 
+	TSharedPtr<FRenderTarget2D> BindedRenderTarget;
+	TSharedPtr<FDepthStencil> BindedDepthStencil;
+
 	TSharedPtr<FStructuredBuffer> LineStructuredBuffer;
 
 	TSharedPtr<FRenderPipeline> LinePipeline;
 	TSharedPtr<FRenderPipeline> PrimitivePipeline;
-	TSharedPtr<FRenderPipeline> StencilMarkPipeline;
-	TSharedPtr<FRenderPipeline> StencilOutlinePipeline;
 	TSharedPtr<FRenderPipeline> Line2DPipeline;
 	TSharedPtr<FRenderPipeline> Circle2DPipeline;
 	TSharedPtr<FRenderPipeline> Triangle2DPipeline;
@@ -494,15 +541,4 @@ private:
 	// 와이어프레임 여부. Prepare에서 갱신하고 BindPipeline이 읽는다.
 	// RSSetState는 드로우 직전마다 덮어써지므로 플래그로 들고 있어야 한다.
 	EViewModeIndex ViewModeIndex = EViewModeIndex::VMI_Lit;
-
-#if 1
-	ID3D11RasterizerState* RasterizerState[2] = {};
-	ID3D11DepthStencilState* StencilMarkState = nullptr;	// 스텐실에 1 마킹용 상태
-	ID3D11DepthStencilState* StencilOutlineState = nullptr; // 아웃라인 그리기용
-	ID3D11BlendState* NoColorWriteBlendState = nullptr;		// 스텐실만 찍고 색은 쓰지 않는 상태
-
-	// 매 프레임 내용이 바뀌는 선분용. 메시 버퍼와 달리 IMMUTABLE이 아니라 DYNAMIC이다
-	ID3D11Buffer* LineVertexBuffer = nullptr;
-	uint32 LineVertexCapacity = 0;
-#endif
 };

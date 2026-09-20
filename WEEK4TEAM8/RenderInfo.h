@@ -15,21 +15,22 @@ enum class ERenderBlendMode
 	Masked,
 	Transparent,
 	Additive,
-	NoColorWrite,
 	Count
 };
 
 struct FRenderInfo
 {
-	TSharedPtr<FStaticMeshAsset> StaticMesh;
-	TSharedPtr<FTexture2DAsset> Texture;
-	EPrimitive ePrimitive;
-	FMatrix WorldTransformMatrix;
-	FObjectID ObejctID;
-	FVector4 Color;
-
-	uint32 FirstIndex = 0;
+	Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer;
+	uint32 VertexCount = 0;
+	Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer;
+	uint32 StartIndex = 0;
 	uint32 IndexCount = 0;
+	TSharedPtr<FTexture2DAsset> Texture;
+	FVector2 UVOffset = { 0.f, 0.f };
+	EPrimitive ePrimitive;
+	FMatrix Model;
+	uint32 ObjectInternalIndex;
+	FVector4 Color;
 	bool UseVertexColor = true;
 };
 

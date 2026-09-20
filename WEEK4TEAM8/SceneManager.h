@@ -26,6 +26,7 @@ class UStaticMesh;
 
 struct FGuiReference
 {
+	FCamera* EditorCamera;
 	FFrameTimer* FrameTimer;
 	FGraphicsManager* GraphicsManager;
 	FEditorViewportClient* ViewportClient;
@@ -73,8 +74,8 @@ public:
 	void DeleteScene();
 
 	// 파일 탐색기용 오버로드
-	void SaveScene(const std::filesystem::path& scenePath, const FFileManager& fileManager);
-	void LoadScene(const std::filesystem::path& scenePath, const FFileManager& fileManager);
+	void SaveScene(FCamera* Camera, const std::filesystem::path& scenePath, const FFileManager& fileManager);
+	void LoadScene(FCamera* Camera, const std::filesystem::path& scenePath, const FFileManager& fileManager);
 
 	UWorld* GetCurrentWorld() const { return mCurrentWorld; }
 

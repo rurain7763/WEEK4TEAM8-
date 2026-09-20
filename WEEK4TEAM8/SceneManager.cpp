@@ -296,19 +296,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 		"StaticMesh"
 	};
 
-	const FClassInfo* ActorClassInfo[] = {
-		UPrimitiveComponent::GetClass(),
-		UPrimitiveComponent::GetClass(),
-		UPrimitiveComponent::GetClass(),
-		UPrimitiveComponent::GetClass(),
-		UPrimitiveComponent::GetClass(),
-		ASpotLight::GetClass(),
-		UAtlasAnimationComponent::GetClass(),
-		UStaticMeshComponent::GetClass()
-	};
-
-	static_assert(IM_ARRAYSIZE(ActorTypeNames) == IM_ARRAYSIZE(ActorClassInfo), "ActorTypeNames and ActorClassInfo must stay the same length");
-
 	int32 ActorTypeIndex = static_cast<int32>(mGuiInputField.PrimitiveType);
 	int32 SpawnCount = mGuiInputField.SpawnCount;
 	if (ImGui::Combo("Actor Type", &ActorTypeIndex, ActorTypeNames, IM_ARRAYSIZE(ActorTypeNames)))
@@ -336,10 +323,10 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	{
 		for (int32 i = 0; i < mGuiInputField.SpawnCount; ++i)
 		{
-			const FClassInfo* ActorClass = ActorClassInfo[ActorTypeIndex];
+			const char* ActorTypeName = ActorTypeNames[ActorTypeIndex];
 
 			AActor* NewActor = nullptr;
-			if (ActorClass == UAtlasAnimationComponent::GetClass())
+			if (strcmp(ActorTypeName, "Explosion") == 0)
 			{
 				NewActor = FObjectFactory::ConstructObject<AActor>();
 
@@ -355,37 +342,22 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 
 				NewActor->AddRootSceneComponent(AnimComponent);
 			}
-			else if (ActorClass == UStaticMeshComponent::GetClass())
+			else if (strcmp(ActorTypeName, "Sphere") == 0 || strcmp(ActorTypeName, "Cube") == 0 || strcmp(ActorTypeName, "Triangle") == 0 || strcmp(ActorTypeName, "GizmoArrow") == 0 || strcmp(ActorTypeName, "Circle") == 0)
 			{
-				if (!mGuiInputField.SelectedStaticMesh)
-				{
-					UE_LOG_ERROR("No Static Mesh selected to spawn");
-				}
-				
 				NewActor = FObjectFactory::ConstructObject<AActor>();
 
-				UStaticMeshComponent* Component =
-					FObjectFactory::ConstructUnInitializedObject<UStaticMeshComponent>();
-				Component->InitializeFromStaticMesh(
-					mGuiInputField.SelectedStaticMesh,
-					FVector(0, 0, 0), FRotator(0, 0, 0), FVector(1, 1, 1));
+				UStaticMeshComponent* MeshComponent = FObjectFactory::ConstructObject<UStaticMeshComponent>(FVector(0, 0, 0), FRotator(0, 0, 0), FVector(1, 1, 1));
+				MeshComponent->SetMesh(FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(FName(std::format("{}Mesh", ActorTypeName)), true));
 
-				NewActor->AddRootSceneComponent(Component);
+				NewActor->AddRootSceneComponent(MeshComponent);
 			}
-			else if (ActorClass == UPrimitiveComponent::GetClass())
-			{
-				NewActor = FObjectFactory::SpawnPrimitiveActor(
-					mGuiInputField.PrimitiveType,
-					FVector(0, 0, 0), FRotator(0, 0, 0), FVector(1, 1, 1)
-				);
-			}
-			else if (ActorClass == ASpotLight::GetClass())
+			else if (strcmp(ActorTypeName, "SpotLight") == 0)
 			{
 				NewActor = FObjectFactory::ConstructObject<ASpotLight>();
 			}
 			else
 			{
-				UE_LOG_ERROR("Unknown actor class: %s", ActorClass->Name.CStr());
+				UE_LOG_ERROR("Unknown actor class: %s", ActorTypeName);
 			}
 
 			if (NewActor)
@@ -426,13 +398,12 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 			// 저장 대화상자의 초기 폴더가 반드시 존재하도록 한다.
 			//std::filesystem::create_directories(sceneDirectory);
 
-			const std::optional<std::filesystem::path> selectedPath =
-				FNativeFileDialog::SaveScene(sceneDirectory);
+			const std::optional<std::filesystem::path> selectedPath = FNativeFileDialog::SaveScene(sceneDirectory);
 
 			// 취소 버튼을 누른 경우에는 아무 작업도 하지 않는다.
 			if (selectedPath.has_value())
 			{
-				SaveScene(selectedPath.value(), *guiReference.FileManager);
+				SaveScene(guiReference.EditorCamera, selectedPath.value(), *guiReference.FileManager);
 
 				UE_LOG("Scene saved: %s", selectedPath->string().c_str());
 			}
@@ -459,9 +430,7 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 			// 취소한 경우에는 현재 씬과 카메라 상태를 건드리지 않는다.
 			if (selectedPath.has_value())
 			{
-				LoadScene(
-					selectedPath.value(),
-					*guiReference.FileManager);
+				LoadScene(guiReference.EditorCamera, selectedPath.value(), *guiReference.FileManager);
 
 				// 파일 로드가 실행된 뒤에만 카메라를 초기화한다.
 				guiReference.ViewportClient->Reset();
@@ -697,197 +666,167 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 		{
 			mSelectedActor->SetLocation(translationInput);
 		}
+		
 		if (ImGui::DragFloat3("Rotation", &rotationInput.x, 0.1f))
 		{
 			mSelectedActor->SetRotation({
 				rotationInput.y, // Pitch
 				rotationInput.z, // Yaw
 				rotationInput.x  // Roll
-				});
-
+			});
 		}
+
 		if (ImGui::DragFloat3("Scale", &scaleInput.x, 0.1f, MIN_SCALE, FLT_MAX, "%.3f", ImGuiSliderFlags_AlwaysClamp))
 		{
 			mSelectedActor->SetScale(scaleInput);
 		}
 
-		UText3DComponent* text3DComponent = nullptr;
 		for (UActorComponent* component : mSelectedActor->GetComponents())
 		{
+			ImGui::SeparatorText(component->GetRuntimeClass()->Name.c_str());
+
 			if (component->IsA<UText3DComponent>())
 			{
-				text3DComponent = component->Cast<UText3DComponent>();
-				break;
-			}
-		}
+				UText3DComponent* text3DComponent = component->Cast<UText3DComponent>();
 
-		if (text3DComponent)
-		{
-			ImGui::SeparatorText("Text");
+				char textBuffer[256] = {};
+				const FString currentText = Wide2Utf(text3DComponent->GetText());
+				strncpy_s(textBuffer, currentText.CStr(), sizeof(textBuffer) - 1);
 
-			char textBuffer[256] = {};
-			const FString currentText = Wide2Utf(text3DComponent->GetText());
-			strncpy_s(textBuffer, currentText.CStr(), sizeof(textBuffer) - 1);
-
-			if (ImGui::InputText("Display Text", textBuffer, sizeof(textBuffer)))
-			{
-				try
+				if (ImGui::InputText("Display Text", textBuffer, sizeof(textBuffer)))
 				{
 					text3DComponent->SetText(Utf2Wide(FString(textBuffer)));
 				}
-				catch (const std::runtime_error&)
+			}
+			else if (component->IsA<USpotLightComponent>())
+			{
+				USpotLightComponent* spotLightComponent = component->Cast<USpotLightComponent>();
+
+				FVector4 colorInput = spotLightComponent->GetColor();
+				if (ImGui::ColorPicker3("Color", &colorInput.x,
+					ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_DisplayHSV | ImGuiColorEditFlags_DisplayHex))
 				{
+					spotLightComponent->SetColor(colorInput);
+				}
+
+				float innerAngleInput = spotLightComponent->GetInnerConeAngle();
+				if (ImGui::DragFloat("InnerAngle", &innerAngleInput, 0.1f, 0.f, spotLightComponent->GetOuterConeAngle(), "%.3f", ImGuiSliderFlags_AlwaysClamp))
+				{
+					spotLightComponent->SetInnerConeAngle(innerAngleInput);
+				}
+
+				float outerAngleInput = spotLightComponent->GetOuterConeAngle();
+				if (ImGui::DragFloat("OuterAngle", &outerAngleInput, 0.1f, 0.f, 89.f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+				{
+					spotLightComponent->SetOuterConeAngle(outerAngleInput);
 				}
 			}
-		}
-
-		USpotLightComponent* spotLightComponent = nullptr;
-		for (UActorComponent* component : mSelectedActor->GetComponents())
-		{
-			if (component->IsA<USpotLightComponent>())
+			else if (component->IsA< UAtlasAnimationComponent>())
 			{
-				spotLightComponent = component->Cast<USpotLightComponent>();
-				break;
-			}
-		}
+				UAtlasAnimationComponent* atlasAnimationComponent = component->Cast<UAtlasAnimationComponent>();
 
-		if (spotLightComponent)
-		{
-			ImGui::SeparatorText("Spot Light");
-
-			FVector4 colorInput = spotLightComponent->GetColor();
-			if (ImGui::ColorPicker3("Color", &colorInput.x,
-				ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_DisplayHSV | ImGuiColorEditFlags_DisplayHex))
-			{
-				spotLightComponent->SetColor(colorInput);
-			}
-
-			float innerAngleInput = spotLightComponent->GetInnerConeAngle();
-			if (ImGui::DragFloat("InnerAngle", &innerAngleInput, 0.1f, 0.f, spotLightComponent->GetOuterConeAngle(), "%.3f", ImGuiSliderFlags_AlwaysClamp))
-			{
-				spotLightComponent->SetInnerConeAngle(innerAngleInput);
-			}
-
-			float outerAngleInput = spotLightComponent->GetOuterConeAngle();
-			if (ImGui::DragFloat("OuterAngle", &outerAngleInput, 0.1f, 0.f, 89.f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
-			{
-				spotLightComponent->SetOuterConeAngle(outerAngleInput);
-			}
-		}
-
-		UAtlasAnimationComponent* atlasAnimationComponent = nullptr;
-		for (UActorComponent* component : mSelectedActor->GetComponents())
-		{
-			if (component->IsA<UAtlasAnimationComponent>())
-			{
-				atlasAnimationComponent = component->Cast<UAtlasAnimationComponent>();
-				break;
-			}
-		}
-
-		if (atlasAnimationComponent)
-		{
-			ImGui::SeparatorText("Atlas Animation");
-
-			TArray<FString> spriteAtlasAssetNames;
-			guiReference.AssetManager->ForEachMetaInfo([&spriteAtlasAssetNames](const FAssetMetaInfo& metaInfo) {
-				if (metaInfo.AssetType != EAssetType::SpriteAtlas)
-				{
-					return;
-				}
-				spriteAtlasAssetNames.Add(metaInfo.AssetName.ToString());
-			});
-
-			const TSharedPtr<FSpriteAtlasAsset>& currentAtlas = atlasAnimationComponent->GetAtlas();
-			FString currentAtlasName = currentAtlas ? currentAtlas->GetAssetName().ToString() : "None";
-			if (ImGui::BeginCombo("Sprite Atlas", currentAtlasName.CStr()))
-			{
-				for (const FString& assetName : spriteAtlasAssetNames)
-				{
-					bool isSelected = (currentAtlasName == assetName);
-					if (ImGui::Selectable(assetName.CStr(), isSelected))
+				TArray<FString> spriteAtlasAssetNames;
+				guiReference.AssetManager->ForEachMetaInfo([&spriteAtlasAssetNames](const FAssetMetaInfo& metaInfo) {
+					if (metaInfo.AssetType != EAssetType::SpriteAtlas)
 					{
-						atlasAnimationComponent->SetAtlas(guiReference.AssetManager->GetAssetAs<FSpriteAtlasAsset>(FName(assetName), true));
+						return;
 					}
-					if (isSelected)
-					{
-						ImGui::SetItemDefaultFocus();
-					}
-				}
-				ImGui::EndCombo();
-			}
+					spriteAtlasAssetNames.Add(metaInfo.AssetName.ToString());
+					});
 
-			if (ImGui::Button("Play"))
-			{
-				atlasAnimationComponent->Play(0, atlasAnimationComponent->IsLooping(), atlasAnimationComponent->IsBackward());
-			}
-			ImGui::SameLine();
-			if (ImGui::Button("Pause"))
-			{
-				atlasAnimationComponent->Pause();
-			}
-			ImGui::SameLine();
-			if (ImGui::Button("Resume"))
-			{
-				atlasAnimationComponent->Resume();
-			}
-			ImGui::SameLine();
-			if (ImGui::Button("Reset"))
-			{
-				atlasAnimationComponent->Reset();
-			}
-
-			ImGui::Text(atlasAnimationComponent->IsPlaying() ? "State: Playing" : "State: Stopped");
-
-			bool loopInput = atlasAnimationComponent->IsLooping();
-			if (ImGui::Checkbox("bLoop", &loopInput))
-			{
-				atlasAnimationComponent->SetLooping(loopInput);
-			}
-
-			int32 frameRateInput = atlasAnimationComponent->GetFrameRate();
-			if (ImGui::DragInt("FrameRate", &frameRateInput, 1.f, 1, 240, "%d", ImGuiSliderFlags_AlwaysClamp))
-			{
-				atlasAnimationComponent->SetFrameRate(frameRateInput);
-			}
-		}
-
-		USceneComponent* rootComponent = mSelectedActor->GetRootComponent();
- 
-		// 지금 선택된 Actor의 Root가 UPrimitive이면 저장 아니면 nullptr
-		UPrimitiveComponent* PrimitiveComponent = (rootComponent && rootComponent->IsA<UPrimitiveComponent>())
-			? rootComponent->Cast<UPrimitiveComponent>() : nullptr;
-
-		// 그 중에서도 UStaticMesh이면 저장 아니면 nullptr
-		UStaticMeshComponent* StaticMeshComponent = (PrimitiveComponent && PrimitiveComponent->IsA<UStaticMeshComponent>())
-			? PrimitiveComponent->Cast<UStaticMeshComponent>() : nullptr;
-
-		
-		// StaticMesh Actor일 때만 Mesh, Material 리스트를 띄워줌.
-		if (StaticMeshComponent)
-		{
-			// 현재 가진 Mesh가 있으면 그것을, 없으면 None을 콤보박스 이름으로
-			UStaticMesh* CurrentStaticMesh = StaticMeshComponent->GetStaticMesh();
-			const FString CurrentPath = CurrentStaticMesh ? CurrentStaticMesh->GetAssetPathFileName() : "None";
-			
-			if (ImGui::BeginCombo("Static Mesh", CurrentPath.CStr()))
-			{
-				for (TObjectIterator<UStaticMesh> It; It; ++It)
+				const TSharedPtr<FSpriteAtlasAsset>& currentAtlas = atlasAnimationComponent->GetAtlas();
+				FString currentAtlasName = currentAtlas ? currentAtlas->GetAssetName().ToString() : "None";
+				if (ImGui::BeginCombo("Sprite Atlas", currentAtlasName.CStr()))
 				{
-					UStaticMesh* CandidateStaticMesh = *It;
-					const FString& CandidatePath = CandidateStaticMesh->GetAssetPathFileName();
-					const bool bIsSelected = CurrentStaticMesh == CandidateStaticMesh;
-					
-					if (ImGui::Selectable(CandidatePath.CStr(), bIsSelected))
+					for (const FString& assetName : spriteAtlasAssetNames)
 					{
-						StaticMeshComponent->SetStaticMesh(CandidateStaticMesh);
+						bool isSelected = (currentAtlasName == assetName);
+						if (ImGui::Selectable(assetName.CStr(), isSelected))
+						{
+							atlasAnimationComponent->SetAtlas(guiReference.AssetManager->GetAssetAs<FSpriteAtlasAsset>(FName(assetName), true));
+						}
+						if (isSelected)
+						{
+							ImGui::SetItemDefaultFocus();
+						}
 					}
-					if (bIsSelected) ImGui::SetItemDefaultFocus();
+					ImGui::EndCombo();
 				}
-				ImGui::EndCombo();
+
+				if (ImGui::Button("Play"))
+				{
+					atlasAnimationComponent->Play(0, atlasAnimationComponent->IsLooping(), atlasAnimationComponent->IsBackward());
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Pause"))
+				{
+					atlasAnimationComponent->Pause();
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Resume"))
+				{
+					atlasAnimationComponent->Resume();
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Reset"))
+				{
+					atlasAnimationComponent->Reset();
+				}
+
+				ImGui::Text(atlasAnimationComponent->IsPlaying() ? "State: Playing" : "State: Stopped");
+
+				bool loopInput = atlasAnimationComponent->IsLooping();
+				if (ImGui::Checkbox("bLoop", &loopInput))
+				{
+					atlasAnimationComponent->SetLooping(loopInput);
+				}
+
+				int32 frameRateInput = atlasAnimationComponent->GetFrameRate();
+				if (ImGui::DragInt("FrameRate", &frameRateInput, 1.f, 1, 240, "%d", ImGuiSliderFlags_AlwaysClamp))
+				{
+					atlasAnimationComponent->SetFrameRate(frameRateInput);
+				}
 			}
-			
-			TArray<FAssetMetaInfo> materialMetaInfos;
+			else if (component->IsA<UStaticMeshComponent>())
+			{
+				UStaticMeshComponent* StaticMeshComponent = component->Cast<UStaticMeshComponent>();
+
+				TSharedPtr<FStaticMeshAsset> CurrentStaticMesh = StaticMeshComponent->GetMesh();
+				TSharedPtr<FTexture2DAsset> CurrentTexture = StaticMeshComponent->GetTexture();
+
+				TArray<FString> StaticMeshAssetNames;
+				TArray<FString> TextureAssetNames;
+				guiReference.AssetManager->ForEachMetaInfo([&StaticMeshAssetNames, &TextureAssetNames](const FAssetMetaInfo& metaInfo) {
+					if (metaInfo.AssetType == EAssetType::StaticMesh)
+					{
+						StaticMeshAssetNames.Add(metaInfo.AssetName.ToString());
+					}
+					else if (metaInfo.AssetType == EAssetType::Texture2D)
+					{
+						TextureAssetNames.Add(metaInfo.AssetName.ToString());
+					}
+				});
+
+				const FString CurrentMeshPath = CurrentStaticMesh ? CurrentStaticMesh->GetAssetName().ToString() : "None";
+				if (ImGui::BeginCombo("Static Mesh", CurrentMeshPath.CStr()))
+				{
+					for (const FString& assetName : StaticMeshAssetNames)
+					{
+						bool isSelected = (CurrentMeshPath == assetName);
+						if (ImGui::Selectable(assetName.CStr(), isSelected))
+						{
+							StaticMeshComponent->SetMesh(guiReference.AssetManager->GetAssetAs<FStaticMeshAsset>(FName(assetName), true));
+						}
+
+						if (isSelected)
+						{
+							ImGui::SetItemDefaultFocus();
+						}
+					}
+
+					ImGui::EndCombo();
+				}
+							TArray<FAssetMetaInfo> materialMetaInfos;
 			guiReference.AssetManager->ForEachMetaInfo([&materialMetaInfos](const FAssetMetaInfo& metaInfo) {
 				if (metaInfo.AssetType != EAssetType::Material) return;
 				materialMetaInfos.Add(metaInfo);
@@ -914,30 +853,29 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 			}
 		}
 
-		// Texture 콤보가 뜨기 위한 조건: Primitive 이되, AtlasAnimation은 아닐 것.
-		if (PrimitiveComponent && !PrimitiveComponent->IsA<UAtlasAnimationComponent>())
-		{
-			TArray<FString> textureAssetNames;
-			guiReference.AssetManager->ForEachMetaInfo([&textureAssetNames](const FAssetMetaInfo& metaInfo) {
-				if (metaInfo.AssetType != EAssetType::Texture2D) return;
-				textureAssetNames.Add(metaInfo.AssetName.ToString());
-			});
-
-			const TSharedPtr<FTexture2DAsset>& currentTexture = PrimitiveComponent->GetTexture();
-			FString currentTextureName = currentTexture ? currentTexture->GetAssetName().ToString() : "None";
-			if (ImGui::BeginCombo("Texture", currentTextureName.CStr()))
-			{
-				for (const FString& assetName : textureAssetNames)
+				const FString CurrentTexturePath = CurrentTexture ? CurrentTexture->GetAssetName().ToString() : "None";
+				if (ImGui::BeginCombo("Texture", CurrentTexturePath.CStr()))
 				{
-					bool isSelected = (currentTextureName == assetName);
-					if (ImGui::Selectable(assetName.CStr(), isSelected))
+					for (const FString& assetName : TextureAssetNames)
 					{
-						TSharedPtr<FTexture2DAsset> textureAsset = guiReference.AssetManager->GetAssetAs<FTexture2DAsset>(FName(assetName), true);
-						PrimitiveComponent->SetTexture(textureAsset);
+						bool isSelected = (CurrentTexturePath == assetName);
+						if (ImGui::Selectable(assetName.CStr(), isSelected))
+						{
+							StaticMeshComponent->SetTexture(guiReference.AssetManager->GetAssetAs<FTexture2DAsset>(FName(assetName), true));
+						}
+						if (isSelected)
+						{
+							ImGui::SetItemDefaultFocus();
+						}
 					}
-					if (isSelected) ImGui::SetItemDefaultFocus();
+					ImGui::EndCombo();
 				}
-				ImGui::EndCombo();
+
+				FVector2 UVOffset = StaticMeshComponent->GetUVOffset();
+				if (ImGui::DragFloat2("UV Offset", &UVOffset.X, 0.01f))
+				{
+					StaticMeshComponent->SetUVOffset(UVOffset);
+				}
 			}
 		}
 	}
@@ -1079,14 +1017,11 @@ void FSceneManager::DeleteScene()
 	ResetSelectedActor();
 }
 
-void FSceneManager::SaveScene(
-	const std::filesystem::path& scenePath,
-	const FFileManager& fileManager)
+void FSceneManager::SaveScene(FCamera* Camera, const std::filesystem::path& scenePath, const FFileManager& fileManager)
 {
 	if (mCurrentWorld == nullptr)
 	{
-		throw std::runtime_error(
-			"Cannot save scene because current world is null.");
+		throw std::runtime_error("Cannot save scene because current world is null.");
 	}
 
 	uint32 version = 0;
@@ -1126,66 +1061,59 @@ void FSceneManager::SaveScene(
 	sceneJson["NextUUID"] = UEngineStatics::GetNextUUID();
 	sceneJson["World"] = worldJson;
 
-	const FString jsonString(
-		sceneJson.dump(1, "  "));
+	json::JSON& PerspectiveCameraJson = sceneJson["PerspectiveCamera"];
+	PerspectiveCameraJson["Location"] = FVectorToJson(Camera->Transform.Location);
+	PerspectiveCameraJson["Rotation"] = FRotatorToJson(Camera->Transform.Rotation);
+	PerspectiveCameraJson["FOV"] = Camera->mFovDegree;
+	PerspectiveCameraJson["Near"] = Camera->mNear;
+	PerspectiveCameraJson["Far"] = Camera->mFar;
+
+	const FString jsonString(sceneJson.dump(1, "  "));
 
 	fileManager.WriteStringToFile(
 		scenePath,
 		jsonString);
 }
 
-void FSceneManager::LoadScene(
-	const std::filesystem::path& scenePath,
-	const FFileManager& fileManager)
+void FSceneManager::LoadScene(FCamera* Camera, const std::filesystem::path& scenePath, const FFileManager& fileManager)
 {
-	const FString jsonString =
-		fileManager.ReadFileToString(scenePath);
+	const FString jsonString = fileManager.ReadFileToString(scenePath);
 
-	const json::JSON sceneJson =
-		json::JSON::Load(jsonString);
+	const json::JSON sceneJson = json::JSON::Load(jsonString);
 
-	if (!sceneJson.hasKey("NextUUID") ||
-		sceneJson.at("NextUUID").JSONType() !=
-		json::JSON::Class::Integral)
+	if (!sceneJson.hasKey("NextUUID") || sceneJson.at("NextUUID").JSONType() != json::JSON::Class::Integral)
 	{
-		throw std::runtime_error(
-			std::format(
-				"Scene file '{}' does not contain valid NextUUID data.",
-				scenePath.string()));
+		throw std::runtime_error(std::format("Scene file '{}' does not contain valid NextUUID data.", scenePath.string()));
 	}
 
-	if (!sceneJson.hasKey("World") ||
-		sceneJson.at("World").JSONType() !=
-		json::JSON::Class::Object)
+	if (!sceneJson.hasKey("World") || sceneJson.at("World").JSONType() != json::JSON::Class::Object)
 	{
-		throw std::runtime_error(
-			std::format(
-				"Scene file '{}' does not contain valid World data.",
-				scenePath.string()));
+		throw std::runtime_error(std::format("Scene file '{}' does not contain valid World data.", scenePath.string()));
 	}
 
-	const uint32 nextUUID =
-		sceneJson.at("NextUUID").ToInt();
+	const uint32 nextUUID = sceneJson.at("NextUUID").ToInt();
+	UEngineStatics::SetNextUUID(nextUUID);
 
-	const json::JSON worldJson =
-		sceneJson.at("World");
+	const json::JSON worldJson = sceneJson.at("World");
+	
+	UWorld* newWorld = FObjectFactory::LoadObject<UWorld>(worldJson);
 
-	UWorld* newWorld =
-		FObjectFactory::LoadObject<UWorld>(worldJson);
+	json::JSON PerspectiveCameraJson = sceneJson.at("PerspectiveCamera");
+	Camera->Transform.Location = FVectorFromJson(PerspectiveCameraJson.at("Location"));
+	Camera->Transform.Rotation = FRotatorFromJson(PerspectiveCameraJson.at("Rotation"));
+	Camera->mFovDegree = PerspectiveCameraJson.at("FOV").ToFloat();
+	Camera->mNear = PerspectiveCameraJson.at("Near").ToFloat();
+	Camera->mFar = PerspectiveCameraJson.at("Far").ToFloat();
 
 	if (newWorld == nullptr)
 	{
-		throw std::runtime_error(
-			std::format(
-				"Failed to deserialize world from '{}'.",
-				scenePath.string()));
+		throw std::runtime_error(std::format("Failed to deserialize world from '{}'.", scenePath.string()));
 	}
 
 	// 새 월드 생성이 성공한 경우에만 기존 월드를 교체한다.
 	delete mCurrentWorld;
 	mCurrentWorld = newWorld;
 
-	UEngineStatics::SetNextUUID(nextUUID);
 	ResetSelectedActor();
 }
 
