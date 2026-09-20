@@ -99,12 +99,43 @@ FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetN
 	: FStaticMeshAsset(InAssetID, InAssetName, InRenderer,
 		BuildFromSimpleVertices(InVertices, InVertexCount, nullptr, 0))
 {
+	Vertices.SetNum(InVertexCount);
+	std::memcpy(Vertices.Data(), InVertices, sizeof(FVertexSimple) * InVertexCount);
 }
 
 FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount)
 	: FStaticMeshAsset(InAssetID, InAssetName, InRenderer,
 		BuildFromSimpleVertices(InVertices, InVertexCount, InIndices, InIndexCount))
 {
+	Vertices.SetNum(InVertexCount);
+	std::memcpy(Vertices.Data(), InVertices, sizeof(FVertexSimple) * InVertexCount);
+
+	Indices.SetNum(InIndexCount);
+	std::memcpy(Indices.Data(), InIndices, sizeof(uint32) * InIndexCount);
+
+	FStaticMeshSection& Section = Sections.Emplace();
+	Section.FirstIndex = 0;
+	Section.IndexCount = InIndexCount;
+}
+
+FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMeshBuildData& InBuildData)
+	: FAsset(InAssetID, InAssetName, EAssetType::StaticMesh)
+	, VertexCount(static_cast<uint32>(InBuildData.Vertices.Num()))
+	, Sections(InBuildData.Sections)
+{
+	for (const FStaticMeshBuildVertex& Source : InBuildData.Vertices)
+	{
+		BoundingBox.ExpandToInclude(Source.Pos);
+	}
+	
+	VertexBuffer = InRenderer.CreateVertexBuffer(InBuildData.Vertices.Data(), VertexCount);
+
+	// Sections refer to offsets in the single cooked index stream.  Keep that
+	// stream in one GPU buffer so FirstIndex remains valid when rendering.
+	if (!InBuildData.Indices.IsEmpty())
+	{
+		IndexBuffer = InRenderer.CreateIndexBuffer(InBuildData.Indices.Data(), static_cast<uint32>(InBuildData.Indices.Num()));
+	}
 }
 
 TSharedPtr<FAsset> FStaticMeshAssetLoader::LoadAsset(const FGuid& AssetID, const FName& AssetName, FArchive& Ar)
@@ -397,24 +428,3 @@ void FMaterialAssetLoader::UnloadAsset(TSharedPtr<FAsset> Asset)
 	// NOTE: Nothing to do for now
 }
 
-FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMeshBuildData& InBuildData)
-	: FAsset(InAssetID, InAssetName, EAssetType::StaticMesh)
-	, VertexCount(static_cast<uint32>(InBuildData.Vertices.Num()))
-	, Sections(InBuildData.Sections)
-{
-	for (const FStaticMeshBuildVertex& Source : InBuildData.Vertices)
-	{
-		BoundingBox.ExpandToInclude(Source.Pos);
-	}
-
-	VertexBuffer = InRenderer.CreateVertexBuffer(InBuildData.Vertices.Data(), VertexCount);
-	// Sections refer to offsets in the single cooked index stream.  Keep that
-	// stream in one GPU buffer so FirstIndex remains valid when rendering.
-	if (!InBuildData.Indices.IsEmpty())
-	{
-		SubMeshIndexBuffers.Add(InRenderer.CreateIndexBuffer(
-			InBuildData.Indices.Data(),
-			static_cast<uint32>(InBuildData.Indices.Num())));
-		SubMeshIndexCounts.Add(static_cast<uint32>(InBuildData.Indices.Num()));
-	}
-}

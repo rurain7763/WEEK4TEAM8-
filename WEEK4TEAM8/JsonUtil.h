@@ -3,12 +3,15 @@
 #include "Json/json.hpp"
 #include "Vector.h"
 #include "Rotator.h"
+#include "FGuid.h"
 #include "enum.h"
 
 json::JSON FVectorToJson(const FVector& Vector);
 json::JSON FRotatorToJson(const FRotator& Rotator);
 json::JSON EPrimitiveToJson(const EPrimitive& Primitive);
+json::JSON FGuidToJson(const FGuid& Guid);
 
 FVector FVectorFromJson(const json::JSON& json);
 FRotator FRotatorFromJson(const json::JSON& json);
 EPrimitive EPrimitiveFromJson(const json::JSON& json);
+FGuid FGuidFromJson(const json::JSON& json);

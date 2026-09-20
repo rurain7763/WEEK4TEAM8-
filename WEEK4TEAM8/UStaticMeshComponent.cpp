@@ -11,16 +11,14 @@ void UStaticMeshComponent::Initialize(const FString& InAssetPathFileName, FVecto
     FRotator Rotation,  FVector Scale)
 {
     USceneComponent::Initialize(Location, Rotation, Scale);
-    //SetMeshAsset(InMeshAssetName);
-    StaticMesh = FObjManager::LoadObjStaticMesh(InAssetPathFileName);
 }
 
 void UStaticMeshComponent::SerializeClass(json::JSON& outJson) const
 {
     USceneComponent::SerializeClass(outJson);
 
-    //outJson["Properties"]["MeshAssetName"] = MeshAssetName.ToString().CStr();
-    outJson["Properties"]["ObjStaticMeshAsset"] = StaticMesh ? StaticMesh->GetAssetPathFileName().CStr() : "";
+	FGuid AssetID = mMeshAsset ? mMeshAsset->GetAssetID() : FGuid();
+	outJson["Properties"]["ObjStaticMeshAsset"] = FGuidToJson(AssetID);
 }
 
 void UStaticMeshComponent::DeserializeClass(const json::JSON& inJson)
@@ -40,18 +38,18 @@ void UStaticMeshComponent::DeserializeClass(const json::JSON& inJson)
     {
         throw std::runtime_error("UStaticMeshComponent: ObjStaticMeshAsset property is required");
     }
-    if (PropertiesJson.at("ObjStaticMeshAsset").JSONType() != json::JSON::Class::String)
+
+    if (PropertiesJson.at("ObjStaticMeshAsset").JSONType() != json::JSON::Class::Object)
     {
-        throw std::runtime_error("UStaticMeshComponent: ObjStaticMeshAsset property requires a string");
+        throw std::runtime_error("UStaticMeshComponent: ObjStaticMeshAsset property requires an object");
     }
 
-    const FString AssetPathFileName = PropertiesJson.at("ObjStaticMeshAsset").ToString();
-    SetStaticMesh(FObjManager::LoadObjStaticMesh(AssetPathFileName));
-}
+	FGuid AssetID = FGuidFromJson(PropertiesJson.at("ObjStaticMeshAsset"));
 
-void UStaticMeshComponent::SetStaticMesh(UStaticMesh* InStaticMesh)
-{
-    StaticMesh = InStaticMesh;
+	if (AssetID.IsValid())
+	{
+		mMeshAsset = FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(AssetID, true);
+	}
 }
 
 //void UStaticMeshComponent::SetMeshAsset(const FName& InMeshAssetName)
@@ -62,86 +60,41 @@ void UStaticMeshComponent::SetStaticMesh(UStaticMesh* InStaticMesh)
 
 void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
 {
-    if (!StaticMesh)
+    if (!mMeshAsset)
     {
         return;
     }
     
-    const TSharedPtr<FStaticMeshAsset>& MeshAsset = StaticMesh->GetStaticMeshAsset();
-
     if (!FShowFlags::Get().IsEnabled(EShowFlag::Primitive))
     {
         return;
     }
 
-    for (const FStaticMeshSection& Section : MeshAsset->GetSections())
+    for (const FStaticMeshSection& Section : mMeshAsset->GetSections())
     {
-        const FObjMaterialInfo* Material =  StaticMesh->FindMaterial(static_cast<std::string>(Section.MaterialName));
+		// TODO: SubMesh별로 마테리얼을 통해 다른 텍스처를 적용할 수 있도록 수정 필요
+		FRenderInfo RenderInfo;
+        RenderInfo.VertexBuffer = mMeshAsset->GetVertexBuffer();
+		RenderInfo.IndexBuffer = mMeshAsset->GetIndexBuffer();
+        RenderInfo.StartIndex = Section.FirstIndex;
+		RenderInfo.IndexCount = Section.IndexCount;
+		RenderInfo.Texture = mTextureAsset;
+		RenderInfo.UVOffset = mUVOffset;
+		RenderInfo.ePrimitive = EPrimitive::EP_StaticMesh;
+		RenderInfo.Model = GetTransformMatrix().MakeMatrix();
+		RenderInfo.Color = FVector4(1, 1, 1, 1);
+		RenderInfo.UseVertexColor = mTextureAsset == nullptr;
 
-        const FVector4 MaterialColor = Material
-            ? FVector4(
-                Material->DiffuseColor.x,
-                Material->DiffuseColor.y,
-                Material->DiffuseColor.z,
-                Material->Opacity)
-            : FVector4(1, 1, 1, 1);
-
-        TSharedPtr<FTexture2DAsset> SectionTexture = StaticMesh->GetDiffuseTexture(Section.MaterialName);
-        if (!SectionTexture)
-        {
-            SectionTexture = TextureAsset;
-        }
-
-        RenderCollector.RenderInfos.Add({
-            MeshAsset,
-            SectionTexture,
-            EPrimitive::EP_Cube,
-            GetTransformMatrix().MakeMatrix(),
-            { mOwner->UUID, mOwner->InternalIndex },
-            MaterialColor,
-            Section.FirstIndex,
-            Section.IndexCount,
-            false
-            });
+		RenderCollector.RenderInfos.Add(RenderInfo);
     }
 }
 
-void UStaticMeshComponent::GetRenderInfos(TArray<FRenderInfo>* OutRenderInfos) const
+FAABB UStaticMeshComponent::GetBoundingBox() const
 {
-    if (!OutRenderInfos || !StaticMesh)
-    {
-        return;
-    }
+	if (!mMeshAsset)
+	{
+		return FAABB();
+	}
 
-    const TSharedPtr<FStaticMeshAsset>& MeshAsset = StaticMesh->GetStaticMeshAsset();
-    for (const FStaticMeshSection& Section : MeshAsset->GetSections())
-    {
-        const FObjMaterialInfo* Material =  StaticMesh->FindMaterial(static_cast<std::string>(Section.MaterialName));
-
-        const FVector4 MaterialColor = Material
-            ? FVector4(
-                Material->DiffuseColor.x,
-                Material->DiffuseColor.y,
-                Material->DiffuseColor.z,
-                Material->Opacity)
-            : FVector4(1, 1, 1, 1);
-
-        TSharedPtr<FTexture2DAsset> SectionTexture = StaticMesh->GetDiffuseTexture(Section.MaterialName);
-        if (!SectionTexture)
-        {
-            SectionTexture = TextureAsset;
-        }
-
-        OutRenderInfos->Add({
-            MeshAsset,
-            SectionTexture,
-            EPrimitive::EP_Cube,
-            GetTransformMatrix().MakeMatrix(),
-            { mOwner->UUID, mOwner->InternalIndex },
-            MaterialColor,
-            Section.FirstIndex,
-            Section.IndexCount,
-            false
-            });
-    }
+	return mMeshAsset->GetLocalBoundingBox().ToWorld(GetTransformMatrix().MakeMatrix());
 }

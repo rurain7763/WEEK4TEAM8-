@@ -1,7 +1,9 @@
 #pragma once
 
 #include "Core.h"
+#include "Json/json.hpp"
 #include <random>
+#include <format>
 
 struct FGuid
 {
@@ -27,7 +29,7 @@ struct FGuid
 	{
 		return !(*this == Other);
 	}
-
+	
 	static FGuid NewGuid();
 };
 

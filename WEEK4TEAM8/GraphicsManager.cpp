@@ -91,35 +91,32 @@ void FGraphicsManager::Render()
 {
 	mRenderer->RenderLines(mRenderCollector.LineInfos);
 
-	for (const FRenderInfo& renderInfo : mRenderCollector.RenderInfos)
+	for (const FRenderInfo& RenderInfo : mRenderCollector.RenderInfos)
 	{
-		TSharedPtr<FStaticMeshAsset> Asset = renderInfo.StaticMesh;
-
-		if (!Asset)
+		if (RenderInfo.Texture)
 		{
-			continue;
-		}
+			mMeshPipeline->ClearShaderResource();
+			mMeshPipeline->ClearSamplerState();
 
-		mMeshPipeline->ClearShaderResource();
-		mMeshPipeline->ClearSamplerState();
+			FConstants Constants{};
+			Constants.Matrix = RenderInfo.Model;
+			Constants.Color = RenderInfo.Color;
+			Constants.UseVertexColor = RenderInfo.UseVertexColor;
+			Constants.HasTexture = RenderInfo.Texture ? 1 : 0;
+			Constants.UVOffset = RenderInfo.UVOffset;
 
-		FConstants Constants{};
-		Constants.Matrix = renderInfo.WorldTransformMatrix;
-		Constants.Color = renderInfo.Color;
-		Constants.UseVertexColor = renderInfo.UseVertexColor ? 1 : 0;
-		Constants.HasTexture = renderInfo.Texture ? 1 : 0;
+			mMeshPipeline->UpdateConstantBuffer(0, Constants);
+			mMeshPipeline->UpdateConstantBuffer(1, mViewUnifiedProjectionMatrix);
 
-		mMeshPipeline->UpdateConstantBuffer(0, Constants);
-		mMeshPipeline->UpdateConstantBuffer(1, mViewUnifiedProjectionMatrix);
-
-		if (renderInfo.Texture)
-		{
-			mMeshPipeline->SetShaderResource(0, renderInfo.Texture->GetSRV());
+			mMeshPipeline->SetShaderResource(0, RenderInfo.Texture->GetSRV());
 			mMeshPipeline->SetSamplerState(0, D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP);
-		}
 
-		const uint32 DrawIndexCount = renderInfo.IndexCount > 0 ? renderInfo.IndexCount : Asset->GetIndexCount(0);
-		mRenderer->RenderPrimitiveIndexed(mMeshPipeline, Asset->GetVertexBuffer(), Asset->GetIndexBuffer(0), DrawIndexCount, renderInfo.FirstIndex);
+			mRenderer->RenderPrimitiveIndexed(mMeshPipeline, RenderInfo);
+		}
+		else
+		{
+			mRenderer->RenderPrimitiveIndexed(RenderInfo);
+		}
 	}
 
 	for (const FRenderQuadInfo& QuadInfo : mRenderCollector.GetOpaqueQuadInfos())
@@ -220,17 +217,12 @@ FVector FGraphicsManager::GetPrimitiveHalfExtent(EPrimitive type)
 
 void FGraphicsManager::RenderHighLight(const FRenderInfo& RI)
 {
-	if (!RI.StaticMesh)
-	{
-		return;
-	}
-
 	const FVector Center = GetPrimitiveCenter(RI.ePrimitive);
 	const FVector HalfExtent = GetPrimitiveHalfExtent(RI.ePrimitive);
 
 	// 화면에서 OUTLINE_PIXELS 만큼 보이려면 이 깊이에서 월드로 얼마여야 하는지 환산한다.
 	// 깊이 d에서 뷰포트가 담는 월드 높이가 2*d*tan(fov/2) 이므로, 그걸 픽셀 수로 나누면 픽셀당 월드 크기다.
-	const FVector ObjectLocation = RI.WorldTransformMatrix.TransformPosition(Center);
+	const FVector ObjectLocation = RI.Model.TransformPosition(Center);
 	const float Depth = FVector::dot(ObjectLocation - mCameraLocation, mCameraForward);
 	const float TanHalfFov = tanf(FMath::DegreesToRadians(mCameraFovDegree * 0.5f));
 	const float effectiveDepth = FMath::Max(
@@ -240,28 +232,26 @@ void FGraphicsManager::RenderHighLight(const FRenderInfo& RI)
 	const float H = 2.0f * effectiveDepth * TanHalfFov;
 	const float WorldThickness = OUTLINE_PIXELS * H / mRenderer->GetHeight();
 
-
 	// 축마다 월드 공간에서 WorldThickness 만큼만 자라도록 배율을 따로 구한다.
 	const FVector WorldScale(
-		RI.WorldTransformMatrix.GetUnitAxis(EAxis::X).Length(),
-		RI.WorldTransformMatrix.GetUnitAxis(EAxis::Y).Length(),
-		RI.WorldTransformMatrix.GetUnitAxis(EAxis::Z).Length());
+		RI.Model.GetUnitAxis(EAxis::X).Length(),
+		RI.Model.GetUnitAxis(EAxis::Y).Length(),
+		RI.Model.GetUnitAxis(EAxis::Z).Length());
 
 	FVector OutlineScale = {
 		GetOutlineAxisScale(HalfExtent.x * WorldScale.x, WorldThickness),
 		GetOutlineAxisScale(HalfExtent.y * WorldScale.y, WorldThickness),
 		GetOutlineAxisScale(HalfExtent.z * WorldScale.z, WorldThickness) };
 
-
 	const FMatrix Outline = FMatrix::Translation(FVector(-Center.x, -Center.y, -Center.z))
 		* FMatrix::Scale(OutlineScale)
 		* FMatrix::Translation(Center)
-		* RI.WorldTransformMatrix;
+		* RI.Model;
 
 	mRenderer->RenderHighlight(
-		RI.StaticMesh->GetVertexBuffer(), RI.StaticMesh->GetVertexCount(),
-		RI.StaticMesh->GetIndexBuffer(0), RI.StaticMesh->GetIndexCount(0),
-		RI.WorldTransformMatrix,
+		RI.VertexBuffer, RI.VertexCount,
+		RI.IndexBuffer, RI.IndexCount,
+		RI.Model,
 		Outline,
 		FVector4(1.f, 0.6f, 0.f, 1.f));
 }

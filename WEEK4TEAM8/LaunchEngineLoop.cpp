@@ -108,24 +108,9 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 
 	mComponentVisualizerManager = new FComponentVisualizerManager();
 
-	char Value[64] = {};
-	GetPrivateProfileStringA("Grid", "Gap", "", Value, sizeof(Value), ".\\editor.ini");
-	int32 GridGap = 1;
-	sscanf_s(Value, "%d", &	GridGap);
-	mGraphicsManager->SetGridGap(GridGap);
-
 	mSceneManager->NewScene();
 
-	{
-		AActor* ObjActor = FObjectFactory::ConstructObject<AActor>();
-		UStaticMeshComponent* ObjComponent = 
-			FObjectFactory::ConstructObject<UStaticMeshComponent>(FString("Assets/Meshes/TestTriangle.obj"),
-			FVector(0, 0, 0), FRotator(0, 0, 0), FVector(1, 1, 1));
-
-
-		ObjActor->AddComponent(ObjComponent);
-		mSceneManager->GetCurrentWorld()->AddActor(ObjActor);
-	}
+	LoadEditorSettings();
 }
 
 void FEngineLoop::InitAssetManager()
@@ -134,12 +119,6 @@ void FEngineLoop::InitAssetManager()
 
 	URenderer* renderer = mGraphicsManager->GetRenderer();
 
-	FObjManager::Initialize(*renderer, *mFileManager);
-
-	FObjManager::LoadObjStaticMesh("Assets/Meshes/TestCube.obj");
-	FObjManager::LoadObjStaticMesh("Assets/Meshes/TestTriangle.obj");
-	FObjManager::LoadObjStaticMesh("Assets/Meshes/TestHexagonalPrism.obj");
-	
 	// Register built-in asset types
 	TSharedPtr<FStaticMeshAsset> cubeAsset = MakeShared<FStaticMeshAsset>(BuiltInAssetID::CubeMesh, FName("CubeMesh"), *renderer, Cube_vertices, sizeof(Cube_vertices) / sizeof(FVertexSimple), Cube_indices, sizeof(Cube_indices) / sizeof(uint32));
 	mAssetManager->RegisterAsset(cubeAsset);
@@ -288,26 +267,20 @@ void FEngineLoop::Tick(bool bPumpMessages)
 				if (PrimitiveComponent)
 				{
 					// 선택된 액터의 AABB를 화면에 표시
-					FMatrix WorldMatrix = Transform.MakeMatrix();
+					const FAABB& AABB = PrimitiveComponent->GetBoundingBox();
 
-					TSharedPtr<FStaticMeshAsset> MeshAsset = PrimitiveComponent->GetMesh();
-					if (!MeshAsset.get()) continue;
+					AABB.ForEachCornerLines([&RenderCollector](const FVector& Start, const FVector& End) {
+						FVector4 WorldStart = FVector4(Start, 1.f);
+						FVector4 WorldEnd = FVector4(End, 1.f);
 
-					const FAABB& AABB = MeshAsset->GetLocalBoundingBox().ToWorld(WorldMatrix);
+						FRenderLineInfo LineInfo;
+						LineInfo.Start = WorldStart.ToVec3();
+						LineInfo.End = WorldEnd.ToVec3();
+						LineInfo.Color = FVector4(1.f, 0.f, 0.f, 1.f); // 빨간색
+						LineInfo.Thickness = 5.0f;
 
-					AABB.ForEachCornerLines([&RenderCollector](const FVector& Start, const FVector& End)
-						{
-							FVector4 WorldStart = FVector4(Start, 1.f);
-							FVector4 WorldEnd = FVector4(End, 1.f);
-
-							FRenderLineInfo LineInfo;
-							LineInfo.Start = WorldStart.ToVec3();
-							LineInfo.End = WorldEnd.ToVec3();
-							LineInfo.Color = FVector4(1.f, 0.f, 0.f, 1.f); // 빨간색
-							LineInfo.Thickness = 5.0f;
-
-							RenderCollector.LineInfos.Add(LineInfo);
-						});
+						RenderCollector.LineInfos.Add(LineInfo);
+					});
 				}
 
 				// 선택된 액터의 컴포넌트 시각화
@@ -318,7 +291,7 @@ void FEngineLoop::Tick(bool bPumpMessages)
 				}
 			}
 
-			CurrentViewport->Client->mGizmo.Update(SelectedActor, CurrentViewport->Window->Rect, CurrentViewport->Client->IsActive(), ViewProjection);
+			CurrentViewport->Client->mGizmo.Tick(SelectedActor, CurrentViewport->Window->Rect, CurrentViewport->Client->IsActive(), ViewProjection);
 		}
 
 		//Render Threads
@@ -328,10 +301,10 @@ void FEngineLoop::Tick(bool bPumpMessages)
 			mGraphicsManager->Render();
 
 			//강조
-			if (mSceneManager->GetSelectedActor())
+			if (SelectedActor)
 			{
 				FRenderInfo clickedRenderInfo;
-				mSceneManager->GetSelectedActor()->GetFirstRenderInfo(clickedRenderInfo);
+				SelectedActor->GetFirstRenderInfo(clickedRenderInfo);
 				mGraphicsManager->RenderHighLight(clickedRenderInfo);
 			}
 
@@ -340,6 +313,7 @@ void FEngineLoop::Tick(bool bPumpMessages)
 	}
 
 	FGuiReference GuiReference;
+	GuiReference.EditorCamera = &mMainViewport.Client->GetCamera();
 	GuiReference.FrameTimer = FrameTimer;
 	GuiReference.GraphicsManager = mGraphicsManager;
 	GuiReference.ViewportClient = mMainViewport.Client.get();
@@ -381,19 +355,8 @@ void FEngineLoop::Tick(bool bPumpMessages)
 
 void FEngineLoop::End()
 {
-	const std::string Value = std::format("{:.6f}", mMainViewport.Client->GetCamera().Sensitivity);
+	SaveEditorSettings();
 
-	if (!WritePrivateProfileStringA("Camera", "Sensitivity", Value.c_str(), ".\\editor.ini"))
-	{
-		UE_LOG_ERROR("Failed to save camera sensitivity to editor.ini");
-	}
-
-	const std::string ValueGrid = std::format("{:6d}", mGraphicsManager->GetGridGap());
-
-	if (!WritePrivateProfileStringA("Grid", "Gap", ValueGrid.c_str(), ".\\editor.ini"))
-	{
-		UE_LOG_ERROR("Failed to save grid gap to editor.ini");
-	}
 	mSceneManager->DeleteScene();
 
 	ImGui_ImplDX11_Shutdown();
@@ -414,4 +377,66 @@ void FEngineLoop::End()
 	delete mFontManager;
 
 	delete mGraphicsManager;
+}
+
+void FEngineLoop::SaveEditorSettings()
+{
+	// Save camera sensitivity
+	const std::string Value = std::format("{:.6f}", mMainViewport.Client->GetCamera().Sensitivity);
+	if (!WritePrivateProfileStringA("Camera", "Sensitivity", Value.c_str(), ".\\editor.ini"))
+	{
+		UE_LOG_ERROR("Failed to save camera sensitivity to editor.ini");
+	}
+
+	// Save grid gap
+	const std::string ValueGrid = std::format("{:6d}", mGraphicsManager->GetGridGap());
+	if (!WritePrivateProfileStringA("Grid", "Gap", ValueGrid.c_str(), ".\\editor.ini"))
+	{
+		UE_LOG_ERROR("Failed to save grid gap to editor.ini");
+	}
+
+	// Save split infos
+	const std::string ValueH = std::format("{:.6f}", mEditorLayout.HSplitter->SplitterRatio);
+	if (!WritePrivateProfileStringA("Split", "HorizontalRatio", ValueH.c_str(), ".\\editor.ini"))
+	{
+		UE_LOG_ERROR("Failed to save horizontal split ratio to editor.ini");
+	}
+
+	const std::string ValueV = std::format("{:.6f}", mEditorLayout.VSplitter[0]->SplitterRatio);
+	if (!WritePrivateProfileStringA("Split", "VerticalRatio", ValueV.c_str(), ".\\editor.ini"))
+	{
+		UE_LOG_ERROR("Failed to save vertical split ratio to editor.ini");
+	}
+}
+
+void FEngineLoop::LoadEditorSettings()
+{
+	char Value[64] = {};
+
+	// Load camera sensitivity
+	GetPrivateProfileStringA("Camera", "Sensitivity", "", Value, sizeof(Value), ".\\editor.ini");
+
+	float Sensitivity = 1.0f;
+	sscanf_s(Value, "%f", &Sensitivity);
+	mMainViewport.Client->GetCamera().Sensitivity = Sensitivity;
+
+	// Load grid gap
+	GetPrivateProfileStringA("Grid", "Gap", "", Value, sizeof(Value), ".\\editor.ini");
+
+	int32 GridGap = 1;
+	sscanf_s(Value, "%d", &GridGap);
+	mGraphicsManager->SetGridGap(GridGap);
+
+	// Load split infos
+	GetPrivateProfileStringA("Split", "HorizontalRatio", "", Value, sizeof(Value), ".\\editor.ini");
+
+	float HorizontalRatio = 0.5f;
+	sscanf_s(Value, "%f", &HorizontalRatio);
+
+	GetPrivateProfileStringA("Split", "VerticalRatio", "", Value, sizeof(Value), ".\\editor.ini");
+
+	float VerticalRatio = 0.5f;
+	sscanf_s(Value, "%f", &VerticalRatio);
+	
+	mEditorLayout.SetSplitRatios(HorizontalRatio, VerticalRatio);
 }

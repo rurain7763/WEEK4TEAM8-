@@ -53,22 +53,26 @@ public:
 
 	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetVertexBuffer() const { return VertexBuffer; }
 	inline uint32 GetVertexCount() const { return VertexCount; }
-	inline uint32 GetSubMeshCount() const { return SubMeshIndexBuffers.Num(); }
-	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetIndexBuffer(uint32 SubMeshIndex) const { return SubMeshIndexBuffers[SubMeshIndex]; }
-	inline uint32 GetIndexCount(uint32 SubMeshIndex) const { return SubMeshIndexCounts[SubMeshIndex]; }
-	inline const TArray<Microsoft::WRL::ComPtr<ID3D11Buffer>>& GetSubMeshIndexBuffers() const { return SubMeshIndexBuffers; }
-	inline const TArray<uint32>& GetSubMeshIndexCounts() const { return SubMeshIndexCounts; }
+	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetIndexBuffer() const { return IndexBuffer; }
+	inline uint32 GetIndexCount() const { return IndexCount; }
+	inline uint32 GetSubMeshCount() const { return Sections.Num(); }
 	inline const FAABB& GetLocalBoundingBox() const { return BoundingBox; }
 	inline const TArray<FStaticMeshSection>& GetSections() const { return Sections; }
+	inline const TArray<FVertexSimple>& GetVertices() const { return Vertices; }
+	inline const TArray<uint32>& GetIndices() const { return Indices; }
 
 private:
 	Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer;
 	uint32 VertexCount;
 
-	TArray<Microsoft::WRL::ComPtr<ID3D11Buffer>> SubMeshIndexBuffers;
-	TArray<uint32> SubMeshIndexCounts;
+	Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer;
+	uint32 IndexCount;
 
 	FAABB BoundingBox;
+
+	TArray<FVertexSimple> Vertices;
+	TArray<uint32> Indices;
+
 	TArray<FStaticMeshSection> Sections;
 };
 

@@ -30,12 +30,6 @@ struct FClassInfo
 private:
 };
 
-struct FObjectID
-{
-	int32 UUID;
-	uint32 InternalIndex;
-};
-
 class UObject
 {
 public:

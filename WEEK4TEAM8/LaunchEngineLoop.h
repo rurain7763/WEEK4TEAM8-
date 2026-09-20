@@ -110,6 +110,9 @@ public:
 
 private:
 	void InitAssetManager();
+	
+	void SaveEditorSettings();
+	void LoadEditorSettings();
 
 private:
 	// Todo: Make as pointer
