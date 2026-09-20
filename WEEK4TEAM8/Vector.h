@@ -164,7 +164,12 @@ typedef struct FVector4
 	FVector4(float _x, float _y, float _z, float _w) : x(_x), y(_y), z(_z), w(_w) {}
 	FVector4(const FVector3& v, float _w) : x(v.x), y(v.y), z(v.z), w(_w) {}
 
-	const FVector4 operator-(const FVector4& Others) const
+	FVector4 operator+(const FVector4& Others) const
+	{
+		return FVector4(x + Others.x, y + Others.y, z + Others.z, w + Others.w);
+	}
+
+	FVector4 operator-(const FVector4& Others) const
 	{
 		return FVector4(x - Others.x, y - Others.y, z - Others.z, w - Others.w);
 	}

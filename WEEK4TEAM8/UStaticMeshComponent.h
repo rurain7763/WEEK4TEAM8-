@@ -9,11 +9,9 @@ class UStaticMeshComponent : public UPrimitiveComponent
 
 public:
 	UStaticMeshComponent() = default;
-	using UPrimitiveComponent::Initialize;
-    void Initialize(const FString& InAssetPathFileName, FVector Location,
-        FRotator Rotation, FVector Scale);
 
-    void InitializeFromStaticMesh(UStaticMesh* InStaticMesh, FVector Location, FRotator Rotation, FVector Scale);
+	using UPrimitiveComponent::Initialize;
+    void Initialize(const FString& InAssetPathFileName, FVector Location, FRotator Rotation, FVector Scale);
 
 	virtual ~UStaticMeshComponent() = default;
 
@@ -21,25 +19,49 @@ public:
 	virtual void DeserializeClass(const json::JSON& inJson) override;
 
     virtual void Render(FRenderCollector& RenderCollector) override;
-    virtual void GetRenderInfos(TArray<FRenderInfo>* OutRenderInfos) const override;
 
-    virtual bool RayCastComponent(const FPickingRay& PickingRay, float& OutHitT) const override;
+	FAABB GetBoundingBox() const override;
 
-    void SetStaticMesh(UStaticMesh* InStaticMesh);
-    void SetTexture(const TSharedPtr<FTexture2DAsset>& InTexture) { TextureAsset = InTexture; }
-    UStaticMesh* GetStaticMesh() { return StaticMesh; }
+	const TArray<FVertexSimple>& GetMeshVertices() const override
+	{
+		if (mMeshAsset)
+		{
+			return mMeshAsset->GetVertices();
+		}
 
-    void SetUseVertexColor(bool bInUseVertexColor) { bUseVertexColor = bInUseVertexColor; }
-    bool GetUseVertexColor() const { return bUseVertexColor; }
-    void SetColor(const FVector4& InColor) { Color = InColor; }
-    const FVector4& GetColor() const { return Color;  }
+		return UPrimitiveComponent::GetMeshVertices();
+	}
 
-    UStaticMesh* StaticMesh = nullptr;
-    TSharedPtr<FTexture2DAsset> TextureAsset;
+	const TArray<uint32>& GetMeshIndices() const override
+	{
+		if (mMeshAsset)
+		{
+			return mMeshAsset->GetIndices();
+		}
+
+		return UPrimitiveComponent::GetMeshIndices();
+	}
+
+	void SetUseVertexColor(bool bInUseVertexColor) { bUseVertexColor = bInUseVertexColor; }
+	bool GetUseVertexColor() const { return bUseVertexColor; }
+	void SetColor(const FVector4& InColor) { Color = InColor; }
+	const FVector4& GetColor() const { return Color; }
+
+	void SetMesh(const TSharedPtr<FStaticMeshAsset>& InMesh) { mMeshAsset = InMesh; }
+    inline TSharedPtr<FStaticMeshAsset> GetMesh() { return mMeshAsset; }
+    
+	void SetTexture(const TSharedPtr<FTexture2DAsset>& InTexture) { mTextureAsset = InTexture; }
+	inline TSharedPtr<FTexture2DAsset> GetTexture() { return mTextureAsset; }
+
+	FVector2 GetUVOffset() const { return mUVOffset; }
+	void SetUVOffset(const FVector2& InUVOffset) { mUVOffset = InUVOffset; }
 
 private:
-    bool bUseVertexColor = true;
-    FVector4 Color = FVector4(1.f, 1.f, 1.f, 1.f);
+	bool bUseVertexColor = true;
+	FVector4 Color = FVector4(1.f, 1.f, 1.f, 1.f);
+    TSharedPtr<FStaticMeshAsset> mMeshAsset;
+    TSharedPtr<FTexture2DAsset> mTextureAsset;
+	FVector2 mUVOffset = FVector2(0.f, 0.f);
 };
 
 

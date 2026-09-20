@@ -30,6 +30,15 @@ public:
 	void Prepare(const FCamera* Camera,float viewportWidth, float viewportHeight, const FViewport& viewport);
 	void GizmoPrepare();
 
+	// 표시 옵션은 FShowFlags가 들고 있다. 여기서 중계하지 않는다.
+#if 0
+	static FVector GetPrimitiveCenter(EPrimitive type);
+	static FVector GetPrimitiveHalfExtent(EPrimitive type);
+	void RenderHighLight(const FRenderInfo& RI);
+#else
+	void RenderHighLight(const TArray<UPrimitiveComponent*>& Primitives);
+#endif
+
 	void Render();
 
 	void Display();
@@ -58,12 +67,6 @@ public:
 	void DrawLine(const FVector& start, const FVector& end, const FVector4& color);
 	void FlushLines();
 
-	// 표시 옵션은 FShowFlags가 들고 있다. 여기서 중계하지 않는다.
-
-	static FVector GetPrimitiveCenter(EPrimitive type);
-	static FVector GetPrimitiveHalfExtent(EPrimitive type);
-	void RenderHighLight(const FRenderInfo& RI);
-
 	// Projection ratio smoothing
 	void StartProjectionTransition(bool orthographic);
 	bool IsOrthographicTarget() const;
@@ -74,6 +77,7 @@ public:
 
 	inline int32 GetGridGap() { return GridGap; }
 	void SetGridGap(int32 GridGap);
+
 private:
 	URenderer* mRenderer;
 	FMatrix mViewMatrix;
@@ -105,6 +109,11 @@ private:
 	bool mbProjectionTransitioning = false;
 
 	TSharedPtr<FRenderPipeline> mMeshPipeline;
+
+	TSharedPtr<FRenderPipeline> mHighlightMarkPipeline;
+	TSharedPtr<FRenderPipeline> mHighlightDrawPipeline;
+	TSharedPtr<FVertexBuffer> mHighlightVertexBuffer;
+	TSharedPtr<FIndexBuffer> mHighlightIndexBuffer;
 
 	FRenderCollector mRenderCollector;
 

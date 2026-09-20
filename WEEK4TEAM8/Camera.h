@@ -12,7 +12,6 @@ public:
 	}
 
 	FCamera(FTransform _FTransform) : Transform(_FTransform) {}
-	FTransform Transform;
 
 	FMatrix GetViewMatrix() const
 	{
@@ -173,6 +172,8 @@ public:
 	FVector GetForwardVector() const { return FMatrix::Rotate(Transform.Rotation).GetUnitAxis(EAxis::X); }
 	FVector GetRightVector()   const { return FMatrix::Rotate(Transform.Rotation).GetUnitAxis(EAxis::Y); }
 	FVector GetUpVector()      const { return FMatrix::Rotate(Transform.Rotation).GetUnitAxis(EAxis::Z); }
+
+	FTransform Transform;
 
 	float mAspect = 1.0f;
 	float mNear = 0.1f;
