@@ -60,6 +60,8 @@ FSceneManager::~FSceneManager()
 void FSceneManager::OnNewAssetFile(const FAssetFileHeader& Header, const std::filesystem::path& FilePath)
 {
 	FAssetManager& AssetManager = FAssetManager::Get();
+	FString CleanName = NormalizeAssetPath(FilePath);
+	FName AssetName(CleanName.c_str());
 
 	if (Header.AssetType == EAssetType::Texture2D)
 	{
@@ -70,7 +72,7 @@ void FSceneManager::OnNewAssetFile(const FAssetFileHeader& Header, const std::fi
 
 		FAssetManager::Get().RegisterAsset(
 		FGuid::NewGuid(),
-		FName(FilePath.stem().string()),
+		AssetName,
  		TextureLoader,
 		TextureSource
 		);
@@ -84,7 +86,7 @@ void FSceneManager::OnNewAssetFile(const FAssetFileHeader& Header, const std::fi
 
 		FAssetManager::Get().RegisterAsset(
 		FGuid::NewGuid(),
-		FName(FilePath.stem().string()),
+		AssetName,
  		MeshLoader,
 		MeshSource
 		);	 	

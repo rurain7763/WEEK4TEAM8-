@@ -8,6 +8,7 @@
 #include "FTexture2DImporter.h"
 #include "FStaticMeshImporter.h"
 #include "FLogManager.h"
+#include "FEditorIconUtils.hpp"
 
 struct FContentBrowserEventHandler
 {
@@ -62,6 +63,6 @@ private:
 	float DrawerHeight = 350.0f;
 	const float BottomBarHeight = 28.0f;
 
-	std::vector<FContentItem> CachedItems;
+	TArray<FContentItem> CachedItems;
 	void RefreshCache();
 };

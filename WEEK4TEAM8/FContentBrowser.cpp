@@ -105,12 +105,16 @@ void FContentBrowser::RenderDrawer()
 			FAssetFileHeader Header;
 			if (FNativeFileDialog::OpenFileDialog(CurrentDirectory, { FFileFilter{ L"Image Files", L"*.png;*.jpg;" } }, L"", TargetPath))
 			{
-				std::filesystem::path NewFilePath = TargetPath;
+				std::filesystem::path NewFilePath = CurrentDirectory / TargetPath.filename();
 				NewFilePath.replace_extension(".uasset");   // CurrentDirectory 대신 원본 옆에 저장
 
 				if (FTexture2DImporter::Import(TargetPath, NewFilePath, Header))
 				{
 					//NewAssetFiles.Emplace(FAssetFileEntry{ Header, NewFilePath });
+					if (EventHandler)
+					{
+						EventHandler->OnNewAssetFile(Header, NewFilePath);
+					}
 					RefreshCache();
 				}
 			}
@@ -123,12 +127,16 @@ void FContentBrowser::RenderDrawer()
 
 			if (FNativeFileDialog::OpenFileDialog(CurrentDirectory, { FFileFilter{ L"Obj Files", L"*.obj;" } }, L"", TargetPath))
 			{
-				std::filesystem::path NewFilePath = TargetPath;
+				std::filesystem::path NewFilePath = CurrentDirectory / TargetPath.filename();
 				NewFilePath.replace_extension(".uasset");   // CurrentDirectory 대신 원본 옆에 저장
 
 				if (FStaticMeshImporter::Import(TargetPath, NewFilePath, Header))
 				{
 					//NewAssetFiles.Emplace(FAssetFileEntry{ Header, NewFilePath });
+					if (EventHandler)
+					{
+						EventHandler->OnNewAssetFile(Header, NewFilePath);
+					}
 					RefreshCache();
 				}
 			}
@@ -195,17 +203,7 @@ void FContentBrowser::RenderDrawer()
 						DrawList->AddRectFilled(PMin, PMax, BgColor, 4.0f);
 					}
 
-					ImU32 TabColor = bActive ? 0xFF80C0E0 : (bHovered ? 0xFF99D0F0 : 0xFF70B0D0);
-					ImU32 BodyColor = bActive ? 0xFF90D0F8 : (bHovered ? 0xFFAAE0FF : 0xFF80C0E8);
-
-					ImVec2 TabMin = ImVec2(PMin.x + 8.0f, PMin.y + 12.0f);
-					ImVec2 TabMax = ImVec2(PMin.x + 36.0f, PMin.y + 24.0f);
-					DrawList->AddRectFilled(TabMin, TabMax, TabColor, 4.0f);
-
-					ImVec2 BodyMin = ImVec2(PMin.x + 8.0f, PMin.y + 20.0f);
-					ImVec2 BodyMax = ImVec2(PMax.x - 8.0f, PMax.y - 12.0f);
-					DrawList->AddRectFilled(BodyMin, BodyMax, BodyColor, 6.0f);
-					DrawList->AddRect(BodyMin, BodyMax, 0x55000000, 6.0f, 0, 1.5f);
+					FEditorIconUtils::DrawFolderIcon(PMin, PMax, DrawList, bHovered, bActive);
 
 					ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (TileWidth - ImGui::CalcTextSize("..").x) * 0.5f);
 					ImGui::TextUnformatted("..");
@@ -255,24 +253,15 @@ void FContentBrowser::RenderDrawer()
 					{
 						if (ImGui::IsItemClicked())
 						{
-							CurrentDirectory = Path;
+							std::filesystem::path NextDirectory = Path;
+							CurrentDirectory = NextDirectory;
 							RefreshCache();
 							ImGui::EndGroup();
 							ImGui::PopID();
 							break;
 						}
 
-						ImU32 TabColor = bActive ? 0xFF80C0E0 : (bHovered ? 0xFF99D0F0 : 0xFF70B0D0);
-						ImU32 BodyColor = bActive ? 0xFF90D0F8 : (bHovered ? 0xFFAAE0FF : 0xFF80C0E8);
-
-						ImVec2 TabMin = ImVec2(PMin.x + 8.0f, PMin.y + 12.0f);
-						ImVec2 TabMax = ImVec2(PMin.x + 36.0f, PMin.y + 24.0f);
-						DrawList->AddRectFilled(TabMin, TabMax, TabColor, 4.0f);
-
-						ImVec2 BodyMin = ImVec2(PMin.x + 8.0f, PMin.y + 20.0f);
-						ImVec2 BodyMax = ImVec2(PMax.x - 8.0f, PMax.y - 12.0f);
-						DrawList->AddRectFilled(BodyMin, BodyMax, BodyColor, 6.0f);
-						DrawList->AddRect(BodyMin, BodyMax, 0x55000000, 6.0f, 0, 1.5f);
+						FEditorIconUtils::DrawFolderIcon(PMin, PMax, DrawList, bHovered, bActive);
 					}
 					else
 					{
@@ -280,26 +269,7 @@ void FContentBrowser::RenderDrawer()
 						{
 						case EAssetType::StaticMesh:
 						{
-							ImVec2 Center = ImVec2((PMin.x + PMax.x) * 0.5f, (PMin.y + PMax.y) * 0.5f - 4.0f);
-							const float HalfSize = 16.0f;
-							const float Offset = 8.0f;
-
-							ImVec2 F_TL = ImVec2(Center.x - HalfSize, Center.y - HalfSize + Offset * 0.5f);
-							ImVec2 F_BR = ImVec2(Center.x + HalfSize - Offset, Center.y + HalfSize);
-							ImVec2 B_TL = ImVec2(F_TL.x + Offset, F_TL.y - Offset);
-							ImVec2 B_BR = ImVec2(F_BR.x + Offset, F_BR.y - Offset);
-
-							ImU32 CubeColor = bActive ? 0xFF00FFFF : (bHovered ? 0xFF66FFFF : 0xFF00D2D2);
-							ImU32 FillColor = (CubeColor & 0x00FFFFFF) | 0x22000000;
-
-							DrawList->AddRectFilled(F_TL, F_BR, FillColor);
-							DrawList->AddRect(F_TL, F_BR, CubeColor, 0.0f, 0, 1.5f);
-							DrawList->AddRect(B_TL, B_BR, CubeColor, 0.0f, 0, 1.5f);
-
-							DrawList->AddLine(F_TL, B_TL, CubeColor, 1.5f);
-							DrawList->AddLine(ImVec2(F_BR.x, F_TL.y), ImVec2(B_BR.x, B_TL.y), CubeColor, 1.5f);
-							DrawList->AddLine(ImVec2(F_TL.x, F_BR.y), ImVec2(B_TL.x, B_BR.y), CubeColor, 1.5f);
-							DrawList->AddLine(F_BR, B_BR, CubeColor, 1.5f);
+							FEditorIconUtils::DrawObjIcon(PMin, PMax, DrawList, bHovered, bActive);
 							break;
 						}
 						case EAssetType::Texture2D:
@@ -328,26 +298,12 @@ void FContentBrowser::RenderDrawer()
 						}
 						case EAssetType::Material:
 						{
-							ImVec2 Center = ImVec2((PMin.x + PMax.x) * 0.5f, (PMin.y + PMax.y) * 0.5f - 4.0f);
-							DrawList->AddCircleFilled(Center, 18.0f, 0xFF44AA44);
-							DrawList->AddCircle(Center, 18.0f, 0xFF88FF88, 0, 2.0f);
+							FEditorIconUtils::DrawMaterialIcon(PMin, PMax, DrawList, bHovered, bActive);
 							break;
 						}
 						default:
 						{
-							ImVec2 Center = ImVec2((PMin.x + PMax.x) * 0.5f, (PMin.y + PMax.y) * 0.5f - 4.0f);
-							const float HalfW = 14.0f, HalfH = 18.0f, Fold = 8.0f;
-							ImVec2 DocTL = ImVec2(Center.x - HalfW, Center.y - HalfH);
-							ImVec2 DocBR = ImVec2(Center.x + HalfW, Center.y + HalfH);
-
-							DrawList->AddRectFilled(DocTL, DocBR, 0xFFE0E0E0, 2.0f);
-							DrawList->AddRect(DocTL, DocBR, 0x88000000, 2.0f, 0, 1.2f);
-
-							ImVec2 FoldA = ImVec2(DocBR.x - Fold, DocTL.y);
-							ImVec2 FoldB = ImVec2(DocBR.x, DocTL.y + Fold);
-							ImVec2 FoldC = ImVec2(DocBR.x - Fold, DocTL.y + Fold);
-							DrawList->AddTriangleFilled(FoldA, FoldB, FoldC, 0xFFB0B0B0);
-							DrawList->AddTriangle(FoldA, FoldB, FoldC, 0x88000000, 1.0f);
+							FEditorIconUtils::DrawDocumentIcon(PMin, PMax, DrawList);
 							break;
 						}
 						}
@@ -507,7 +463,7 @@ void FContentBrowser::RenderFolderNode(const std::filesystem::path& DirectoryPat
 
 void FContentBrowser::RefreshCache()
 {
-	CachedItems.clear();
+	CachedItems.Empty();
 
 	try
 	{
@@ -541,7 +497,7 @@ void FContentBrowser::RefreshCache()
 				}
 			}
 
-			CachedItems.push_back(Item);
+			CachedItems.Add(Item);
 		}
 	}
 	catch (...) {}
