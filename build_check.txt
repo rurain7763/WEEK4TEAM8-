@@ -1,0 +1,1 @@
+﻿C:\Users\JUNGLE\Desktop\week04\WEEK4TEAM8-\WEEK4TEAM8\FArchive.h(76,17): error C2338: static assertion failed: 'Serializer not implemented for this type' [C:\Users\JUNGLE\Desktop\week04\WEEK4TEAM8-\WEEK4TEAM8\WEEK4TEAM8.vcxproj]

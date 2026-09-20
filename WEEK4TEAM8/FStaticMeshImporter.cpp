@@ -5,6 +5,8 @@
 #include "FGuid.h"
 #include "Serializers.h"
 #include "FStaticMeshBuilder.h"
+#include "FMaterialImporter.h"
+
 
 // .obj -> .uasset 변환
 bool FStaticMeshImporter::Import(const std::filesystem::path& InPath, const std::filesystem::path& OutPath, FAssetFileHeader& OutHead)
@@ -36,14 +38,23 @@ bool FStaticMeshImporter::Import(const std::filesystem::path& InPath, const std:
     OutHead.AssetType = EAssetType::StaticMesh;
     OutHead.AssetID = FGuid::NewGuid();
 
+    
     try
     {
         FWindowsBinWriter FileWriter(OutPath);
-    
+        
         FileWriter << OutHead;
         FileWriter << BuildData.Vertices;
         FileWriter << BuildData.Indices;
         FileWriter << BuildData.Sections;
+        
+        // FMeshDescription MeshDescription;
+        for (FObjMaterialInfo Material : ObjInfo.Materials)
+        {
+            std::filesystem::path MaterialPath = OutPath.parent_path() / (OutPath.stem().string() + "_" + Material.Name.CStr() + ".uasset");
+            FAssetFileHeader MaterialHeader;
+            FMaterialImporter::Import(Material, InPath.parent_path(), MaterialPath, MaterialHeader);
+        }
     }
     catch(const std::exception& e)
     {

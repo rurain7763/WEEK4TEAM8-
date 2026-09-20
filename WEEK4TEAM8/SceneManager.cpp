@@ -62,21 +62,10 @@ void FSceneManager::OnNewAssetFile(const FAssetFileHeader& Header, const std::fi
 	if (Header.AssetType == EAssetType::Texture2D)
 	{
 	
-		TSharedPtr<FTexture2DAssetLoader> TextureLoader =  MakeShared<FTexture2DAssetLoader>(*mRenderer);
-
-		std::optional<std::filesystem::path> NewTexturePath = 
-		FTexture2DImporter::GetorImport(FilePath);
-		
-		if (!NewTexturePath)
-		{
-			UE_LOG_ERROR("Failed to import texture: %s", FilePath.string().c_str());
-			return;
-		}
-
-		TSharedPtr<FFileAssetSource> TextureSource =
-			MakeShared<FFileAssetSource>(*NewTexturePath);
-
 		// Texture2D AssetLoader와 AssetSource를 생성하고 등록
+		TSharedPtr<FTexture2DAssetLoader> TextureLoader =  MakeShared<FTexture2DAssetLoader>(*mRenderer);
+		TSharedPtr<FFileAssetSource> TextureSource = MakeShared<FFileAssetSource>(FilePath);
+
 		FAssetManager::Get().RegisterAsset(
 		FGuid::NewGuid(),
 		FName(FilePath.stem().string()),
@@ -87,10 +76,10 @@ void FSceneManager::OnNewAssetFile(const FAssetFileHeader& Header, const std::fi
 	else if (Header.AssetType == EAssetType::StaticMesh)
 	{
 	
+		// StaticMesh AssetLoader와 AssetSource를 생성하고 등록
 		TSharedPtr<FStaticMeshAssetLoader> MeshLoader = MakeShared<FStaticMeshAssetLoader>(*mRenderer);
 		TSharedPtr<FFileAssetSource> MeshSource = MakeShared<FFileAssetSource>(FilePath);
 
-		// StaticMesh AssetLoader와 AssetSource를 생성하고 등록
 		FAssetManager::Get().RegisterAsset(
 		FGuid::NewGuid(),
 		FName(FilePath.stem().string()),
