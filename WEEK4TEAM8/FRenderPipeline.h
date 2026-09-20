@@ -26,7 +26,7 @@ public:
 	void SetRasterRizerState(D3D11_CULL_MODE CullMode, int32 DepthBias = 0, std::initializer_list<EViewModeIndex> ViewModes = { EViewModeIndex::VMI_Lit });
 	ID3D11RasterizerState* GetRasterizerState(EViewModeIndex ViewMode) const;
 	void SetDepthStencilState(bool bEnableDepthTest, bool bEnableDepthWrite);
-	void SetStencilState(bool bEnableDepthTest, bool bEnableDepthWrite, D3D11_COMPARISON_FUNC StencilFunc, D3D11_STENCIL_OP StencilPassOp, uint32 InStencilRef);
+	void SetDepthStencilState(bool bEnableDepthTest, bool bEnableDepthWrite, D3D11_COMPARISON_FUNC StencilFunc, D3D11_STENCIL_OP StencilPassOp);
 	void SetBlendState(ERenderBlendMode BlendMode);
 	void SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY Topology);
 	void SetShader(const FString& ShaderPath);
@@ -85,7 +85,6 @@ private:
 	static constexpr int32 ViewModeCount = static_cast<int32>(EViewModeIndex::VMI_Max);
 	ID3D11RasterizerState* RasterizerStates[ViewModeCount] = {};
 	ID3D11DepthStencilState* DepthStencilState = nullptr;
-	uint32 StencilRef = 0;
 	ID3D11InputLayout* InputLayout = nullptr;
 	ID3D11BlendState* BlendState = nullptr;
 	uint32 Stride = 0;

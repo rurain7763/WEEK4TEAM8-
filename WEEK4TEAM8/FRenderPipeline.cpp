@@ -126,15 +126,14 @@ ID3D11RasterizerState* FRenderPipeline::GetRasterizerState(EViewModeIndex ViewMo
 
 void FRenderPipeline::SetDepthStencilState(bool bEnableDepthTest, bool bEnableDepthWrite)
 {
-	FDepthStencilStateKey Key{ bEnableDepthTest, bEnableDepthWrite };
+	FDepthStencilStateKey Key{ bEnableDepthTest, bEnableDepthWrite, false, D3D11_COMPARISON_ALWAYS, D3D11_STENCIL_OP_KEEP };
 	DepthStencilState = DepthStencilStatePool->GetOrCreateDepthStencilState(Device, Key);
 }
 
-void FRenderPipeline::SetStencilState(bool bEnableDepthTest, bool bEnableDepthWrite, D3D11_COMPARISON_FUNC StencilFunc, D3D11_STENCIL_OP StencilPassOp, uint32 InStencilRef)
+void FRenderPipeline::SetDepthStencilState(bool bEnableDepthTest, bool bEnableDepthWrite, D3D11_COMPARISON_FUNC StencilFunc, D3D11_STENCIL_OP StencilPassOp)
 {
 	FDepthStencilStateKey Key{ bEnableDepthTest, bEnableDepthWrite, true, StencilFunc, StencilPassOp };
 	DepthStencilState = DepthStencilStatePool->GetOrCreateDepthStencilState(Device, Key);
-	StencilRef = InStencilRef;
 }
 
 void FRenderPipeline::SetBlendState(ERenderBlendMode BlendMode)

@@ -120,7 +120,6 @@ FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetN
 
 FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMeshBuildData& InBuildData)
 	: FAsset(InAssetID, InAssetName, EAssetType::StaticMesh)
-	, VertexCount(static_cast<uint32>(InBuildData.Vertices.Num()))
 	, Sections(InBuildData.Sections)
 {
 	for (const FStaticMeshBuildVertex& Source : InBuildData.Vertices)
@@ -128,7 +127,7 @@ FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetN
 		BoundingBox.ExpandToInclude(Source.Pos);
 	}
 	
-	VertexBuffer = InRenderer.CreateVertexBuffer(InBuildData.Vertices.Data(), VertexCount);
+	VertexBuffer = InRenderer.CreateVertexBuffer(InBuildData.Vertices.Data(), static_cast<uint32>(InBuildData.Vertices.Num()));
 
 	// Sections refer to offsets in the single cooked index stream.  Keep that
 	// stream in one GPU buffer so FirstIndex remains valid when rendering.
@@ -136,6 +135,26 @@ FStaticMeshAsset::FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetN
 	{
 		IndexBuffer = InRenderer.CreateIndexBuffer(InBuildData.Indices.Data(), static_cast<uint32>(InBuildData.Indices.Num()));
 	}
+}
+
+Microsoft::WRL::ComPtr<ID3D11Buffer> FStaticMeshAsset::GetVertexBuffer() const
+{
+	return VertexBuffer->Buffer;
+}
+
+uint32 FStaticMeshAsset::GetVertexCount() const
+{
+	return VertexBuffer->VertexCount;
+}
+
+Microsoft::WRL::ComPtr<ID3D11Buffer> FStaticMeshAsset::GetIndexBuffer() const
+{
+	return IndexBuffer->Buffer;
+}
+
+uint32 FStaticMeshAsset::GetIndexCount() const
+{
+	return IndexBuffer->IndexCount;
 }
 
 TSharedPtr<FAsset> FStaticMeshAssetLoader::LoadAsset(const FGuid& AssetID, const FName& AssetName, FArchive& Ar)

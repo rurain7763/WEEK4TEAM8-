@@ -51,7 +51,7 @@ void URenderer::Create(HWND hWindow)
 
 	StencilMarkPipeline = CreateRenderPipeline();
 	StencilMarkPipeline->SetRasterRizerState(D3D11_CULL_BACK);
-	StencilMarkPipeline->SetStencilState(false, false, D3D11_COMPARISON_ALWAYS, D3D11_STENCIL_OP_REPLACE, 1);
+	StencilMarkPipeline->SetDepthStencilState(false, false, D3D11_COMPARISON_ALWAYS, D3D11_STENCIL_OP_REPLACE);
 	StencilMarkPipeline->SetBlendState(ERenderBlendMode::NoColorWrite);
 	StencilMarkPipeline->SetShader("Assets/Shaders/StaticMeshShader.hlsl");
 	StencilMarkPipeline->AddConstantBuffer<FConstants>();
@@ -60,7 +60,7 @@ void URenderer::Create(HWND hWindow)
 
 	StencilOutlinePipeline = CreateRenderPipeline();
 	StencilOutlinePipeline->SetRasterRizerState(D3D11_CULL_BACK);
-	StencilOutlinePipeline->SetStencilState(false, false, D3D11_COMPARISON_NOT_EQUAL, D3D11_STENCIL_OP_KEEP, 1);
+	StencilOutlinePipeline->SetDepthStencilState(false, false, D3D11_COMPARISON_NOT_EQUAL, D3D11_STENCIL_OP_KEEP);
 	StencilOutlinePipeline->SetBlendState(ERenderBlendMode::Opaque);
 	StencilOutlinePipeline->SetShader("Assets/Shaders/StaticMeshShader.hlsl");
 	StencilOutlinePipeline->AddConstantBuffer<FConstants>();
@@ -295,19 +295,30 @@ void URenderer::Prepare(const FMatrix& ViewProjectionMatrix)
 	QuadPipeline->UpdateConstantBuffer(1, ViewProjectionMatrix);
 }
 
-Microsoft::WRL::ComPtr<ID3D11Buffer> URenderer::CreateIndexBuffer(const uint32* Indices, UINT Count)
+TSharedPtr<FIndexBuffer> URenderer::CreateIndexBuffer(const uint32* Indices, UINT Count, D3D11_USAGE Usage)
 {
 	D3D11_BUFFER_DESC IndexBufferDesc = {};
 	IndexBufferDesc.ByteWidth = Count * sizeof(uint32);
-	IndexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
+	IndexBufferDesc.Usage = Usage;
 	IndexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 
-	D3D11_SUBRESOURCE_DATA IndexBufferSRD = { Indices };
-	
 	Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer;
-	Device->CreateBuffer(&IndexBufferDesc, &IndexBufferSRD, IndexBuffer.GetAddressOf());
+	if (Indices)
+	{
+		D3D11_SUBRESOURCE_DATA IndexBufferSRD = { Indices };
+		Device->CreateBuffer(&IndexBufferDesc, &IndexBufferSRD, IndexBuffer.GetAddressOf());
+	}
+	else
+	{
+		Device->CreateBuffer(&IndexBufferDesc, nullptr, IndexBuffer.GetAddressOf());
+	}
 
-	return IndexBuffer;
+	TSharedPtr<FIndexBuffer> IndexBufferPtr = MakeShared<FIndexBuffer>();
+	IndexBufferPtr->DeviceContext = DeviceContext;
+	IndexBufferPtr->Buffer = IndexBuffer;
+	IndexBufferPtr->IndexCount = Count;
+
+	return IndexBufferPtr;
 }
 
 Microsoft::WRL::ComPtr<ID3D11Texture2D> URenderer::CreateTexture2D(const D3D11_TEXTURE2D_DESC& Desc, const void* InitialData)
@@ -404,12 +415,12 @@ TSharedPtr<FDepthStencil> URenderer::CreateDepthStencil(uint32 Width, uint32 Hei
 	return DepthStencil;
 }
 
-void URenderer::BindPipeline(const TSharedPtr<FRenderPipeline>& Pipeline) const
+void URenderer::BindPipeline(const TSharedPtr<FRenderPipeline>& Pipeline, uint32 StencilRef) const
 {
 	// RSSetState는 드로우 직전마다 갈아치워지므로 뷰 모드 선택은 여기서 해야 한다.
 	// 이 모드를 지원하지 않는 파이프라인(2D/기즈모)은 Lit 상태로 폴백된다.
 	DeviceContext->RSSetState(Pipeline->GetRasterizerState(ViewModeIndex));
-	DeviceContext->OMSetDepthStencilState(Pipeline->DepthStencilState, Pipeline->StencilRef);
+	DeviceContext->OMSetDepthStencilState(Pipeline->DepthStencilState, StencilRef);
 	DeviceContext->OMSetBlendState(Pipeline->BlendState, nullptr, 0xffffffff);
 	DeviceContext->IASetPrimitiveTopology(Pipeline->PrimitiveTopology);
 	DeviceContext->IASetInputLayout(Pipeline->InputLayout);
@@ -528,7 +539,7 @@ void URenderer::RenderHighlight(Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffe
 
 	if (bIndexed)
 	{
-		RenderPrimitiveIndexed(StencilMarkPipeline, RenderInfo);
+		RenderPrimitiveIndexed(StencilMarkPipeline, RenderInfo, 1);
 	}
 	else
 	{
@@ -545,7 +556,7 @@ void URenderer::RenderHighlight(Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffe
 	StencilOutlinePipeline->UpdateConstantBuffer(0, OutlineConstants);
 	if (bIndexed)
 	{
-		RenderPrimitiveIndexed(StencilOutlinePipeline, RenderInfo);
+		RenderPrimitiveIndexed(StencilOutlinePipeline, RenderInfo, 1);
 	}
 	else
 	{
@@ -617,7 +628,7 @@ void URenderer::RenderPrimitive(Microsoft::WRL::ComPtr<ID3D11Buffer> Buffer, UIN
 	RenderPrimitive(PrimitivePipeline, Buffer, NumVertices);
 }
 
-void URenderer::RenderPrimitiveIndexed(const FRenderInfo& RenderInfo) const
+void URenderer::RenderPrimitiveIndexed(const FRenderInfo& RenderInfo, uint32 StencilRef) const
 {
 	FConstants Constants;
 	Constants.Matrix = RenderInfo.Model;
@@ -628,12 +639,12 @@ void URenderer::RenderPrimitiveIndexed(const FRenderInfo& RenderInfo) const
 
 	PrimitivePipeline->UpdateConstantBuffer(0, Constants);
 
-	RenderPrimitiveIndexed(PrimitivePipeline, RenderInfo);
+	RenderPrimitiveIndexed(PrimitivePipeline, RenderInfo, StencilRef);
 }
 
-void URenderer::RenderPrimitiveIndexed(const TSharedPtr<FRenderPipeline>& Pipeline, const FRenderInfo& RenderInfo) const
+void URenderer::RenderPrimitiveIndexed(const TSharedPtr<FRenderPipeline>& Pipeline, const FRenderInfo& RenderInfo, uint32 StencilRef) const
 {
-	BindPipeline(Pipeline);
+	BindPipeline(Pipeline, StencilRef);
 
 	UINT Offset = 0;
 	DeviceContext->IASetVertexBuffers(0, 1, RenderInfo.VertexBuffer.GetAddressOf(), &Pipeline->Stride, &Offset);

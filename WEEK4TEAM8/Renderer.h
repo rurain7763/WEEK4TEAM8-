@@ -305,6 +305,59 @@ struct FDepthStencil
 	UINT Height;
 };
 
+struct FVertexBuffer
+{
+	ID3D11DeviceContext* DeviceContext;
+	
+	Microsoft::WRL::ComPtr<ID3D11Buffer> Buffer;
+	UINT VertexSize;
+	UINT VertexCount;
+
+	void UpdateVertexBuffer(const void* Data, uint32 DataCount)
+	{
+		D3D11_BOX Box = {};
+		Box.left = 0;
+		Box.right = DataCount * VertexSize;
+		Box.top = 0;
+		Box.bottom = 1;
+		Box.front = 0;
+		Box.back = 1;
+
+		DeviceContext->UpdateSubresource(Buffer.Get(), 0, &Box, Data, 0, 0);
+	}
+
+	inline uint32 GetBufferSize() const
+	{
+		return VertexSize * VertexCount;
+	}
+};
+
+struct FIndexBuffer
+{
+	ID3D11DeviceContext* DeviceContext;
+	
+	Microsoft::WRL::ComPtr<ID3D11Buffer> Buffer;
+	UINT IndexCount;
+
+	void UpdateIndexBuffer(const void* Data, uint32 DataCount)
+	{
+		D3D11_BOX Box = {};
+		Box.left = 0;
+		Box.right = DataCount * sizeof(uint32);
+		Box.top = 0;
+		Box.bottom = 1;
+		Box.front = 0;
+		Box.back = 1;
+
+		DeviceContext->UpdateSubresource(Buffer.Get(), 0, &Box, Data, 0, 0);
+	}
+
+	inline uint32 GetBufferSize() const
+	{
+		return sizeof(uint32) * IndexCount;
+	}
+};
+
 struct FStructuredBuffer
 {
 	ID3D11DeviceContext* DeviceContext;
@@ -347,22 +400,34 @@ public:
 #endif
 
 	template <typename T>
-	Microsoft::WRL::ComPtr<ID3D11Buffer> CreateVertexBuffer(T* Vertices, UINT Count)
+	TSharedPtr<FVertexBuffer> CreateVertexBuffer(T* Vertices, UINT Count, D3D11_USAGE Usage = D3D11_USAGE_IMMUTABLE)
 	{
 		D3D11_BUFFER_DESC VertexBufferDesc = {};
 		VertexBufferDesc.ByteWidth = sizeof(T) * Count;
-		VertexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
+		VertexBufferDesc.Usage = Usage;
 		VertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 
-		D3D11_SUBRESOURCE_DATA VertexBufferSRD = { Vertices };
-
 		Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer;
-		Device->CreateBuffer(&VertexBufferDesc, &VertexBufferSRD, VertexBuffer.GetAddressOf());
+		if (Vertices)
+		{
+			D3D11_SUBRESOURCE_DATA VertexBufferSRD = { Vertices };
+			Device->CreateBuffer(&VertexBufferDesc, &VertexBufferSRD, VertexBuffer.GetAddressOf());
+		}
+		else
+		{
+			Device->CreateBuffer(&VertexBufferDesc, nullptr, VertexBuffer.GetAddressOf());
+		}
 
-		return VertexBuffer;
+		TSharedPtr<FVertexBuffer> VertexBufferPtr = MakeShared<FVertexBuffer>();
+		VertexBufferPtr->DeviceContext = DeviceContext;
+		VertexBufferPtr->Buffer = VertexBuffer;
+		VertexBufferPtr->VertexSize = sizeof(T);
+		VertexBufferPtr->VertexCount = Count;
+
+		return VertexBufferPtr;
 	}
 
-	Microsoft::WRL::ComPtr<ID3D11Buffer> CreateIndexBuffer(const uint32* Indices, UINT Count);
+	TSharedPtr<FIndexBuffer> CreateIndexBuffer(const uint32* Indices, UINT Count, D3D11_USAGE Usage = D3D11_USAGE_IMMUTABLE);
 
 	Microsoft::WRL::ComPtr<ID3D11Texture2D> CreateTexture2D(const D3D11_TEXTURE2D_DESC& Desc, const void* InitialData = nullptr);
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> CreateShaderResourceView(Microsoft::WRL::ComPtr<ID3D11Texture2D> Texture, const D3D11_SHADER_RESOURCE_VIEW_DESC* Desc = nullptr);
@@ -410,8 +475,6 @@ public:
 
 	TSharedPtr<FRenderPipeline> CreateRenderPipeline();
 
-	void BindPipeline(const TSharedPtr<FRenderPipeline>& Pipeline) const;
-
 	void BindFrameBuffer();
 	void BindRenderTarget(const TSharedPtr<FRenderTarget2D>& RenderTarget, const TSharedPtr<FDepthStencil>& DepthStencil, bool bClear = true);
 
@@ -424,8 +487,8 @@ public:
 	void RenderPrimitive(const TSharedPtr<FRenderPipeline>& Pipeline, Microsoft::WRL::ComPtr<ID3D11Buffer> Buffer, UINT NumVertices) const;
 	void RenderPrimitive(Microsoft::WRL::ComPtr<ID3D11Buffer> Buffer, UINT NumVertices, const FMatrix& Model) const;
 	void RenderPrimitive(Microsoft::WRL::ComPtr<ID3D11Buffer> Buffer, UINT NumVertices, const FMatrix& Model, const FVector4& Color) const;
-	void RenderPrimitiveIndexed(const FRenderInfo& RenderInfo) const;
-	void RenderPrimitiveIndexed(const TSharedPtr<FRenderPipeline>& Pipeline, const FRenderInfo& RenderInfo) const;
+	void RenderPrimitiveIndexed(const FRenderInfo& RenderInfo, uint32 StencilRef = 0) const;
+	void RenderPrimitiveIndexed(const TSharedPtr<FRenderPipeline>& Pipeline, const FRenderInfo& RenderInfo, uint32 StencilRef = 0) const;
 
 	void RenderLine2D(const FVector2& Start, const FVector2& End, const FVector4& Color, float Thickness = 1.0f) const;
 	void RenderCircle2D(const FVector2& Center, const FVector4& Color, float Radius = 1.0f) const;
@@ -456,6 +519,8 @@ private:
 	void ReleaseFrameBuffer();
 
 	void CreateDepthStencilBuffer();
+
+	void BindPipeline(const TSharedPtr<FRenderPipeline>& Pipeline, uint32 StencilRef = 0) const;
 
 private:
     ID3D11Device* Device = nullptr;

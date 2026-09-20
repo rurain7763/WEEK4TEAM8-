@@ -305,7 +305,7 @@ void FEngineLoop::Tick(bool bPumpMessages)
 			{
 				FRenderInfo clickedRenderInfo;
 				SelectedActor->GetFirstRenderInfo(clickedRenderInfo);
-				mGraphicsManager->RenderHighLight(clickedRenderInfo);
+				// mGraphicsManager->RenderHighLight(clickedRenderInfo);
 			}
 
 			CurrentViewport->Client->mGizmo.Render(SelectedActor, CurrentViewport->Client->mCamera.Transform.Location, ViewProjection);

@@ -19,6 +19,8 @@
 class FFontManager;
 class URenderer;
 class FAssetManager;
+struct FVertexBuffer;
+struct FIndexBuffer;
 
 namespace BuiltInAssetID
 {
@@ -51,10 +53,10 @@ public:
 	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount);
 	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMeshBuildData& InBuildData);
 
-	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetVertexBuffer() const { return VertexBuffer; }
-	inline uint32 GetVertexCount() const { return VertexCount; }
-	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetIndexBuffer() const { return IndexBuffer; }
-	inline uint32 GetIndexCount() const { return IndexCount; }
+	Microsoft::WRL::ComPtr<ID3D11Buffer> GetVertexBuffer() const;
+	uint32 GetVertexCount() const;
+	Microsoft::WRL::ComPtr<ID3D11Buffer> GetIndexBuffer() const;
+	uint32 GetIndexCount() const;
 	inline uint32 GetSubMeshCount() const { return Sections.Num(); }
 	inline const FAABB& GetLocalBoundingBox() const { return BoundingBox; }
 	inline const TArray<FStaticMeshSection>& GetSections() const { return Sections; }
@@ -62,11 +64,9 @@ public:
 	inline const TArray<uint32>& GetIndices() const { return Indices; }
 
 private:
-	Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer;
-	uint32 VertexCount;
-
-	Microsoft::WRL::ComPtr<ID3D11Buffer> IndexBuffer;
-	uint32 IndexCount;
+	TSharedPtr<FVertexBuffer> VertexBuffer;
+	
+	TSharedPtr<FIndexBuffer> IndexBuffer;
 
 	FAABB BoundingBox;
 
