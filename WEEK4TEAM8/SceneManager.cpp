@@ -826,47 +826,29 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 
 					ImGui::EndCombo();
 				}
-							TArray<FAssetMetaInfo> materialMetaInfos;
-			guiReference.AssetManager->ForEachMetaInfo([&materialMetaInfos](const FAssetMetaInfo& metaInfo) {
-				if (metaInfo.AssetType != EAssetType::Material) return;
-				materialMetaInfos.Add(metaInfo);
-			});
+
+				TArray<FAssetMetaInfo> materialMetaInfos;
+				guiReference.AssetManager->ForEachMetaInfo([&materialMetaInfos](const FAssetMetaInfo& metaInfo) {
+					if (metaInfo.AssetType != EAssetType::Material) return;
+					materialMetaInfos.Add(metaInfo);
+				});
 			
-			// 현재 가진 Material이 있으면 그것을, 없으면 None을 콤보박스 이름으로
-			TSharedPtr<FMaterialAsset> currentMaterial = StaticMeshComponent->GetMaterial();
-			FString currentMaterialName = currentMaterial ? currentMaterial->GetAssetName().ToString() : "None";
+				// 현재 가진 Material이 있으면 그것을, 없으면 None을 콤보박스 이름으로
+				TSharedPtr<FMaterialAsset> currentMaterial = StaticMeshComponent->GetMaterial();
+				FString currentMaterialName = currentMaterial ? currentMaterial->GetAssetName().ToString() : "None";
 
-			if (ImGui::BeginCombo("Material", currentMaterialName.CStr()))
-			{
-				for (const FAssetMetaInfo& metaInfo : materialMetaInfos)
+				if (ImGui::BeginCombo("Material", currentMaterialName.CStr()))
 				{
-					bool isSelected = (currentMaterialName == metaInfo.AssetName.ToString());
-					if (ImGui::Selectable(metaInfo.AssetName.ToString().CStr(), isSelected))
+					for (const FAssetMetaInfo& metaInfo : materialMetaInfos)
 					{
-						TSharedPtr<FMaterialAsset> materialAsset =
-							guiReference.AssetManager->GetAssetAs<FMaterialAsset>(metaInfo.AssetID, true);
-						StaticMeshComponent->SetMaterial(materialAsset);
-					}
-					if (isSelected) ImGui::SetItemDefaultFocus();
-				}
-				ImGui::EndCombo();
-			}
-		}
-
-				const FString CurrentTexturePath = CurrentTexture ? CurrentTexture->GetAssetName().ToString() : "None";
-				if (ImGui::BeginCombo("Texture", CurrentTexturePath.CStr()))
-				{
-					for (const FString& assetName : TextureAssetNames)
-					{
-						bool isSelected = (CurrentTexturePath == assetName);
-						if (ImGui::Selectable(assetName.CStr(), isSelected))
+						bool isSelected = (currentMaterialName == metaInfo.AssetName.ToString());
+						if (ImGui::Selectable(metaInfo.AssetName.ToString().CStr(), isSelected))
 						{
-							StaticMeshComponent->SetTexture(guiReference.AssetManager->GetAssetAs<FTexture2DAsset>(FName(assetName), true));
+							TSharedPtr<FMaterialAsset> materialAsset =
+								guiReference.AssetManager->GetAssetAs<FMaterialAsset>(metaInfo.AssetID, true);
+							StaticMeshComponent->SetMaterial(materialAsset);
 						}
-						if (isSelected)
-						{
-							ImGui::SetItemDefaultFocus();
-						}
+						if (isSelected) ImGui::SetItemDefaultFocus();
 					}
 					ImGui::EndCombo();
 				}

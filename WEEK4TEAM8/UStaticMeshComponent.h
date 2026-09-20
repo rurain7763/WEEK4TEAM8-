@@ -41,9 +41,6 @@ public:
 
 		return UPrimitiveComponent::GetMeshIndices();
 	}
-    virtual void GetRenderInfos(TArray<FRenderInfo>* OutRenderInfos) const override;
-
-    virtual bool RayCastComponent(const FPickingRay& PickingRay, float& OutHitT) const override;
 
     void SetStaticMesh(UStaticMesh* InStaticMesh);
     // void SetTexture(const TSharedPtr<FTexture2DAsset>& InTexture) { TextureAsset = InTexture; }
