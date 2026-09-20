@@ -59,38 +59,14 @@ void FSceneManager::OnNewAssetFile(const FAssetFileHeader& Header, const std::fi
 {
 	FAssetManager& AssetManager = FAssetManager::Get();
 
-	if (Header.AssetType == EAssetType::Texture2D)
+	if (Header.AssetType == EAssetType::Texture2D ||
+		Header.AssetType == EAssetType::Material ||
+		Header.AssetType == EAssetType::StaticMesh)
 	{
-	
-		// Texture2D AssetLoader와 AssetSource를 생성하고 등록
-		TSharedPtr<FTexture2DAssetLoader> TextureLoader =  MakeShared<FTexture2DAssetLoader>(*mRenderer);
-		TSharedPtr<FFileAssetSource> TextureSource = MakeShared<FFileAssetSource>(FilePath);
-
-		/*FAssetManager::Get().RegisterAsset(
-		FName(FilePath.string()),
- 		TextureLoader,
-		TextureSource
-		);*/
 		FAssetManager::Get().ScanDirectory(
 			FilePath.parent_path(),
 			*mRenderer);
 	}
-	else if (Header.AssetType == EAssetType::StaticMesh)
-	{
-	
-		// StaticMesh AssetLoader와 AssetSource를 생성하고 등록
-		/*TSharedPtr<FStaticMeshAssetLoader> MeshLoader = MakeShared<FStaticMeshAssetLoader>(*mRenderer);
-		TSharedPtr<FFileAssetSource> MeshSource = MakeShared<FFileAssetSource>(FilePath)*/;
-
-		/*FAssetManager::Get().RegisterAsset(
-		FName(FilePath.string()),
- 		MeshLoader,
-		MeshSource*/
-		
-		FAssetManager::Get().ScanDirectory(
-			FilePath.parent_path(),
-			*mRenderer);
-	}	
 	else
 	{
 		UE_LOG_ERROR("Unsupported asset type");
@@ -316,7 +292,8 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 		"GizmoArrow", 
 		"Circle",
 		"SpotLight",
-		"Explosion"
+		"Explosion",
+		"StaticMesh"
 	};
 
 	int32 ActorTypeIndex = static_cast<int32>(mGuiInputField.PrimitiveType);
@@ -324,6 +301,23 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	if (ImGui::Combo("Actor Type", &ActorTypeIndex, ActorTypeNames, IM_ARRAYSIZE(ActorTypeNames)))
 	{
 		mGuiInputField.PrimitiveType = static_cast<EPrimitive>(ActorTypeIndex);
+	}
+
+	const char* CurrentMeshName = mGuiInputField.SelectedStaticMesh
+    ? mGuiInputField.SelectedStaticMesh->GetAssetPathFileName().CStr()
+    : "None";
+
+	if (ImGui::BeginCombo("Static Mesh", CurrentMeshName))
+	{
+    for (TObjectIterator<UStaticMesh> It; It; ++It)
+    {
+        UStaticMesh* Candidate = *It;
+        if (ImGui::Selectable(Candidate->GetAssetPathFileName().CStr()))
+        {
+            mGuiInputField.SelectedStaticMesh = Candidate; // SetStaticMesh 대신 스테이징
+        }
+    }
+    ImGui::EndCombo();
 	}
 	if (ImGui::Button("Spawn"))
 	{
@@ -833,20 +827,28 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 					ImGui::EndCombo();
 				}
 
-				const FString CurrentTexturePath = CurrentTexture ? CurrentTexture->GetAssetName().ToString() : "None";
-				if (ImGui::BeginCombo("Texture", CurrentTexturePath.CStr()))
+				TArray<FAssetMetaInfo> materialMetaInfos;
+				guiReference.AssetManager->ForEachMetaInfo([&materialMetaInfos](const FAssetMetaInfo& metaInfo) {
+					if (metaInfo.AssetType != EAssetType::Material) return;
+					materialMetaInfos.Add(metaInfo);
+				});
+			
+				// 현재 가진 Material이 있으면 그것을, 없으면 None을 콤보박스 이름으로
+				TSharedPtr<FMaterialAsset> currentMaterial = StaticMeshComponent->GetMaterial();
+				FString currentMaterialName = currentMaterial ? currentMaterial->GetAssetName().ToString() : "None";
+
+				if (ImGui::BeginCombo("Material", currentMaterialName.CStr()))
 				{
-					for (const FString& assetName : TextureAssetNames)
+					for (const FAssetMetaInfo& metaInfo : materialMetaInfos)
 					{
-						bool isSelected = (CurrentTexturePath == assetName);
-						if (ImGui::Selectable(assetName.CStr(), isSelected))
+						bool isSelected = (currentMaterialName == metaInfo.AssetName.ToString());
+						if (ImGui::Selectable(metaInfo.AssetName.ToString().CStr(), isSelected))
 						{
-							StaticMeshComponent->SetTexture(guiReference.AssetManager->GetAssetAs<FTexture2DAsset>(FName(assetName), true));
+							TSharedPtr<FMaterialAsset> materialAsset =
+								guiReference.AssetManager->GetAssetAs<FMaterialAsset>(metaInfo.AssetID, true);
+							StaticMeshComponent->SetMaterial(materialAsset);
 						}
-						if (isSelected)
-						{
-							ImGui::SetItemDefaultFocus();
-						}
+						if (isSelected) ImGui::SetItemDefaultFocus();
 					}
 					ImGui::EndCombo();
 				}

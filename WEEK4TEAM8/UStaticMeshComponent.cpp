@@ -7,6 +7,7 @@
 #include "JsonUtil.h"
 #include "FObjManager.h"
 #include "EngineMathLibrary.h"
+#include "FLogManager.h"
 
 
 void UStaticMeshComponent::Initialize(const FString& InAssetPathFileName, FVector Location,
@@ -77,6 +78,7 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
         const FStaticMeshSection& Section = mMeshAsset->GetSections()[SectionIndex];
         TSharedPtr<FMaterialAsset> Material = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
 
+        // 콤보에서 고른 게 있으면 그 material 적용, 없으면 기존 material 사용
         const FVector4 MaterialColor = Material
             ? FVector4(
                 Material->GetDiffuseColor().x,
