@@ -67,14 +67,18 @@ UStaticMesh* FObjManager::LoadObjStaticMesh(const FString& FilePath)
             continue;
         }
 
-        const std::filesystem::path TexturePath = ObjDirectory / Material.DiffuseTexturePath.CStr();
-		const FString TexturePathString = FString(TexturePath.string());
-        const FName TextureAssetName(TexturePathString);
+        // weakly_canonica : 절대경로 만들고 /.. 같은 거 정리해줌 (canonical과 달리 파일 없어도 동작함)
+        const std::filesystem::path TexturePath = std::filesystem::weakly_canonical(ObjDirectory / Material.DiffuseTexturePath.CStr());
+		std::filesystem::path ExpectedUAssetPath = TexturePath;
+        ExpectedUAssetPath.replace_extension(".uasset");
+
+        // 캐시 체크용 이름, 미리 계산
+        const FName TextureAssetName(ExpectedUAssetPath.string());
+        
+        const FString TexturePathString = FString(TexturePath.string());
 
         TSharedPtr<FTexture2DAsset> Texture =
-            FAssetManager::Get().GetAssetAs<FTexture2DAsset>(
-                TextureAssetName,
-                true);
+            FAssetManager::Get().GetAssetAs<FTexture2DAsset>(TextureAssetName, true);
 
         if (!Texture)
         {
