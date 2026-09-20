@@ -127,6 +127,7 @@ void FEngineLoop::InitAssetManager()
 	URenderer* renderer = mGraphicsManager->GetRenderer();
 
 	FObjManager::Initialize(*renderer, *mFileManager);
+	FAssetManager::Get().ScanDirectory("Assets", *renderer);
 
 	FObjManager::LoadObjStaticMesh("Assets/Meshes/TestCube.obj");
 	FObjManager::LoadObjStaticMesh("Assets/Meshes/TestTriangle.obj");

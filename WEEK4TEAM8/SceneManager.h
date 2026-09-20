@@ -18,6 +18,7 @@ class FFrameTimer;
 class FEditorViewportClient;
 class FGraphicsManager;
 class UWorld;
+class URenderer;
 struct FViewport;
 struct FEditorLayout;
 struct FEditorViewport;
@@ -102,6 +103,7 @@ private:
 	FGuiInputField mGuiInputField;
 	FContentBrowser mContentBrowser;
 	FObjViewer mObjViewer;
+	URenderer* mRenderer = nullptr;
 
 	void updateControlPanelGUI(const FGuiReference& guiReference);
 
