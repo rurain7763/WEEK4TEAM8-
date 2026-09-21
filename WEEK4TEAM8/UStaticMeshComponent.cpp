@@ -76,7 +76,8 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
     for (int32 SectionIndex = 0; SectionIndex < mMeshAsset->GetSections().Num(); ++SectionIndex)
     {
         const FStaticMeshSection& Section = mMeshAsset->GetSections()[SectionIndex];
-        TSharedPtr<FMaterialAsset> Material = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
+
+        TSharedPtr<FMaterialAsset> Material = mMaterialAssets[SectionIndex];
 
         // 콤보에서 고른 게 있으면 그 material 적용, 없으면 기존 material 사용
         const FVector4 MaterialColor = Material
