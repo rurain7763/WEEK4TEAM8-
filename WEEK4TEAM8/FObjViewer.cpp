@@ -15,7 +15,6 @@
 #include "UStaticMesh.h"
 #include "FObjManager.h"
 #include "Assets.h"
-#include "FTexture2DImporter.h"
 
 void FObjViewer::Initialize(FSceneManager& InSceneManager, URenderer& Renderer, FFileManager& InFileManager)
 {
@@ -34,7 +33,6 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 		const auto& meshAsset = mViewerComponent->GetMesh();
 
 		ImGui::Text("Vertices: %u", meshAsset->GetVertices().Num());
-		//ImGui::Text("Indices: %u", meshAsset->GetCpuIndices().Num());
 		ImGui::Text("Triangles: %u", meshAsset->GetIndices().Num() / 3);
 	}
 
@@ -191,9 +189,9 @@ void FObjViewer::OpenObj(const std::filesystem::path& FilePath)
 		return;
 	}
 
-	if (!mRenderer || !RegisterObjMaterialAssets(FilePath, Payload))
+	if (!mRenderer || !BuildRuntimeObjMaterials(FilePath, Payload))
 	{
-		UE_LOG_ERROR("Failed to register OBJ material assets: %s", FilePath.string().c_str());
+		UE_LOG_ERROR("Failed to build OBJ material assets: %s", FilePath.string().c_str());
 		return;
 	}
 
@@ -233,45 +231,79 @@ void FObjViewer::OpenObj(const std::filesystem::path& FilePath)
 	mSceneManager->GetCurrentWorld()->AddActor(mViewerActor);
 }
 
-bool FObjViewer::RegisterObjMaterialAssets(const std::filesystem::path& ObjPath, const FStaticMeshPayload& Payload)
+bool FObjViewer::BuildRuntimeObjMaterials(const std::filesystem::path& ObjPath, FStaticMeshPayload& Payload)
 {
 	const std::filesystem::path ObjDirectory = ObjPath.parent_path();
-	const std::string MeshName = ObjPath.stem().string();
 
 	for (const FObjMaterialInfo& Material : Payload.Materials)
 	{
-		const std::filesystem::path MaterialPath =
-			ObjDirectory / (MeshName + "_" + Material.Name.CStr() + ".uasset");
-
-		if (!std::filesystem::exists(MaterialPath))
-		{
-			UE_LOG_ERROR("Material asset was not created: %s", MaterialPath.string().c_str());
-			return false;
-		}
+		FGuid DiffuseTextureID;
 
 		if (Material.DiffuseTexturePath.Len() != 0)
 		{
 			const std::filesystem::path TexturePath = std::filesystem::weakly_canonical(
 				ObjDirectory / Material.DiffuseTexturePath.CStr());
-			const std::optional<std::filesystem::path> TextureAssetPath =
-				FTexture2DImporter::GetorImport(TexturePath);
 
-			if (!TextureAssetPath)
+			const FName TextureAssetName(TexturePath.string());
+
+			TSharedPtr<FTexture2DAsset> TextureAsset =
+				FAssetManager::Get().GetAssetAs<FTexture2DAsset>(TextureAssetName, true);
+
+			if (!TextureAsset)
 			{
-				UE_LOG_ERROR("Failed to import diffuse texture: %s", TexturePath.string().c_str());
-				return false;
+				FImagePayload ImagePayload;
+				if (!FImageFileIO::Load(TexturePath, ImagePayload))
+				{
+					UE_LOG_ERROR("Failed to load diffuse texture: %s", TexturePath.string().c_str());
+					return false;
+				}
+
+				D3D11_TEXTURE2D_DESC TextureDesc = {};
+				TextureDesc.Width = static_cast<uint32>(ImagePayload.Width);
+				TextureDesc.Height = static_cast<uint32>(ImagePayload.Height);
+				TextureDesc.MipLevels = 1;
+				TextureDesc.ArraySize = 1;
+				TextureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+				TextureDesc.SampleDesc.Count = 1;
+				TextureDesc.Usage = D3D11_USAGE_IMMUTABLE;
+				TextureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+				auto Texture = mRenderer->CreateTexture2D(TextureDesc, ImagePayload.ImageData.Data());
+				auto SRV = mRenderer->CreateShaderResourceView(Texture);
+				TextureAsset = MakeShared<FTexture2DAsset>(
+					FGuid::NewGuid(), TextureAssetName, Texture, SRV);
+				FAssetManager::Get().RegisterAsset(TextureAsset);
 			}
 
-			FAssetManager::Get().RegisterAsset(
-				FName(TextureAssetPath->string()),
-				MakeShared<FTexture2DAssetLoader>(*mRenderer),
-				MakeShared<FFileAssetSource>(*TextureAssetPath));
+			DiffuseTextureID = TextureAsset->GetAssetID();
 		}
 
-		FAssetManager::Get().RegisterAsset(
-			FName(MaterialPath.string()),
-			MakeShared<FMaterialAssetLoader>(),
-			MakeShared<FFileAssetSource>(MaterialPath));
+		const FName MaterialAssetName(ObjPath.string() + "::" + Material.Name.CStr());
+		TSharedPtr<FMaterialAsset> MaterialAsset =
+			FAssetManager::Get().GetAssetAs<FMaterialAsset>(MaterialAssetName, true);
+
+		if (!MaterialAsset)
+		{
+			MaterialAsset = MakeShared<FMaterialAsset>(
+				FGuid::NewGuid(),
+				MaterialAssetName,
+				Material.DiffuseColor,
+				Material.DiffuseColor,
+				FVector(0.0f),
+				DiffuseTextureID,
+				FGuid(),
+				FGuid(),
+				Material.Opacity);
+			FAssetManager::Get().RegisterAsset(MaterialAsset);
+		}
+
+		for (FStaticMeshSection& Section : Payload.BuildData.Sections)
+		{
+			if (Section.MaterialName == Material.Name)
+			{
+				Section.MaterialAssetID = MaterialAsset->GetAssetID();
+			}
+		}
 	}
 
 	return true;

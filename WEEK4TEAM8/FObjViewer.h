@@ -31,5 +31,5 @@ private:
     UStaticMeshComponent* mViewerComponent = nullptr;  
     URenderer* mRenderer = nullptr;
 
-    bool RegisterObjMaterialAssets(const std::filesystem::path& ObjPath, const FStaticMeshPayload& Payload);
+    bool BuildRuntimeObjMaterials(const std::filesystem::path& ObjPath, FStaticMeshPayload& Payload);
 };

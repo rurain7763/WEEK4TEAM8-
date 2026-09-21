@@ -85,7 +85,6 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
         const FStaticMeshSection& Section = mMeshAsset->GetSections()[SectionIndex];
         TSharedPtr<FMaterialAsset> Material = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
 
-        // 콤보에서 고른 게 있으면 그 material 적용, 없으면 기존 material 사용
         const FVector4 MaterialColor = Material
             ? FVector4(
                 Material->GetDiffuseColor().x,
@@ -96,14 +95,10 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
 
         TSharedPtr<FTexture2DAsset> SectionTexture = Material ? Material->GetDiffuseTexture() : nullptr;
 
-        // OBJ 직접 로드 경로는 FObjManager가 UStaticMesh에 보관한
-        // material-name 기반 diffuse texture를 fallback으로 사용한다.
         if (!SectionTexture && StaticMesh)
         {
             SectionTexture = StaticMesh->GetDiffuseTexture(Section.MaterialName);
         }
-
-        // Component에서 명시적으로 지정한 texture는 최종 fallback이다.
         if (!SectionTexture)
         {
             SectionTexture = mTextureAsset;
