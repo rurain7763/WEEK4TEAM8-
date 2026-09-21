@@ -339,14 +339,29 @@ void ConsoleWindow::ExecCommand(const char* command_line)
 	}
 	else if (Stricmp(command_line, "STAT FPS") == 0)
 	{
+		if (bShowStatFPS)
+		{
+			bShowStatFPS = false;
+			return;
+		}
 		bShowStatFPS = true;
 	}
 	else if (Stricmp(command_line, "STAT MEMORY") == 0)
 	{
+		if (bShowStatMemory)
+		{
+			bShowStatMemory = false;
+			return;
+		}
 		bShowStatMemory = true;
 	}
 	else if (Stricmp(command_line, "STAT RENDER") == 0)
 	{
+		if (bShowStatRender)
+		{
+			bShowStatRender = false;
+			return;
+		}
 		bShowStatRender = true;
 	}
 	else if (Stricmp(command_line, "STAT ALL") == 0)

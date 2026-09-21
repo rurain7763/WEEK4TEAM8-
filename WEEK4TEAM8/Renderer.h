@@ -493,8 +493,8 @@ public:
 	FORCEINLINE TSharedPtr<FRenderTarget2D> GetBindedRenderTarget() const { return BindedRenderTarget; }
 	FORCEINLINE TSharedPtr<FDepthStencil> GetBindedDepthStencil() const { return BindedDepthStencil; }
 
-	mutable UINT DrawCallCount = 0;
-	UINT GetDrawCallCount() const { return DrawCallCount; }
+	mutable uint64 DrawCallCount = 0;
+	uint64 GetDrawCallCount() const { return DrawCallCount; }
 private:
 	void CreateDeviceAndSwapChain(HWND hWindow);
 	void ReleaseDeviceAndSwapChain();
