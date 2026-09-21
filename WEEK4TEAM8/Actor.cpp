@@ -3,13 +3,14 @@
 #include "RenderInfo.h"
 #include "SceneComponent.h"
 #include "UTextComponent.h"
+#include "ObjectFactory.h"
 #include <format>
 
 AActor::~AActor()
 {
 	for (UActorComponent* removeComponent : mComponents)
 	{
-		delete removeComponent;
+		FObjectFactory::DestroyObject(removeComponent);
 	}
 }
 
@@ -50,7 +51,7 @@ void AActor::DeserializeClass(const json::JSON& inJson)
 
 	if (!propertiesJson.hasKey("mComponents") || propertiesJson.at("mComponents").JSONType() != json::JSON::Class::Array)
 	{
-		throw std::runtime_error(std::format("{}: mComponents requires an array", GetRuntimeClass()->Name));
+		throw std::runtime_error(std::format("{}: mComponents requires an array", GetClass()->Name));
 	}
 
 	const json::JSON& componentsJson = propertiesJson.at("mComponents");
@@ -59,14 +60,14 @@ void AActor::DeserializeClass(const json::JSON& inJson)
 	{
 		if (!componentJson.hasKey("ClassName") || componentJson.at("ClassName").JSONType() != json::JSON::Class::String)
 		{
-			throw std::runtime_error(std::format("{}: ClassName requires a string", GetRuntimeClass()->Name));
+			throw std::runtime_error(std::format("{}: ClassName requires a string", GetClass()->Name));
 		}
 		FString className(componentJson.at("ClassName").ToString());
 
 		const FClassInfo* classInfo = FObjectFactory::GetClassInfoByName(className);
 		if (!classInfo)
 		{
-			throw std::runtime_error(std::format("{}: Unknown class name: {}", GetRuntimeClass()->Name, className));
+			throw std::runtime_error(std::format("{}: Unknown class name: {}", GetClass()->Name, className));
 		}
 		UActorComponent* component = static_cast<UActorComponent*>(FObjectFactory::LoadObject(classInfo, componentJson));
 		AddComponent(component);
@@ -74,7 +75,7 @@ void AActor::DeserializeClass(const json::JSON& inJson)
 
 	if (!propertiesJson.hasKey("mRootComponentUUID") || propertiesJson.at("mRootComponentUUID").JSONType() != json::JSON::Class::Integral)
 	{
-		throw std::runtime_error(std::format("{}: mRootComponentUUID requires an integral", GetRuntimeClass()->Name));
+		throw std::runtime_error(std::format("{}: mRootComponentUUID requires an integral", GetClass()->Name));
 	}
 	int32 rootComponentUUID = propertiesJson.at("mRootComponentUUID").ToInt();
 	if (rootComponentUUID == -1)
@@ -86,7 +87,7 @@ void AActor::DeserializeClass(const json::JSON& inJson)
 		int32 rootComponentIndex = getComponentIndex(rootComponentUUID);
 		if (rootComponentIndex == -1)
 		{
-			throw std::runtime_error(std::format("{}: Invalid root component UUID: {}", GetRuntimeClass()->Name, rootComponentUUID));
+			throw std::runtime_error(std::format("{}: Invalid root component UUID: {}", GetClass()->Name, rootComponentUUID));
 		}
 		mRootComponent = static_cast<USceneComponent*>(mComponents[rootComponentIndex]);
 	}

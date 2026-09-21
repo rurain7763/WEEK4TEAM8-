@@ -31,7 +31,6 @@
 #include "Assets.h"
 #include "UTextComponent.h"
 #include "ShowFlags.h"
-#include "TObjectIterator.h"
 #include "UStaticMeshComponent.h"
 #include "LaunchEngineLoop.h"
 #include "FAssetManager.h"
@@ -52,7 +51,7 @@ FSceneManager::FSceneManager()
 
 FSceneManager::~FSceneManager()
 {
-	delete mCurrentWorld;
+	FObjectFactory::DestroyObject(mCurrentWorld);
 }
 
 void FSceneManager::OnNewAssetFile(const FAssetFileHeader& Header, const std::filesystem::path& FilePath)
@@ -306,18 +305,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 		? mGuiInputField.SelectedStaticMesh->GetAssetPathFileName().CStr()
 		: "None";
 
-	if (ImGui::BeginCombo("Static Mesh", CurrentMeshName))
-	{
-		for (TObjectIterator<UStaticMesh> It; It; ++It)
-		{
-			UStaticMesh* Candidate = *It;
-			if (ImGui::Selectable(Candidate->GetAssetPathFileName().CStr()))
-			{
-				mGuiInputField.SelectedStaticMesh = Candidate; // SetStaticMesh 대신 스테이징
-			}
-		}
-		ImGui::EndCombo();
-	}
 	if (ImGui::Button("Spawn"))
 	{
 		for (int32 i = 0; i < mGuiInputField.SpawnCount; ++i)
@@ -353,6 +340,14 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 			else if (strcmp(ActorTypeName, "SpotLight") == 0)
 			{
 				NewActor = FObjectFactory::ConstructObject<ASpotLight>();
+			}
+			else if (strcmp(ActorTypeName, "StaticMesh") == 0)
+			{
+				NewActor = FObjectFactory::ConstructObject<AActor>();
+
+				UStaticMeshComponent* MeshComponent = FObjectFactory::ConstructObject<UStaticMeshComponent>(FVector(0, 0, 0), FRotator(0, 0, 0), FVector(1, 1, 1));
+
+				NewActor->AddRootSceneComponent(MeshComponent);
 			}
 			else
 			{
@@ -627,6 +622,16 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	// 스플릿 뷰포트 여부를 GUI에서 설정할 수 있도록 체크박스 추가
 	ImGui::Checkbox("Split Viewport", &guiReference.EditorLayout->bIsSplitView);
 
+	// NOTE: 이테레이터 테스트 코드
+	int32 count = 0;
+	for (TObjectIterator<AActor> it(true); it; ++it)
+	{
+		AActor* actor = *it;
+		count++;
+	}
+
+	ImGui::Text("Actor Count: %d", count);
+
 	ImGui::End();
 }
 
@@ -682,7 +687,7 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 
 		for (UActorComponent* component : mSelectedActor->GetComponents())
 		{
-			ImGui::SeparatorText(component->GetRuntimeClass()->Name.c_str());
+			ImGui::SeparatorText(component->GetClass()->Name.c_str());
 
 			if (component->IsA<UText3DComponent>())
 			{
@@ -950,7 +955,7 @@ void FSceneManager::updateObjectListPanelGUI(const FGuiReference& guiReference)
 
 				if (ImGui::BeginChild("ObjectFrame", ImVec2(0, 0), ImGuiChildFlags_FrameStyle | ImGuiChildFlags_AutoResizeY))
 				{
-					ImGui::Text("Class: %s", object->GetRuntimeClass()->Name.CStr());
+					ImGui::Text("Class: %s", object->GetClass()->Name.CStr());
 					ImGui::Text("UUID: %d", object->UUID);
 
 					// TODO: Move implement delete to where?
@@ -997,7 +1002,7 @@ void FSceneManager::updateObjectListPanelGUI(const FGuiReference& guiReference)
 				assert(mCurrentWorld != nullptr);
 				mCurrentWorld->RemoveActor(deleteActor->UUID);
 
-				delete deleteActor;
+				FObjectFactory::DestroyObject(deleteActor);
 			}
 		}
 		ImGui::EndChild();
@@ -1010,7 +1015,7 @@ void FSceneManager::NewScene()
 {
 	if (mCurrentWorld != nullptr)
 	{
-		delete mCurrentWorld;
+		FObjectFactory::DestroyObject(mCurrentWorld);
 	}
 
 	//UEngineStatics::SetNextUUID(0);
@@ -1022,7 +1027,7 @@ void FSceneManager::DeleteScene()
 {
 	if (mCurrentWorld != nullptr)
 	{
-		delete mCurrentWorld;
+		FObjectFactory::DestroyObject(mCurrentWorld);
 		mCurrentWorld = nullptr;
 	}
 	ResetSelectedActor();
@@ -1122,7 +1127,7 @@ void FSceneManager::LoadScene(FCamera* Camera, const std::filesystem::path& scen
 	}
 
 	// 새 월드 생성이 성공한 경우에만 기존 월드를 교체한다.
-	delete mCurrentWorld;
+	FObjectFactory::DestroyObject(mCurrentWorld);
 	mCurrentWorld = newWorld;
 
 	ResetSelectedActor();

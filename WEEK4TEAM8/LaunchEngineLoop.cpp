@@ -281,7 +281,7 @@ void FEngineLoop::Tick(bool bPumpMessages)
 				}
 
 				// 선택된 액터의 컴포넌트 시각화
-				FComponentVisualizer* Visualizer = mComponentVisualizerManager->FindVisualizer(Component->GetRuntimeClass());
+				FComponentVisualizer* Visualizer = mComponentVisualizerManager->FindVisualizer(Component->GetClass());
 				if (Visualizer)
 				{
 					Visualizer->VisualizeComponent(Component, RenderCollector);

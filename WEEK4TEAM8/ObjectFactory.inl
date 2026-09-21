@@ -2,18 +2,7 @@
 	requires std::derived_from<TObject, UObject>
 TObject* FObjectFactory::ConstructUnInitializedObject()
 {
-	const FClassInfo* classInfo = TObject::GetClass();
-	if (!classInfo || !classInfo->Constructor)
-	{
-		return nullptr;
-	}
-
-	TObject* instance = static_cast<TObject*>(classInfo->CreateInstance());
-	if (instance)
-	{
-		instance->mClassInfo = classInfo;
-	}
-	return instance;
+	return static_cast<TObject*>(ConstructUnInitializedObject(TObject::GetStaticClass()));
 }
 
 template<typename TObject, typename... Args>

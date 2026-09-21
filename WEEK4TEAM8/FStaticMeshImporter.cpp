@@ -8,7 +8,6 @@
 #include "FMaterialImporter.h"
 #include "AssetFileIOs.h"
 
-
 // .obj -> .uasset 변환
 bool FStaticMeshImporter::Import(const std::filesystem::path& InPath, const std::filesystem::path& OutPath, FAssetFileHeader& OutHead)
 {

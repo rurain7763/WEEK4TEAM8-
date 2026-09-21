@@ -95,7 +95,6 @@ struct  FMaterialPayload
 class FMaterialFileIO
 {
 public:
-
 	static bool Load(FArchive& Ar, FMaterialPayload& OutPayload)
 	{
 		Ar << OutPayload.AmbientColor;
