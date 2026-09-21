@@ -143,7 +143,11 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 		ImGui::DockSpaceOverViewport(dockspaceID, viewport, flags);
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 
-		if (ImGui::Begin("Viewport"))
+		const ImGuiWindowFlags ViewportWindowFlags =
+			ImGuiWindowFlags_NoScrollbar |
+			ImGuiWindowFlags_NoScrollWithMouse;
+
+		if (ImGui::Begin("Viewport", nullptr, ViewportWindowFlags))
 		{
 			const ImVec2 Origin = ImGui::GetCursorScreenPos();
 			const ImVec2 TotalSize = ImGui::GetContentRegionAvail();
