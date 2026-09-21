@@ -142,7 +142,11 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 		ImGui::DockSpaceOverViewport(dockspaceID, viewport, flags);
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 
-		if (ImGui::Begin("Viewport"))
+		const ImGuiWindowFlags ViewportWindowFlags =
+			ImGuiWindowFlags_NoScrollbar |
+			ImGuiWindowFlags_NoScrollWithMouse;
+
+		if (ImGui::Begin("Viewport", nullptr, ViewportWindowFlags))
 		{
 			const ImVec2 Origin = ImGui::GetCursorScreenPos();
 			const ImVec2 TotalSize = ImGui::GetContentRegionAvail();
@@ -158,6 +162,8 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 			for (int32 i = 0; i < guiReference.ViewportCount; ++i)
 			{
+				const int32 CurrentViewportIndex = guiReference.EditorLayout->bIsSplitView ? i : guiReference.EditorLayout->MaximizedViewportIndex;
+
 				FEditorViewport* EditorViewport = &guiReference.Viewports[i];
 
 				FRect DrawRect = EditorViewport->Window->Rect;
@@ -170,8 +176,82 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 					const TSharedPtr<FRenderTarget2D>& RenderTarget = EditorViewport->Viewport->RenderTarget;
 					DrawList->AddImage((ImTextureID)(intptr_t)RenderTarget->SRV.Get(), ImVec2(DrawRect.X, DrawRect.Y), ImVec2(DrawRect.X + DrawRect.Width, DrawRect.Y + DrawRect.Height));
-					ImGui::Dummy(ImVec2(DrawRect.Width, DrawRect.Height));
 
+					ImGui::PushID(CurrentViewportIndex);
+
+					const float ViewportTypeWidth = 95.0f;
+					const float ViewModeWidth = 85.0f;
+					const float MaximizeButtonWidth = 28.0f;
+					const float SplitButtonWidth = 28.0f;
+
+					const float Spacing = ImGui::GetStyle().ItemSpacing.x;
+					const float MarginX = 8.0f;
+					const float MarginY = 4.0f;
+					const float ToolBarHeight = 28.0f;
+
+					const float ToolBarWidth = ViewportTypeWidth + ViewModeWidth + MaximizeButtonWidth + SplitButtonWidth + (Spacing * 3.0f) + MarginX;
+					const float StartCursorPos = DrawRect.X + DrawRect.Width - ToolBarWidth;
+					const float ItemHeight = 22.0f;
+
+					DrawList->AddRectFilled(ImVec2(DrawRect.X, DrawRect.Y), ImVec2(DrawRect.X + DrawRect.Width, DrawRect.Y + ToolBarHeight), IM_COL32(30, 30, 30, 180));
+
+					ImGui::SetCursorScreenPos(ImVec2(StartCursorPos, DrawRect.Y + MarginY));
+
+					ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 255, 255));
+					ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(15, 15, 15, 230));
+					ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(45, 45, 45, 240));
+					ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(60, 60, 60, 255));
+
+					ImGui::PushStyleColor(ImGuiCol_PopupBg, IM_COL32(20, 20, 20, 250)); 
+					ImGui::PushStyleColor(ImGuiCol_Header, IM_COL32(50, 50, 50, 255));
+					ImGui::PushStyleColor(ImGuiCol_HeaderHovered, IM_COL32(75, 75, 75, 255));
+
+					ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(15, 15, 15, 230));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(55, 55, 55, 240));
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(80, 80, 80, 255));
+
+					ImGui::SetNextItemWidth(100.0f);
+
+					const char* ViewportTypeNames[] = { "Perspective", "Top", "Front", "Side" };
+					int32 CurrentTypeIndex = static_cast<int32>(EditorViewport->Client->GetViewportType());
+
+					if (ImGui::Combo("##ViewportType", &CurrentTypeIndex, ViewportTypeNames, IM_ARRAYSIZE(ViewportTypeNames)))
+					{
+						EditorViewport->Client->SetViewportType(static_cast<EViewportType>(CurrentTypeIndex));
+					}
+
+					ImGui::SameLine();
+
+					ImGui::SetNextItemWidth(80.0f);
+
+					const char* ViewModeNames[] = { "Lit", "UnLit", "Wireframe" };
+					int32 CurrentModeIndex = static_cast<int32>(EditorViewport->Client->GetViewMode());
+
+					if (ImGui::Combo("##ViewMode", &CurrentModeIndex, ViewModeNames, IM_ARRAYSIZE(ViewModeNames)))
+					{
+						EditorViewport->Client->SetViewMode(static_cast<EViewModeIndex>(CurrentModeIndex));
+					}
+
+					ImGui::SameLine();
+
+					if (ImGui::Button("##Maximize", ImVec2(MaximizeButtonWidth, ItemHeight)))
+					{
+						guiReference.EditorLayout->MaximizedViewportIndex = CurrentViewportIndex;
+						guiReference.EditorLayout->bIsSplitView = false;
+					}
+					FEditorIconUtils::DrawMaximizeButtonIcon(DrawList);
+
+					ImGui::SameLine();
+
+					if (ImGui::Button("##Split", ImVec2(MaximizeButtonWidth, ItemHeight)))
+					{
+						guiReference.EditorLayout->bIsSplitView = true;
+					}
+					FEditorIconUtils::DrawSplitButtonIcon(DrawList);
+
+					ImGui::PopStyleColor(10);
+					ImGui::PopID();
+					ImGui::Dummy(ImVec2(DrawRect.Width, DrawRect.Height));
 				}
 			}
 
@@ -493,17 +573,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	FCamera& camera = guiReference.ViewportClient->GetCamera();
 	URenderer* renderer = guiReference.GraphicsManager->GetRenderer();
 
-	const char* viewModeNames[] = { "Lit", "Unlit", "Wireframe" };
-
-	EViewModeIndex currentViewMode = guiReference.GraphicsManager->GetViewModeIndex();
-	int32 currentViewModeIndex = static_cast<int32>(currentViewMode);
-	// Combo는 선택이 바뀐 프레임에만 true를 돌려주고, 바뀐 값은 이미
-	// currentViewModeIndex에 들어 있다. 그 안에서 Checkbox를 그리면
-	// 한 프레임만 나타났다 사라져 클릭할 수 없다.
-	if (ImGui::Combo("View Mode", &currentViewModeIndex, viewModeNames, IM_ARRAYSIZE(viewModeNames)))
-	{
-		guiReference.GraphicsManager->SetViewModeIndex(static_cast<EViewModeIndex>(currentViewModeIndex));
-	}
 	if (ImGui::BeginCombo("##ShowFlags", "Show Flags"))
 	{
 		// 표시 옵션은 표를 그대로 훑어 체크박스를 만든다.
@@ -656,20 +725,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	{
 		guiReference.ViewportClient->mGizmo.SetOperation(static_cast<EGIZMO_TYPE>((currentGizmoIndex + 1) % 3));
 	}
-
-	// 스플릿 뷰포트 여부를 GUI에서 설정할 수 있도록 체크박스 추가
-	ImGui::Checkbox("Split Viewport", &guiReference.EditorLayout->bIsSplitView);
-
-	// NOTE: 이테레이터 테스트 코드
-	int32 count = 0;
-	for (TObjectIterator<AActor> it(true); it; ++it)
-	{
-		AActor* actor = *it;
-		count++;
-	}
-
-	ImGui::Text("Actor Count: %d", count);
-
 	ImGui::End();
 }
 

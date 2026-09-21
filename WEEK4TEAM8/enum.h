@@ -37,3 +37,14 @@ enum class EViewModeIndex
 	// 모드를 추가하면 이 앞에 넣을 것.
 	VMI_Max,
 };
+
+enum class EViewportType
+{
+	Perspective,
+	Top,
+	Front,
+	Side,
+
+	// ViewportType을 세기 위한 변수 뷰포트 타입 추가는 위에 작성
+	Max
+};

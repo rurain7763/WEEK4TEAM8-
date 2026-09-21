@@ -89,18 +89,21 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 	FrameTimer = new FFrameTimer(120);
 
 	mEditorLayout.Initialize(FRect(0, 0, (float)clientWidth, (float)clientHeight));
-	
-	mMainViewport.Window = mEditorLayout.RootWindow;
-	mMainViewport.Viewport = MakeShared<FViewport>();
-	mMainViewport.Viewport->Resize(*mGraphicsManager->GetRenderer(), clientWidth, clientHeight);
-	mMainViewport.Client = MakeShared<FEditorViewportClient>(*mGraphicsManager->GetRenderer());
 
+	static constexpr EViewportType DefaultLayoutTypes[FEngineLoop::MaxViewportCount] = {
+	EViewportType::Perspective,
+	EViewportType::Top,
+	EViewportType::Front,
+	EViewportType::Side
+	};
+	
 	for (int32 i = 0; i < 4; ++i)
 	{
-		mSplitViewports[i].Window = mEditorLayout.ViewportWindows[i];
-		mSplitViewports[i].Viewport = MakeShared<FViewport>();
-		mSplitViewports[i].Viewport->Resize(*mGraphicsManager->GetRenderer(), mEditorLayout.ViewportWindows[i]->Rect.Width, mEditorLayout.ViewportWindows[i]->Rect.Height);
-		mSplitViewports[i].Client = MakeShared<FEditorViewportClient>(*mGraphicsManager->GetRenderer());
+		mViewports[i].Window = (i == MainViewportIndex) ? mEditorLayout.RootWindow : mEditorLayout.ViewportWindows[i];
+		mViewports[i].Viewport = MakeShared<FViewport>();
+		mViewports[i].Viewport->Resize(*mGraphicsManager->GetRenderer(), mEditorLayout.ViewportWindows[i]->Rect.Width, mEditorLayout.ViewportWindows[i]->Rect.Height);
+		mViewports[i].Client = MakeShared<FEditorViewportClient>(*mGraphicsManager->GetRenderer());
+		mViewports[i].Client->SetViewportType(DefaultLayoutTypes[i]);
 	}
 
 	const FVector4 NearTint(1.0f, 0.65f, 0.15f, 0.85f); // 주황 = 가까운 쪽
@@ -208,7 +211,18 @@ void FEngineLoop::Tick(bool bPumpMessages)
 
 	const float NearZ = 0.1f;
 	const float FarZ = 2000.0f;
+	const bool bIsSplit = mEditorLayout.bIsSplitView;
+	const int32 ActiveIndex = mEditorLayout.MaximizedViewportIndex;
 	const int32 ViewportCount = mEditorLayout.bIsSplitView ? 4 : 1;
+
+	if (bIsSplit)
+	{
+		for (int32 i = 0;i < 4;++i)
+			mViewports[i].Window = mEditorLayout.ViewportWindows[i];
+	}
+	else
+		mViewports[ActiveIndex].Window = mEditorLayout.RootWindow;
+	
 
 	mGraphicsManager->UpdateGpuRenderTime();
 	if (ConsoleWindow::Get().bShowStatRender)
@@ -218,7 +232,8 @@ void FEngineLoop::Tick(bool bPumpMessages)
 	
 	for (int32 i = 0; i < ViewportCount; ++i)
 	{
-		FEditorViewport* CurrentViewport = !mEditorLayout.bIsSplitView ? &mMainViewport : &mSplitViewports[i];
+		int32 CurrentIndex = bIsSplit ? i : ActiveIndex;
+		FEditorViewport* CurrentViewport = &mViewports[CurrentIndex];
 
 		const FRect& ViewportRect = CurrentViewport->Window->Rect;
 
@@ -230,9 +245,16 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		RenderCollector.Clear();
 		RenderCollector.Camera = &Camera;
 
-		CurrentViewport->Client->Update(deltaTime, mGraphicsManager->GetPerspectiveRatio(), RenderCollector);
+		bool bIsOrtho = CurrentViewport->Client->IsOrtho();
+		float CurrentRatio = bIsOrtho ? 0.0f : mGraphicsManager->GetPerspectiveRatio();
 
-		FMatrix ViewProjection = Camera.GetViewMatrix() * Camera.GetProjectionMatrix();
+		// 뷰포트가 직교 타입이면 현재 -5000 ~ 5000으로 보이게 하드코딩, 나중에 카메라 위치에 따라 랜더 거리를 늘려야 함
+		Camera.mNear = bIsOrtho ? -5000.0f : Camera.mNear;
+		Camera.mFar = bIsOrtho ? 5000.0f : Camera.mFar;
+
+		CurrentViewport->Client->Update(deltaTime, CurrentRatio, RenderCollector);
+
+		FMatrix ViewProjection = Camera.GetViewMatrix() * Camera.GetUnifiedProjectionMatrix(Camera.mOrthoDistance, CurrentRatio);
 
 		mSceneManager->Render(deltaTime, RenderCollector);
 
@@ -240,9 +262,10 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		// 뷰포트가 ImGui 창이 되면서 그 위에서는 io.WantCaptureMouse 가 항상 true 다.
 		// 그대로 두면 씬을 클릭해도 선택이 되지 않는다. 카메라/기즈모와 같은 기준을 쓴다.
 		const FInputState& Input = WindowApplication.Input;
+
 		if (CurrentViewport->Client->IsActive() && Input.WasPressed(VK_LBUTTON) && !CurrentViewport->Client->mGizmo.IsDragging() && !CurrentViewport->Client->mGizmo.IsMouseOverHandle())
 		{
-			AActor* HitActor = CurrentViewport->Client->PerformMousePicking(CurrentViewport->Window->Rect, mGraphicsManager->GetPerspectiveRatio(), RenderCollector);
+			AActor* HitActor = CurrentViewport->Client->PerformMousePicking(CurrentViewport->Window->Rect, CurrentRatio, RenderCollector);
 			if (HitActor)
 			{
 				mSceneManager->SetSelectedActor(HitActor);
@@ -299,35 +322,41 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		//Render Threads
 		{
 			CurrentViewport->Viewport->Resize(*mGraphicsManager->GetRenderer(), ViewportRect.Width, ViewportRect.Height);
-			mGraphicsManager->Prepare(&CurrentViewport->Client->mCamera, ViewportRect.Width, ViewportRect.Height, *CurrentViewport->Viewport);
+			mGraphicsManager->Prepare(&CurrentViewport->Client->mCamera, ViewportRect.Width, ViewportRect.Height, *CurrentViewport->Viewport, CurrentViewport->Client->GetViewMode(), CurrentViewport->Client->GetViewportType());
 			mGraphicsManager->RenderHighLight(HighlightedComponents);
 			mGraphicsManager->Render();
 
-			CurrentViewport->Client->mGizmo.Render(SelectedActor, CurrentViewport->Client->mCamera.Transform.Location, ViewProjection);
+			CurrentViewport->Client->mGizmo.Render(SelectedActor, CurrentViewport->Client->mCamera.Transform.Location, ViewProjection, CurrentViewport->Client->IsOrtho(), CurrentViewport->Client->GetCamera().mOrthoDistance);
 		}
 	}
 
 	mGraphicsManager->EndGpuRenderTimer();
 
 	FGuiReference GuiReference;
-	GuiReference.EditorCamera = &mMainViewport.Client->GetCamera();
+	//GuiReference.EditorCamera = &GetMainViewport().Client->GetCamera();
 	GuiReference.FrameTimer = FrameTimer;
 	GuiReference.GraphicsManager = mGraphicsManager;
-	GuiReference.ViewportClient = mMainViewport.Client.get();
+	//GuiReference.ViewportClient = GetMainViewport().Client.get();
 	GuiReference.FileManager = mFileManager;
 	GuiReference.AssetManager = mAssetManager;
 	GuiReference.EditorLayout = &mEditorLayout;
-	
-	if (mEditorLayout.bIsSplitView)
+	//GuiReference.Viewports = mViewports;
+	//GuiReference.ViewportCount = bIsSplit ? MaxViewportCount : 1;
+	if (bIsSplit)
 	{
-		GuiReference.Viewports = mSplitViewports;
-		GuiReference.ViewportCount = 4;
+		GuiReference.EditorCamera = &GetMainViewport().Client->GetCamera();
+		GuiReference.ViewportClient = GetMainViewport().Client.get();
+		GuiReference.Viewports = mViewports;
+		GuiReference.ViewportCount = MaxViewportCount;
 	}
 	else
 	{
-		GuiReference.Viewports = &mMainViewport;
+		GuiReference.EditorCamera = &mViewports[MainViewportIndex].Client->GetCamera();
+		GuiReference.ViewportClient = mViewports[ActiveIndex].Client.get();
+		GuiReference.Viewports = &mViewports[ActiveIndex];
 		GuiReference.ViewportCount = 1;
 	}
+
 	mSceneManager->UpdateGUI(GuiReference);
 
 #if IS_OBJ_VIEWER
@@ -363,8 +392,7 @@ void FEngineLoop::End()
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
 
-	mMainViewport.Release();
-	for (FEditorViewport& Viewport : mSplitViewports)
+	for (FEditorViewport& Viewport : mViewports)
 	{
 		Viewport.Release();
 	}
@@ -382,7 +410,7 @@ void FEngineLoop::End()
 void FEngineLoop::SaveEditorSettings()
 {
 	// Save camera sensitivity
-	const std::string Value = std::format("{:.6f}", mMainViewport.Client->GetCamera().Sensitivity);
+	const std::string Value = std::format("{:.6f}", MainViewport.Client->GetCamera().Sensitivity);
 	if (!WritePrivateProfileStringA("Camera", "Sensitivity", Value.c_str(), ".\\editor.ini"))
 	{
 		UE_LOG_ERROR("Failed to save camera sensitivity to editor.ini");
@@ -407,6 +435,16 @@ void FEngineLoop::SaveEditorSettings()
 	{
 		UE_LOG_ERROR("Failed to save vertical split ratio to editor.ini");
 	}
+
+	WritePrivateProfileStringA("Layout", "IsSplitView", mEditorLayout.bIsSplitView ? "1" : "0", ".\\editor.ini");
+	WritePrivateProfileStringA("Layout", "MaximizedIndex", std::to_string(mEditorLayout.MaximizedViewportIndex).c_str(), ".\\editor.ini");
+
+	for (int32 i = 0; i < MaxViewportCount; ++i)
+	{
+		std::string Key = "ViewportType_" + std::to_string(i);
+		std::string Val = std::to_string(static_cast<int32>(mViewports[i].Client->GetViewportType()));
+		WritePrivateProfileStringA("Layout", Key.c_str(), Val.c_str(), ".\\editor.ini");
+	}
 }
 
 void FEngineLoop::LoadEditorSettings()
@@ -418,7 +456,7 @@ void FEngineLoop::LoadEditorSettings()
 
 	float Sensitivity = 1.0f;
 	sscanf_s(Value, "%f", &Sensitivity);
-	mMainViewport.Client->GetCamera().Sensitivity = Sensitivity;
+	MainViewport.Client->GetCamera().Sensitivity = Sensitivity;
 
 	// Load grid gap
 	GetPrivateProfileStringA("Grid", "Gap", "", Value, sizeof(Value), ".\\editor.ini");
@@ -439,4 +477,17 @@ void FEngineLoop::LoadEditorSettings()
 	sscanf_s(Value, "%f", &VerticalRatio);
 	
 	mEditorLayout.SetSplitRatios(HorizontalRatio, VerticalRatio);
+
+	mEditorLayout.bIsSplitView = (GetPrivateProfileIntA("Layout", "IsSplitView", 0, ".\\editor.ini") == 1);
+	mEditorLayout.MaximizedViewportIndex = GetPrivateProfileIntA("Layout", "MaximizedIndex", 0, ".\\editor.ini");
+
+	for (int32 i = 0; i < MaxViewportCount; ++i)
+	{
+		std::string Key = "ViewportType_" + std::to_string(i);
+		int32 TypeVal = GetPrivateProfileIntA("Layout", Key.c_str(), -1, ".\\editor.ini");
+		if (TypeVal >= 0 && TypeVal < static_cast<int32>(EViewportType::Max))
+		{
+			mViewports[i].Client->SetViewportType(static_cast<EViewportType>(TypeVal));
+		}
+	}
 }
