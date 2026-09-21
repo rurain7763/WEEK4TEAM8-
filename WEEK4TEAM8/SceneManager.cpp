@@ -252,15 +252,11 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 		ImGui::PopStyleVar();
 	}
 
-#if IS_OBJ_VIEWER
-	mObjViewer.UpdateObjGUI(*guiReference.GraphicsManager);
-	ConsoleWindow::Get().Process(mPanelWidth);
-	mContentBrowser.Render();
-#else
-
+#if !IS_OBJ_VIEWER
 	updateControlPanelGUI(guiReference);
 	updatePropertyWindowGUI(guiReference);
 	updateObjectListPanelGUI(guiReference);
+#else
 	ConsoleWindow::Get().Process(mPanelWidth);
 	mContentBrowser.Render();
 #endif
@@ -1018,10 +1014,6 @@ void FSceneManager::NewScene()
 	//UEngineStatics::SetNextUUID(0);
 	ResetSelectedActor();
 	mCurrentWorld = FObjectFactory::ConstructObject<UWorld>();
-
-#ifdef IS_OBJ_VIEWER
-	mObjViewer.Initialize(*this);
-#endif
 }
 
 void FSceneManager::DeleteScene()

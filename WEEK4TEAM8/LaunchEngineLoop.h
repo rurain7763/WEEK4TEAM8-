@@ -17,7 +17,7 @@
 
 class Sphere;
 class FGraphicsManager;
-
+class FObjViewer;
 
 struct FEditorLayout
 {
@@ -132,6 +132,10 @@ private:
 	FFontManager* mFontManager;
 
 	FComponentVisualizerManager* mComponentVisualizerManager;
+
+#if IS_OBJ_VIEWER
+	FObjViewer mObjViewer;
+#endif
 };
 
 inline FEngineLoop GEngineLoop;

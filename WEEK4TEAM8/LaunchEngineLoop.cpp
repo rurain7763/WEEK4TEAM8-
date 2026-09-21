@@ -29,6 +29,10 @@
 #include "Serializers.h"
 #include "NativeFileDialog.h"
 
+#if IS_OBJ_VIEWER
+#include "FObjViewer.h"
+#endif
+
 void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 {
 	// Initialize window infos
@@ -112,7 +116,10 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 	mComponentVisualizerManager = new FComponentVisualizerManager();
 
 	mSceneManager->NewScene();
-
+#ifdef IS_OBJ_VIEWER
+	mObjViewer.Initialize(*mSceneManager, *mGraphicsManager->GetRenderer(), *mFileManager);
+#else
+#endif
 	LoadEditorSettings();
 }
 
@@ -315,6 +322,10 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		GuiReference.ViewportCount = 1;
 	}
 	mSceneManager->UpdateGUI(GuiReference);
+
+#if IS_OBJ_VIEWER
+	mObjViewer.UpdateObjGUI(*mGraphicsManager);
+#endif
 
 	FRect ViewportRect;
 	ViewportRect.X = mSceneManager->GetViewportX();

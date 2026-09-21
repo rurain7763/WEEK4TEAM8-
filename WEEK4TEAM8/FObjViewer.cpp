@@ -12,11 +12,13 @@
 #include "FAssetManager.h"
 #include "FArchive.h"
 #include "UStaticMesh.h"
+#include "FObjManager.h"
 
-void FObjViewer::Initialize(FSceneManager& InSceneManager)
+void FObjViewer::Initialize(FSceneManager& InSceneManager, URenderer& Renderer, FFileManager& InFileManager)
 {
+	FObjManager::Initialize(Renderer, InFileManager);
 	mSceneManager = &InSceneManager;
-	FShowFlags::Get().SetEnabled(EShowFlag::UUIDText, false);  //
+	FShowFlags::Get().SetEnabled(EShowFlag::UUIDText, false); 
 }
 
 void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
@@ -202,6 +204,10 @@ void FObjViewer::OpenObj(const std::filesystem::path& FilePath)
 			FRotator(0, 0, 0),
 			FVector(1, 1, 1));
 
+
+	/*FStaticMeshFileIO::Load(FilePath, Payload)
+
+	objComponent->SetMesh()*/
 	mViewerComponent = objComponent;
 	mViewerActor->AddRootSceneComponent(objComponent);
 	mSceneManager->GetCurrentWorld()->AddActor(mViewerActor);

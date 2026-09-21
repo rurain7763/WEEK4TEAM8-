@@ -107,7 +107,6 @@ private:
 	AActor* mSelectedActor = nullptr;
 	FGuiInputField mGuiInputField;
 	FContentBrowser mContentBrowser;
-	FObjViewer mObjViewer;
 	URenderer* mRenderer = nullptr;
 
 	void updateControlPanelGUI(const FGuiReference& guiReference);
