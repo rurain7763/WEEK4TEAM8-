@@ -12,5 +12,5 @@ newmtl 20430_Cat
 	Kd 1.0000 1.0000 1.0000
 	Ks 0.2070 0.2070 0.2070
 	Ke 0.7000 0.7000 0.7000
-	map_Ka 20430_cat_diff_v1.jpg
-	map_Kd 20430_cat_diff_v1.jpg
+	map_Ka ../Textures/20430_cat_diff_v1.jpg
+	map_Kd ../Textures/20430_cat_diff_v1.jpg
