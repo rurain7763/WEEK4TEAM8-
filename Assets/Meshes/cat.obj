@@ -1,7 +1,7 @@
 # 3ds Max Wavefront OBJ Exporter v0.97b - (c)2007 guruware
 # File Created: 20.12.2011 11:12:50
 
-mtllib 12221_Cat_v1_l3.mtl
+mtllib cat_material.mtl
 
 #
 # object Cat
