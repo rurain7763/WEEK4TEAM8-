@@ -9,6 +9,7 @@ class AActor;
 class UStaticMeshComponent;
 class URenderer;
 class FFileManager;
+struct FStaticMeshPayload;
 
 struct FRect;
 
@@ -28,4 +29,7 @@ private:
     FString mLoadedFilePath;
     FRect mViewportRcet;
     UStaticMeshComponent* mViewerComponent = nullptr;  
+    URenderer* mRenderer = nullptr;
+
+    bool RegisterObjMaterialAssets(const std::filesystem::path& ObjPath, const FStaticMeshPayload& Payload);
 };

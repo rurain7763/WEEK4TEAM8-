@@ -5,6 +5,11 @@
 #include "Stb/stb_image.h"
 #include "FArchive.h"
 #include "Serializers.h"
+#include "Object.h"
+#include "FStaticMeshBuilder.h"
+#include "FObjImporter.h"
+#include "FMaterialImporter.h"
+#include "FLogManager.h"
 #include <filesystem>
 
 
@@ -57,6 +62,14 @@ public:
 	}
 };
 
+struct FStaticMeshPayload
+{
+	FGuid AssetID;
+	FName AssetName;
+	FStaticMeshBuildData BuildData;
+	TArray<FObjMaterialInfo> Materials;
+};
+
 // StaicMesh 전용 IO
 class FStaticMeshFileIO
 {
@@ -67,6 +80,95 @@ public:
 		Ar << OutData.Indices;
 		Ar << OutData.Sections;
 		return true;
+	}
+
+	static bool Load(const std::filesystem::path& FilePath,
+		FStaticMeshPayload& OutPayload)
+	{
+		const std::filesystem::path Extension = FilePath.extension();
+
+		if (Extension == ".obj")
+		{
+			FObjImporter Importer;
+			FObjInfo ObjInfo;
+			FMeshDescription MeshDescription;
+
+			if (!Importer.ParseObj(FString(FilePath.string()), ObjInfo))
+			{
+				return false;
+			}
+			if (!Importer.ConvertToMeshDescription(ObjInfo, MeshDescription))
+			{
+				return false;
+			}
+			if (!FStaticMeshBuilder::Build(MeshDescription, OutPayload.BuildData))
+			{
+				return false;
+			}
+
+			const std::filesystem::path ObjDirectory = FilePath.parent_path();
+			const std::string MeshName = FilePath.stem().string();
+
+			for (const FObjMaterialInfo& Material : ObjInfo.Materials)
+			{
+				const std::filesystem::path MaterialPath = ObjDirectory / (MeshName + "_" + Material.Name.CStr() + ".uasset");
+
+				FAssetFileHeader MaterialHeader;
+
+				if (std::filesystem::exists(MaterialPath))
+				{
+					FWindowsBinReader Reader(MaterialPath);
+					Reader << MaterialHeader;
+					if (MaterialHeader.AssetType != EAssetType::Material)
+					{
+						UE_LOG_ERROR("Invalid material asset: %s", MaterialPath.string().c_str());
+						return false;
+					}
+				}
+				else if (!FMaterialImporter::Import(
+					Material,
+					ObjDirectory,
+					MaterialPath,
+					MaterialHeader))
+				{
+					UE_LOG_ERROR("Failed to import material: %s",
+						Material.Name.CStr());
+					return false;
+				}
+
+				for (FStaticMeshSection& Section : OutPayload.BuildData.Sections)
+				{
+					if (Section.MaterialName == Material.Name)
+					{
+						Section.MaterialAssetID = MaterialHeader.AssetID;
+					}
+				}
+			}
+
+
+			OutPayload.AssetID = FGuid::NewGuid();
+			OutPayload.AssetName = FName(FilePath.string());
+			OutPayload.Materials = ObjInfo.Materials;
+			return true;
+		}
+
+		if (Extension == ".uasset")
+		{
+			FWindowsBinReader Reader(FilePath);
+			FAssetFileHeader Header;
+			Reader << Header;
+
+			if (Header.AssetType != EAssetType::StaticMesh)
+			{
+				return false;
+			}
+
+			OutPayload.AssetID = Header.AssetID;
+			OutPayload.AssetName = FName(FilePath.string());
+			return Load(Reader, OutPayload.BuildData);
+		}
+
+		return false;
 	}
 
 	static bool Save(FArchive& Ar, FStaticMeshBuildData& InData)
