@@ -15,6 +15,8 @@
 
 #include <d3d11.h>
 
+#define MainViewport mViewports[0]
+
 class Sphere;
 class FGraphicsManager;
 class FObjViewer;
@@ -22,6 +24,7 @@ class FObjViewer;
 struct FEditorLayout
 {
 	bool bIsSplitView = false;
+	int32 MaximizedViewportIndex = 0;
 
 	TSharedPtr<SWindow> RootWindow;
 	TSharedPtr<SSplitterH> HSplitter;
@@ -110,6 +113,12 @@ public:
 
 	FAssetManager* GetAssetManager() { return mAssetManager; }
 
+	static constexpr int32 MaxViewportCount = 4;
+	static constexpr int32 MainViewportIndex = 0;
+
+	FEditorViewport& GetMainViewport() { return mViewports[MainViewportIndex]; }
+	const FEditorViewport GetMainViewport() const { return mViewports[MainViewportIndex]; }
+
 private:
 	void InitAssetManager();
 	
@@ -122,8 +131,7 @@ private:
 	bool GInTick = false;
 
 	FEditorLayout mEditorLayout;
-	FEditorViewport mMainViewport;
-	FEditorViewport mSplitViewports[4];
+	FEditorViewport mViewports[4]; // 0 : MainView 1, 2, 3 : Other
 
 	FGraphicsManager* mGraphicsManager;
 	FSceneManager* mSceneManager;

@@ -5,6 +5,9 @@
 #include "Stb/stb_image.h"
 #include "FArchive.h"
 #include "Serializers.h"
+#include "Object.h"
+#include "FStaticMeshBuilder.h"
+#include "FObjImporter.h"
 #include <filesystem>
 
 
@@ -57,6 +60,12 @@ public:
 	}
 };
 
+struct FStaticMeshPayload
+{
+	FMeshDescription MeshDescription;
+	TArray<FObjMaterialInfo> Materials;
+};
+
 // StaicMesh 전용 IO
 class FStaticMeshFileIO
 {
@@ -67,6 +76,34 @@ public:
 		Ar << OutData.Indices;
 		Ar << OutData.Sections;
 		return true;
+	}
+
+	static bool Load(const std::filesystem::path& FilePath,
+		FStaticMeshPayload& OutPayload)
+	{
+		const std::filesystem::path Extension = FilePath.extension();
+
+		if (Extension == ".obj")
+		{
+			FObjImporter Importer;
+			FObjInfo ObjInfo;
+			FMeshDescription MeshDescription;
+
+			if (!Importer.ParseObj(FString(FilePath.string()), ObjInfo))
+			{
+				return false;
+			}
+			if (!Importer.ConvertToMeshDescription(ObjInfo, MeshDescription))
+			{
+				return false;
+			}
+
+			OutPayload.MeshDescription = std::move(MeshDescription);
+			OutPayload.Materials = ObjInfo.Materials;
+			return true;
+		}
+
+		return false;
 	}
 
 	static bool Save(FArchive& Ar, FStaticMeshBuildData& InData)
@@ -95,7 +132,6 @@ struct  FMaterialPayload
 class FMaterialFileIO
 {
 public:
-
 	static bool Load(FArchive& Ar, FMaterialPayload& OutPayload)
 	{
 		Ar << OutPayload.AmbientColor;

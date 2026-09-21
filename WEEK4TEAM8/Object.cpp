@@ -4,6 +4,7 @@
 #include "Json/json.hpp"
 
 TSparseArray<UObject*> UObject::GUObjectArray;
+TMap<const FClassInfo*, TArray<uint32>> UObject::GUObjectMap;
 
 UObject* FClassInfo::CreateInstance() const
 {
@@ -29,37 +30,23 @@ bool FClassInfo::IsChildOf(const FClassInfo* other) const
 }
 
 UObject::UObject()
+	: UUID(0)
+	, InternalIndex(0)
+	, ObjectMapIndex(0)
 {
-	InternalIndex = GUObjectArray.Add(this);
 	GUObjectRevision++;
 }
 
 UObject::~UObject()
 {
-	/*
-	// Ensure that the object is in the GUObjectArray before attempting to remove it
-	if (GUObjectArray.Num() < InternalIndex || GUObjectArray[InternalIndex] != this)
-	{
-		assert(false && "Invalid InternalIndex or GUObjectArray mismatch.");
-		return;
-	}
-	*/
-
-	GUObjectArray.RemoveAt(InternalIndex);
 	GUObjectRevision++;
-}
-
-void UObject::Destroy()
-{
-	delete this;
 }
 
 void UObject::Initialize()
 {
-	UUID = UEngineStatics::GenerateUUID();
 }
 
-const FClassInfo* UObject::GetClass()
+const FClassInfo* UObject::GetStaticClass()
 {
 	static FClassInfo classInstance = FClassInfo(
 		"UObject",
@@ -71,7 +58,7 @@ const FClassInfo* UObject::GetClass()
 
 void UObject::SerializeClass(json::JSON& outJson) const
 {
-	outJson["ClassName"] = GetRuntimeClass()->Name;
+	outJson["ClassName"] = GetClass()->Name;
 
 	json::JSON propertiesJson = json::JSON::Make(json::JSON::Class::Object);
 	propertiesJson["UUID"] = UUID;
@@ -96,16 +83,7 @@ void UObject::DeserializeClass(const json::JSON& inJson)
 
 bool UObject::IsA(const FClassInfo* classInfo) const
 {
-	const FClassInfo* currentClass = GetRuntimeClass();
-	while (currentClass)
-	{
-		if (currentClass == classInfo)
-		{
-			return true;
-		}
-		currentClass = currentClass->SuperClass;
-	}
-	return false;
+	return GetClass()->IsChildOf(classInfo);
 }
 
 UObject* UObject::GetObjectByUUID(int32 uuid)

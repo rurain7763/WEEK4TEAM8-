@@ -1,5 +1,6 @@
 #include "FObjViewer.h"
 
+#include "AssetFileIOs.h"
 #include "ObjectFactory.h"
 #include "Actor.h"
 #include "SceneManager.h"
@@ -12,13 +13,15 @@
 #include "FAssetManager.h"
 #include "FArchive.h"
 #include "UStaticMesh.h"
-#include "FObjManager.h"
+#include "Assets.h"
+#include "FStaticMeshBuilder.h"
+#include "FMeshDescription.h"
 
 void FObjViewer::Initialize(FSceneManager& InSceneManager, URenderer& Renderer, FFileManager& InFileManager)
 {
-	FObjManager::Initialize(Renderer, InFileManager);
 	mSceneManager = &InSceneManager;
 	FShowFlags::Get().SetEnabled(EShowFlag::UUIDText, false); 
+	mRenderer = &Renderer;
 }
 
 void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
@@ -30,7 +33,6 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 		const auto& meshAsset = mViewerComponent->GetMesh();
 
 		ImGui::Text("Vertices: %u", meshAsset->GetVertices().Num());
-		//ImGui::Text("Indices: %u", meshAsset->GetCpuIndices().Num());
 		ImGui::Text("Triangles: %u", meshAsset->GetIndices().Num() / 3);
 	}
 
@@ -180,7 +182,27 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 
 void FObjViewer::OpenObj(const std::filesystem::path& FilePath)
 {
-	const FString AssetPath(FilePath.string());
+	FStaticMeshPayload Payload;
+	if (!FStaticMeshFileIO::Load(FilePath, Payload))
+	{
+		UE_LOG_ERROR("Failed to load mesh: %s", FilePath.string().c_str());
+		return;
+	}
+
+	FStaticMeshBuildData BuildData;
+	if (!FStaticMeshBuilder::Build(Payload.MeshDescription, BuildData))
+	{
+		UE_LOG_ERROR("Failed to build mesh: %s", FilePath.string().c_str());
+		return;
+	}
+
+	if (!mRenderer || !BuildRuntimeMaterials(FilePath, Payload, BuildData))
+	{
+		UE_LOG_ERROR("Failed to build OBJ material assets: %s", FilePath.string().c_str());
+		return;
+	}
+
+	mLoadedFilePath = FString(FilePath.string());
 
 	if (!mSceneManager)
 	{
@@ -197,23 +219,113 @@ void FObjViewer::OpenObj(const std::filesystem::path& FilePath)
 
 	mViewerActor = FObjectFactory::ConstructObject<AActor>();
 
+	const FName RuntimeAssetName(std::filesystem::weakly_canonical(FilePath).string());
+
+	TSharedPtr<FStaticMeshAsset> MeshAsset =
+		MakeShared<FStaticMeshAsset>(
+			FGuid::NewGuid(),
+			RuntimeAssetName,
+			*mRenderer,
+			BuildData);
+
 	UStaticMeshComponent* objComponent =
 		FObjectFactory::ConstructObject<UStaticMeshComponent>(
-			AssetPath,
 			FVector(0, 0, 0),
 			FRotator(0, 0, 0),
 			FVector(1, 1, 1));
 
-
-	/*FStaticMeshFileIO::Load(FilePath, Payload)
-
-	objComponent->SetMesh()*/
+	objComponent->SetMesh(MeshAsset);
 	mViewerComponent = objComponent;
 	mViewerActor->AddRootSceneComponent(objComponent);
 	mSceneManager->GetCurrentWorld()->AddActor(mViewerActor);
-	//mSceneManager->SetSelectedActor(mViewerActor);
+}
 
-	mLoadedFilePath = AssetPath;
+bool FObjViewer::BuildRuntimeMaterials(const std::filesystem::path& ObjPath,
+	const FStaticMeshPayload& Payload, FStaticMeshBuildData& InOutBuildData)
+{
+	const std::filesystem::path ObjDirectory = ObjPath.parent_path();
+
+	for (const FObjMaterialInfo& Material : Payload.Materials)
+	{
+		FGuid DiffuseTextureID;
+
+		if (Material.DiffuseTexturePath.Len() != 0)
+		{
+			const std::filesystem::path TexturePath =
+				std::filesystem::weakly_canonical(
+					ObjDirectory / Material.DiffuseTexturePath.CStr());
+
+			const FName TextureAssetName(TexturePath.string());
+
+			TSharedPtr<FTexture2DAsset> TextureAsset =
+				FAssetManager::Get().GetAssetAs<FTexture2DAsset>(
+					TextureAssetName, true);
+
+			if (!TextureAsset)
+			{
+				FImagePayload ImagePayload;
+				if (!FImageFileIO::Load(TexturePath, ImagePayload))
+				{
+					UE_LOG_ERROR("Failed to load diffuse texture: %s",TexturePath.string().c_str());
+					return false;
+				}
+
+				D3D11_TEXTURE2D_DESC TextureDesc = {};
+				TextureDesc.Width = static_cast<uint32>(ImagePayload.Width);
+				TextureDesc.Height = static_cast<uint32>(ImagePayload.Height);
+				TextureDesc.MipLevels = 1;
+				TextureDesc.ArraySize = 1;
+				TextureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+				TextureDesc.SampleDesc.Count = 1;
+				TextureDesc.Usage = D3D11_USAGE_IMMUTABLE;
+				TextureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+				auto Texture = mRenderer->CreateTexture2D(TextureDesc, ImagePayload.ImageData.Data());
+				auto SRV = mRenderer->CreateShaderResourceView(Texture);
+
+				TextureAsset = MakeShared<FTexture2DAsset>(
+					FGuid::NewGuid(),
+					TextureAssetName,
+					Texture,
+					SRV);
+
+				FAssetManager::Get().RegisterAsset(TextureAsset);
+			}
+
+			DiffuseTextureID = TextureAsset->GetAssetID();
+		}
+
+		const FName MaterialAssetName(ObjPath.string() + "::" + Material.Name.CStr());
+
+		TSharedPtr<FMaterialAsset> MaterialAsset =
+			FAssetManager::Get().GetAssetAs<FMaterialAsset>(
+				MaterialAssetName, true);
+
+		if (!MaterialAsset)
+		{
+			MaterialAsset = MakeShared<FMaterialAsset>(
+				FGuid::NewGuid(),
+				MaterialAssetName,
+				Material.DiffuseColor,
+				Material.DiffuseColor,
+				FVector(0.0f),
+				DiffuseTextureID,
+				FGuid(),
+				FGuid(),
+				Material.Opacity);
+
+			FAssetManager::Get().RegisterAsset(MaterialAsset);
+		}
+
+		for (FStaticMeshSection& Section : InOutBuildData.Sections)
+		{
+			if (Section.MaterialName == Material.Name)
+			{
+				Section.MaterialAssetID = MaterialAsset->GetAssetID();
+			}
+		}
+	}
+	return true;
 }
 
 void FObjViewer::OpenStaticMeshAsset(const std::filesystem::path& FilePath)

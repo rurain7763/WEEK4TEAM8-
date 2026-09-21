@@ -6,12 +6,14 @@
 #include "Camera.h"
 #include "RenderInfo.h"
 #include "Gizmo.h"
+#include "Enum.h"
 
 class AActor;
 class FSceneManager;
 class URenderer;
 struct FRenderTarget2D;
 struct FDepthStencil;
+
 
 struct SWindow
 {
@@ -83,6 +85,13 @@ public:
 
 	void Reset();
 
+	const EViewModeIndex GetViewMode() const { return mViewModeIndex; }
+	void SetViewMode(EViewModeIndex InViewMode) { mViewModeIndex = InViewMode; }
+
+	const EViewportType GetViewportType() const { return mViewportType; }
+	void SetViewportType(EViewportType InViewportType);
+	bool IsOrtho() { return mViewportType != EViewportType::Perspective; }
+
 	inline void SetActive(bool bActive) { mbActive = bActive; }
 	inline bool IsActive() const { return mbActive; }
 
@@ -116,6 +125,11 @@ private:
 	// RayCast가 이번 프레임에 쏜 광선. 기즈모 드래그가 같은 광선을 다시 쓴다
 	FVector mRayNear;
 	FVector mRayFar;
+
+	FTransform PrevCameraTransform = mCamera.Transform;
+
+	EViewModeIndex mViewModeIndex = EViewModeIndex::VMI_Lit;
+	EViewportType mViewportType = EViewportType::Perspective;
 };
 
 struct FViewport
