@@ -183,7 +183,6 @@ bool FObjImporter::ConvertToMeshDescription(const FObjInfo& ObjInfo, FMeshDescri
                 }
 
                 VertexInstance.TexCoord = ObjInfo.UVs[ObjIndex.UVIndex];
-                VertexInstance.TexCoord.Y = 1.0f - VertexInstance.TexCoord.Y;
             }
             else
             {
