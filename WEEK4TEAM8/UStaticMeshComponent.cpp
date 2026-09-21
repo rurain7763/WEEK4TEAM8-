@@ -133,7 +133,7 @@ void UStaticMeshComponent::SetMesh(const TSharedPtr<FStaticMeshAsset>& InMesh)
     for (int32 i = 0; i < Sections.Num(); i++)
     {
         auto& Section = Sections[i];
-        mMaterialAssets[i] = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID);
+        mMaterialAssets[i] = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
     }
     mMeshAsset = InMesh;
 }
