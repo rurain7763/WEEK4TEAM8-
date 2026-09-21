@@ -44,6 +44,7 @@ FSceneManager::FSceneManager()
 	mViewportY = 0;
 	mViewportWidth = WindowApplication.PendingWidth;
 	mViewportHeight = WindowApplication.PendingHeight;
+	mBottomBarHeight = 35.0f;
 
 	mContentBrowser.Initialize(kDefaultAssetsPath);
 	mContentBrowser.SetEventHandler(this);
@@ -128,7 +129,7 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 			ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.2f, &left, &center);
 
 			// 나머지 영역 아래쪽에 콘솔 30%
-			ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.3f, &bottom, &center);
+			//ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.3f, &bottom, &center);
 
 			ImGuiID leftTop;
 			ImGuiID leftRest;
@@ -139,7 +140,7 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 			ImGui::DockBuilderSplitNode(leftRest, ImGuiDir_Up, 0.5f, &leftMiddle, &leftBottom);
 
 			ImGui::DockBuilderDockWindow("Viewport", center);
-			ImGui::DockBuilderDockWindow("Console Window", bottom);
+			//ImGui::DockBuilderDockWindow("Console Window", bottom);
 			ImGui::DockBuilderDockWindow("Jungle Control Panel", leftTop);
 			ImGui::DockBuilderDockWindow("Jungle Property Window", leftMiddle);
 			ImGui::DockBuilderDockWindow("Object List Panel", leftBottom);
@@ -303,6 +304,46 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 		}
 		ImGui::End();
 
+		const ImGuiViewport* Viewport = ImGui::GetMainViewport();
+
+		ImGui::SetNextWindowPos(ImVec2(Viewport->WorkPos.x, Viewport->WorkPos.y + Viewport->WorkSize.y - mBottomBarHeight));
+		ImGui::SetNextWindowSize(ImVec2(Viewport->WorkSize.x, mBottomBarHeight));
+		ImGui::SetNextWindowViewport(Viewport->ID);
+
+		const ImGuiWindowFlags BottomBarFlags =
+			ImGuiWindowFlags_NoDecoration |
+			ImGuiWindowFlags_NoMove |
+			ImGuiWindowFlags_NoSavedSettings |
+			ImGuiWindowFlags_NoDocking;
+
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6.0f, 3.0f));
+		ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(24, 24, 24, 255));
+
+		if (ImGui::Begin("##EditorBottomBar", nullptr, BottomBarFlags))
+		{
+			ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(45, 45, 48, 255));
+
+			if (ImGui::Button("[ Content Drawer] (Ctrl+Space)"))
+			{
+				mContentBrowser.ToggleDrawer();
+			}
+
+			ImGui::SameLine();
+
+			if (ImGui::Button("[ Console ]"))
+			{
+				ConsoleWindow::Get().ToggleDrawer();
+			}
+
+			ImGui::PopStyleColor();
+		}
+
+		ImGui::End();
+
+		ImGui::PopStyleColor();
+		ImGui::PopStyleVar(2);
+
 		ConsoleWindow& console = ConsoleWindow::Get();
 		if (console.bShowStatFPS || console.bShowStatMemory)
 		{
@@ -342,14 +383,14 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 	}
 
 #if IS_OBJ_VIEWER
-	ConsoleWindow::Get().Process(mPanelWidth);
+	ConsoleWindow::Get().Process(mBottomBarHeight);
 	mContentBrowser.Render();
 #else
 	updateControlPanelGUI(guiReference);
 	updatePropertyWindowGUI(guiReference);
 	updateObjectListPanelGUI(guiReference);
-	ConsoleWindow::Get().Process(mPanelWidth);
-	mContentBrowser.Render();
+	ConsoleWindow::Get().Process(mBottomBarHeight);
+	mContentBrowser.Render(mBottomBarHeight);
 #endif
 }
 

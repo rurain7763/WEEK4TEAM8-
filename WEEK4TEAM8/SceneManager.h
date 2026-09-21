@@ -102,6 +102,7 @@ private:
 	float mViewportY;
 	float mViewportWidth;
 	float mViewportHeight;
+	float mBottomBarHeight;
 
 	UWorld* mCurrentWorld = nullptr;
 	AActor* mSelectedActor = nullptr;

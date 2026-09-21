@@ -41,26 +41,46 @@ static int   Strnicmp(const char* s1, const char* s2, int n) { int d = 0; while 
 static char* Strdup(const char* s) { IM_ASSERT(s); size_t len = strlen(s) + 1; void* buf = ImGui::MemAlloc(len); IM_ASSERT(buf); return (char*)memcpy(buf, (const void*)s, len); }
 static void  Strtrim(char* s) { char* str_end = s + strlen(s); while (str_end > s && str_end[-1] == ' ') str_end--; *str_end = 0; }
 
-void ConsoleWindow::Process(float panelWidth)
+void ConsoleWindow::Process(float BottomBarHeight)
 {
-	if (!bIsOpened)
+	if (!bIsDrawerOpen)
 		return;
 
-	ImGuiIO& io = ImGui::GetIO();
+	const ImGuiViewport* Viewport = ImGui::GetMainViewport();
 
-	float consolHeight = io.DisplaySize.y * HEIGHT_RATIO;
 
-	ImGui::SetNextWindowPos(
-		ImVec2(panelWidth, io.DisplaySize.y - consolHeight),
-		ImGuiCond_FirstUseEver
-	);
+	const ImVec2 DrawerPos = { Viewport->WorkPos.x, Viewport->WorkPos.y + Viewport->WorkSize.y - BottomBarHeight - mDrawerHeight };
+	const ImVec2 DrawerSize = { Viewport->WorkSize.x, mDrawerHeight };
 
-	ImGui::SetNextWindowSize(
-		ImVec2(io.DisplaySize.x - panelWidth, consolHeight),
-		ImGuiCond_FirstUseEver
-	);
+	ImGui::SetNextWindowPos(DrawerPos, ImGuiCond_Always);
+	ImGui::SetNextWindowSize(DrawerSize, ImGuiCond_Appearing);
+	ImGui::SetNextWindowViewport(Viewport->ID);
 
-	if (!ImGui::Begin("Console Window", &bIsOpened, ImGuiWindowFlags_MenuBar)) {
+	const ImGuiWindowFlags DrawerFlags =
+		ImGuiWindowFlags_NoMove |
+		ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_NoDocking;
+
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(32, 32, 32, 245));
+
+	if (!ImGui::Begin("Console Window", &bIsDrawerOpen, DrawerFlags))
+	{
+		ImGui::End();
+		ImGui::PopStyleColor();
+		return;
+	}
+
+	mDrawerHeight = ImGui::GetWindowHeight();
+
+	if (ImGui::BeginPopupContextItem())
+	{
+		if (ImGui::MenuItem("Close Console")) {
+			bIsDrawerOpen = false;
+		}
+		ImGui::EndPopup();
+	}
+
+	if (!ImGui::Begin("Console Window", &bIsDrawerOpen, ImGuiWindowFlags_MenuBar)) {
 		ImGui::End();
 		return;
 	}
@@ -68,7 +88,7 @@ void ConsoleWindow::Process(float panelWidth)
 	if (ImGui::BeginPopupContextItem())
 	{
 		if (ImGui::MenuItem("Close Console")) {
-			bIsOpened = false;
+			bIsDrawerOpen = false;
 		}
 		ImGui::EndPopup();
 	}
@@ -172,6 +192,9 @@ void ConsoleWindow::Process(float panelWidth)
 
 
 	ImGui::End();
+
+	ImGui::End();
+	ImGui::PopStyleColor();
 }
 
 ConsoleWindow::ConsoleWindow()

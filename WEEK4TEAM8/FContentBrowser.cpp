@@ -14,66 +14,19 @@ void FContentBrowser::SetEventHandler(FContentBrowserEventHandler* InEventHandle
 	EventHandler = InEventHandler;
 }
 
-void FContentBrowser::Render()
+void FContentBrowser::Render(const float BottomBarHeight)
 {
 	if (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && ImGui::IsKeyPressed(ImGuiKey_Space, false))
 	{
 		ToggleDrawer();
 	}
 
-	RenderBottomBar();
+	//RenderBottomBar();
 
 	if (bIsDrawerOpen)
 	{
-		RenderDrawer();
+		RenderDrawer(BottomBarHeight);
 	}
-}
-
-void FContentBrowser::RenderBottomBar()
-{
-	const ImGuiViewport* Viewport = ImGui::GetMainViewport();
-
-	ImGui::SetNextWindowPos(ImVec2(Viewport->WorkPos.x, Viewport->WorkPos.y + Viewport->WorkSize.y - BottomBarHeight));
-	ImGui::SetNextWindowSize(ImVec2(Viewport->WorkSize.x, BottomBarHeight));
-	ImGui::SetNextWindowViewport(Viewport->ID);
-
-	const ImGuiWindowFlags BottomBarFlags =
-		ImGuiWindowFlags_NoDecoration |
-		ImGuiWindowFlags_NoMove |
-		ImGuiWindowFlags_NoSavedSettings |
-		ImGuiWindowFlags_NoDocking;
-
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6.0f, 3.0f));
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(24, 24, 24, 255));
-
-	if (ImGui::Begin("##EditorBottomBar", nullptr, BottomBarFlags))
-	{
-		if (bIsDrawerOpen)
-		{
-			ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(230, 120, 0, 255));
-		}
-		else
-		{
-			ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(45, 45, 48, 255));
-		}
-
-		if (ImGui::Button("[ Content Drawer] (Ctrl+Space)"))
-		{
-			ToggleDrawer();
-		}
-
-		ImGui::PopStyleColor();
-
-		ImGui::SameLine();
-		ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 250.0f);
-		ImGui::TextDisabled("Path: %s", CurrentDirectory.filename().string().c_str());
-	}
-
-	ImGui::End();
-
-	ImGui::PopStyleColor();
-	ImGui::PopStyleVar(2);
 }
 
 // Static Mesh 같은 경로, 같은 이름 파일 다시 import 하면
@@ -100,7 +53,7 @@ static std::filesystem::path ResolveImportPath(const std::filesystem::path& InPa
 	return Candidate;
 }
 
-void FContentBrowser::RenderDrawer()
+void FContentBrowser::RenderDrawer(const float BottomBarHeight)
 {
 	const ImGuiViewport* Viewport = ImGui::GetMainViewport();
 
@@ -109,7 +62,7 @@ void FContentBrowser::RenderDrawer()
 	const ImVec2 DrawerSize = { Viewport->WorkSize.x, DrawerHeight };
 
 	ImGui::SetNextWindowPos(DrawerPos, ImGuiCond_Always);
-	ImGui::SetNextWindowSize(DrawerSize, ImGuiCond_Always);
+	ImGui::SetNextWindowSize(DrawerSize, ImGuiCond_Appearing);
 	ImGui::SetNextWindowViewport(Viewport->ID);
 
 	const ImGuiWindowFlags DrawerFlags =
@@ -121,6 +74,7 @@ void FContentBrowser::RenderDrawer()
 
 	if (ImGui::Begin("Content Drawer", &bIsDrawerOpen, DrawerFlags))
 	{
+		DrawerHeight = ImGui::GetWindowHeight();
 		if (ImGui::Button("Import Texture2D"))
 		{
 			std::filesystem::path TargetPath;
