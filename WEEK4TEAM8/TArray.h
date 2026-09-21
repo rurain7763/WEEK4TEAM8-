@@ -66,6 +66,12 @@ public:
 	void RemoveAtSwap(uint32 index);
 	void RemoveLast();
 
+	T& Last()
+	{
+		assert(mDatas.empty() == false);
+		return mDatas.back();
+	}
+
 	inline const T* Data() const { return mDatas.data(); }
 	inline T* Data() { return mDatas.data(); }
 

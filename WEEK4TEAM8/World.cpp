@@ -5,12 +5,13 @@
 #include "RenderInfo.h"
 #include "JsonUtil.h"
 #include "Console.h"
+#include "ObjectFactory.h"
 
 UWorld::~UWorld()
 {
 	for (AActor* removeActor : mActors)
 	{
-		delete removeActor;
+		FObjectFactory::DestroyObject(removeActor);
 	}
 }
 
@@ -37,7 +38,7 @@ void UWorld::DeserializeClass(const json::JSON& inJson)
 
 	if (!propertiesJson.hasKey("mActors") || propertiesJson.at("mActors").JSONType() != json::JSON::Class::Array)
 	{
-		throw std::runtime_error(std::format("{}: mActors requires an array", GetRuntimeClass()->Name));
+		throw std::runtime_error(std::format("{}: mActors requires an array", GetClass()->Name));
 	}
 
 	const json::JSON& actorsJson = propertiesJson.at("mActors");
@@ -46,14 +47,14 @@ void UWorld::DeserializeClass(const json::JSON& inJson)
 	{
 		if (!actorJson.hasKey("ClassName") || actorJson.at("ClassName").JSONType() != json::JSON::Class::String)
 		{
-			throw std::runtime_error(std::format("{}: ClassName requires a string", GetRuntimeClass()->Name));
+			throw std::runtime_error(std::format("{}: ClassName requires a string", GetClass()->Name));
 		}
 		FString className(actorJson.at("ClassName").ToString());
 
 		const FClassInfo* classInfo = FObjectFactory::GetClassInfoByName(className);
 		if (!classInfo)
 		{
-			throw std::runtime_error(std::format("{}: Unknown class name: {}", GetRuntimeClass()->Name, className));
+			throw std::runtime_error(std::format("{}: Unknown class name: {}", GetClass()->Name, className));
 		}
 		AActor* actor = static_cast<AActor*>(FObjectFactory::LoadObject(classInfo, actorJson));
 		AddActor(actor);

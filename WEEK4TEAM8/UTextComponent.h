@@ -11,6 +11,7 @@
 #include "Json/json.hpp"
 #include "JsonUtil.h"
 
+
 class UPlaneComponent : public UPrimitiveComponent
 {
 	REFLECT_CLASS(UPlaneComponent, UPrimitiveComponent)
@@ -28,7 +29,7 @@ public:
 		if (mTextureAsset)
 		{
 			FGuid AssetID = mTextureAsset->GetAssetID();
-			outJson["Properties"]["ObjTextureAsset"] = FGuidToJson(AssetID);
+			outJson["Properties"]["ObjTextureAsset"] = JsonUtils::ToJson(AssetID);
 		}
 	}
 
@@ -47,7 +48,7 @@ public:
 			throw std::runtime_error("UPlaneComponent: ObjTextureAsset property requires an object");
 		}
 
-		FGuid AssetID = FGuidFromJson(PropertiesJson.at("ObjTextureAsset"));
+		FGuid AssetID = JsonUtils::FromJson<FGuid>(PropertiesJson.at("ObjTextureAsset"));
 		if (AssetID.IsValid())
 		{
 			mTextureAsset = FAssetManager::Get().GetAssetAs<FTexture2DAsset>(AssetID, true);
@@ -322,11 +323,29 @@ public:
 		const FTransform OwnerTransform = mOwner->GetTransform();
 		FTransform PivotTransform = GetTransformMatrix();
 
-		PivotTransform.Location = OwnerTransform.Location;
+		UPrimitiveComponent* Primitive =
+			mOwner->GetRootComponent()->Cast<UPrimitiveComponent>();
+
+		if (Primitive)
+		{
+			const FAABB Bounds = Primitive->GetBoundingBox();
+
+			PivotTransform.Location = FVector(
+				(Bounds.Min.x + Bounds.Max.x) * 0.5f,
+				(Bounds.Min.y + Bounds.Max.y) * 0.5f,
+				Bounds.Max.z + 0.2f
+			);
+		}
+		else
+		{
+			PivotTransform.Location = mOwner->GetTransform().Location + FVector(0.f, 0.f, 1.f);
+		}
+
+		//PivotTransform.Location = OwnerTransform.Location;
 		if (mbBillboard && RenderCollector.Camera)
 		{
 			PivotTransform.Rotation = RenderCollector.Camera->Transform.Rotation;
-			PivotTransform.Location += RenderCollector.Camera->GetUpVector();
+			//PivotTransform.Location += RenderCollector.Camera->GetUpVector();
 		}
 
 		FVector TextLocation = FVector(0.f, -TotalWidth * 0.5f, TotalHeight * 0.5f - WorldAscender);

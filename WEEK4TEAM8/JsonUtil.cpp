@@ -1,119 +1,67 @@
 ﻿#include "JsonUtil.h"
-
 #include "Json/json.hpp"
 
-json::JSON FVectorToJson(const FVector& Vector)
+namespace JsonUtils
 {
-	json::JSON vectorJson = json::JSON::Make(json::JSON::Class::Array);
-	vectorJson[0] = Vector.x;
-	vectorJson[1] = Vector.y;
-	vectorJson[2] = Vector.z;
-	return vectorJson;
-}
-
-json::JSON FRotatorToJson(const FRotator& Rotator)
-{
-	json::JSON rotatorJson = json::JSON::Make(json::JSON::Class::Array);
-	rotatorJson[0] = Rotator.Pitch;
-	rotatorJson[1] = Rotator.Yaw;
-	rotatorJson[2] = Rotator.Roll;
-	return rotatorJson;
-}
-
-json::JSON EPrimitiveToJson(const EPrimitive& Primitive)
-{
-	switch (Primitive)
+	json::JSON ToJson(const FString& String)
 	{
-	case EPrimitive::EP_Sphere:
-		return json::JSON("Sphere");
-	case EPrimitive::EP_Cube:
-		return json::JSON("Cube");
-	case EPrimitive::EP_Triangle:
-		return json::JSON("Triangle");
-	case EPrimitive::EP_GizmoArrow:
-		return json::JSON("GizmoArrow");
-	case EPrimitive::EP_Circle:
-		return json::JSON("Circle");
-	case EPrimitive::EP_Plane:
-		return json::JSON("Plane");
-	default:
-		throw std::runtime_error("Unknown EPrimitive value");
-	}
-}
-
-json::JSON FGuidToJson(const FGuid& Guid)
-{
-	json::JSON GuidJson = json::JSON::Make(json::JSON::Class::Object);
-	GuidJson["A"] = Guid.A;
-	GuidJson["B"] = Guid.B;
-	GuidJson["C"] = Guid.C;
-	GuidJson["D"] = Guid.D;
-	return GuidJson;
-}
-
-FVector FVectorFromJson(const json::JSON& json)
-{
-	if (json.JSONType() != json::JSON::Class::Array)
-	{
-		throw std::runtime_error("Json Array expected for FVector");
+		return json::JSON(String.c_str());
 	}
 
-	return FVector(json.at(0).ToFloat(), json.at(1).ToFloat(), json.at(2).ToFloat());
-}
-
-FRotator FRotatorFromJson(const json::JSON& json)
-{
-	if (json.JSONType() != json::JSON::Class::Array)
+	json::JSON ToJson(const FVector2& Vector)
 	{
-		throw std::runtime_error("Json Array expected for FRotator");
+		json::JSON vectorJson = json::JSON::Make(json::JSON::Class::Array);
+		vectorJson[0] = Vector.X;
+		vectorJson[1] = Vector.Y;
+		return vectorJson;
 	}
 
-	return FRotator(json.at(0).ToFloat(), json.at(1).ToFloat(), json.at(2).ToFloat());
-}
-
-EPrimitive EPrimitiveFromJson(const json::JSON& json)
-{
-	if (json.JSONType() != json::JSON::Class::String)
+	json::JSON ToJson(const FVector& Vector)
 	{
-		throw std::runtime_error("Json String expected for EPrimitive");
-	}
-	std::string primitiveStr = json.ToString();
-	if (primitiveStr == "Sphere")
-	{
-		return EPrimitive::EP_Sphere;
-	}
-	else if (primitiveStr == "Cube")
-	{
-		return EPrimitive::EP_Cube;
-	}
-	else if (primitiveStr == "Triangle")
-	{
-		return EPrimitive::EP_Triangle;
-	}
-	else if (primitiveStr == "GizmoArrow")
-	{
-		return EPrimitive::EP_GizmoArrow;
-	}
-	else if (primitiveStr == "Circle")
-	{
-		return EPrimitive::EP_Circle;
-	}
-	else if (primitiveStr == "Plane")
-	{
-		return EPrimitive::EP_Plane;
-	}
-	else
-	{
-		throw std::runtime_error("Unknown EPrimitive value in JSON");
-	}
-}
-
-FGuid FGuidFromJson(const json::JSON& json)
-{
-	if (json.JSONType() != json::JSON::Class::Object)
-	{
-		throw std::runtime_error("Json Object expected for FGuid");
+		json::JSON vectorJson = json::JSON::Make(json::JSON::Class::Array);
+		vectorJson[0] = Vector.x;
+		vectorJson[1] = Vector.y;
+		vectorJson[2] = Vector.z;
+		return vectorJson;
 	}
 
-	return FGuid(json.at("A").ToInt(), json.at("B").ToInt(), json.at("C").ToInt(), json.at("D").ToInt());
+	json::JSON ToJson(const FRotator& Rotator)
+	{
+		json::JSON rotatorJson = json::JSON::Make(json::JSON::Class::Array);
+		rotatorJson[0] = Rotator.Pitch;
+		rotatorJson[1] = Rotator.Yaw;
+		rotatorJson[2] = Rotator.Roll;
+		return rotatorJson;
+	}
+
+	json::JSON ToJson(const EPrimitive& Primitive)
+	{
+		switch (Primitive)
+		{
+		case EPrimitive::EP_Sphere:
+			return json::JSON("Sphere");
+		case EPrimitive::EP_Cube:
+			return json::JSON("Cube");
+		case EPrimitive::EP_Triangle:
+			return json::JSON("Triangle");
+		case EPrimitive::EP_GizmoArrow:
+			return json::JSON("GizmoArrow");
+		case EPrimitive::EP_Circle:
+			return json::JSON("Circle");
+		case EPrimitive::EP_Plane:
+			return json::JSON("Plane");
+		default:
+			throw std::runtime_error("Unknown EPrimitive value");
+		}
+	}
+
+	json::JSON ToJson(const FGuid& Guid)
+	{
+		json::JSON GuidJson = json::JSON::Make(json::JSON::Class::Object);
+		GuidJson["A"] = Guid.A;
+		GuidJson["B"] = Guid.B;
+		GuidJson["C"] = Guid.C;
+		GuidJson["D"] = Guid.D;
+		return GuidJson;
+	}
 }

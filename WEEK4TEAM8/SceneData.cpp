@@ -20,19 +20,19 @@ FPrimitiveData::FPrimitiveData(json::JSON json)
 		return;
 	}
 
-	Location = FVectorFromJson(json["Location"]);
-	Rotation = FRotatorFromJson(json["Rotation"]);
-	Scale = FVectorFromJson(json["Scale"]);
-	PrimitiveType = EPrimitiveFromJson(json["PrimitiveType"]);
+	Location = JsonUtils::FromJson<FVector>(json["Location"]);
+	Rotation = JsonUtils::FromJson<FRotator>(json["Rotation"]);
+	Scale = JsonUtils::FromJson<FVector>(json["Scale"]);
+	PrimitiveType = JsonUtils::FromJson<EPrimitive>(json["PrimitiveType"]);
 }
 
 json::JSON FPrimitiveData::ToJson() const
 {
 	json::JSON json;
-	json["Location"] = FVectorToJson(Location);
-	json["Rotation"] = FRotatorToJson(Rotation);
-	json["Scale"] = FVectorToJson(Scale);
-	json["PrimitiveType"] = EPrimitiveToJson(PrimitiveType);
+	json["Location"] = JsonUtils::ToJson(Location);
+	json["Rotation"] = JsonUtils::ToJson(Rotation);
+	json["Scale"] = JsonUtils::ToJson(Scale);
+	json["PrimitiveType"] = JsonUtils::ToJson(PrimitiveType);
 	return json;
 }
 
