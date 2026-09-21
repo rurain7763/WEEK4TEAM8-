@@ -55,6 +55,20 @@ static std::filesystem::path ResolveImportPath(const std::filesystem::path& InPa
 
 void FContentBrowser::RenderDrawer(const float BottomBarHeight)
 {
+	static bool bWasWindowFocused = true;
+
+	HWND ActiveHWND = ::GetActiveWindow();
+
+	bool bIsFocusedNow = (ActiveHWND != nullptr);
+	bool bFoucusGained = (!bWasWindowFocused && bIsFocusedNow);
+	bWasWindowFocused = bIsFocusedNow;
+
+	// 프로그램 외부에서 .uasset을 수정/삭제한 경우 파일 캐쉬 갱신
+	if (bFoucusGained)
+	{
+		EventHandler->RefreshContentBrowser(CurrentDirectory);
+	}
+
 	const ImGuiViewport* Viewport = ImGui::GetMainViewport();
 
 
