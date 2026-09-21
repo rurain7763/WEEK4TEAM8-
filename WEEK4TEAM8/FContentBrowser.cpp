@@ -128,9 +128,9 @@ void FContentBrowser::RenderDrawer(const float BottomBarHeight)
 		ImGui::Text(" | Current: %s", CurrentDirectory.string().c_str());
 
 		ImGui::SameLine(ImGui::GetWindowWidth() - 70.0f);
-		if (ImGui::Button("Close"))
+		if (ImGui::Button("Refresh"))
 		{
-			bIsDrawerOpen = false;
+			EventHandler->RefreshContentBrowser(CurrentDirectory);
 		}
 
 		ImGui::Separator();
@@ -259,7 +259,9 @@ void FContentBrowser::RenderDrawer(const float BottomBarHeight)
 							bool bDrawn = false;
 							if (AssetManager)
 							{
-								FString AssetKey = NormalizeAssetPath(Path);
+								std::string CanonicalKey = std::filesystem::weakly_canonical(Path).string();
+								FName AssetKey(CanonicalKey.c_str());
+
 								TSharedPtr<FTexture2DAsset> TextureAsset = AssetManager->GetAssetAs<FTexture2DAsset>(FName(AssetKey), true);
 								if (TextureAsset && TextureAsset->GetSRV())
 								{
@@ -484,4 +486,3 @@ void FContentBrowser::RefreshCache()
 	}
 	catch (...) {}
 }
-

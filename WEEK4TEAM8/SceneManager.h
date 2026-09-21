@@ -62,6 +62,7 @@ public:
 
 	void OnNewAssetFile(const FAssetFileHeader& Header, const std::filesystem::path& FilePath) override;
 	void OnDeleteAssetFile(const std::filesystem::path& FilePath) override;
+	void RefreshContentBrowser(const std::filesystem::path& TargetDirectory) override;
 
 	void Tick(float deltaTime);
 	void Render(float deltaTime, FRenderCollector& outCollector);

@@ -16,6 +16,7 @@ struct FContentBrowserEventHandler
 {
 	virtual void OnNewAssetFile(const FAssetFileHeader& Header, const std::filesystem::path& FilePath) {}
 	virtual void OnDeleteAssetFile(const std::filesystem::path& FilePath) {}
+	virtual void RefreshContentBrowser(const std::filesystem::path& TargetDirectory) {}
 };
 
 struct FContentItem
@@ -41,6 +42,8 @@ public:
 
 	void Render(const float BottomBarHeight);
 
+	void RefreshCache();
+
 	void ToggleDrawer()
 	{
 		bIsDrawerOpen = !bIsDrawerOpen;
@@ -50,8 +53,10 @@ public:
 		}
 	}
 	bool IsDrawerOpen() const { return bIsDrawerOpen; }
+	void SetIsDrawerOpen(bool InIsDrawerOpen) { bIsDrawerOpen = InIsDrawerOpen; }
 	void SetAssetManager(FAssetManager* InAssetManager) { AssetManager = InAssetManager; }
 
+	void RefreshContentBrowser(const std::filesystem::path& TargetDirectory);
 	const std::filesystem::path GetCurrentDirectory() const { return CurrentDirectory; }
 private:
 	void RenderDrawer(const float BottomBarHeight);
@@ -67,5 +72,4 @@ private:
 	float DrawerHeight = 350.0f;
 
 	TArray<FContentItem> CachedItems;
-	void RefreshCache();
 };

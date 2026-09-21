@@ -31,6 +31,7 @@ public:
 	}
 
 	inline void ToggleDrawer() { bIsDrawerOpen = !bIsDrawerOpen; }
+	inline void SetIsDrawerOpen(bool InIsDrawerOpen) { bIsDrawerOpen = InIsDrawerOpen; }
 
 	void Init(int MaxLines) {
 		if (MaxLines > MaxLine) return;

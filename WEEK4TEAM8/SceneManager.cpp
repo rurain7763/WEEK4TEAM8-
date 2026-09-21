@@ -44,7 +44,7 @@ FSceneManager::FSceneManager()
 	mViewportY = 0;
 	mViewportWidth = WindowApplication.PendingWidth;
 	mViewportHeight = WindowApplication.PendingHeight;
-	mBottomBarHeight = 35.0f;
+	mBottomBarHeight = 30.0f;
 
 	mContentBrowser.Initialize(kDefaultAssetsPath);
 	mContentBrowser.SetEventHandler(this);
@@ -87,6 +87,17 @@ void FSceneManager::OnDeleteAssetFile(const std::filesystem::path& FilePath)
 
 	std::string CanonicalPath = std::filesystem::weakly_canonical(FilePath).string();
 	AssetManager.UnregisterAsset(FName(CanonicalPath.c_str()));
+}
+
+void FSceneManager::RefreshContentBrowser(const std::filesystem::path& TargetDirectory)
+{
+	FAssetManager& AssetManager = FAssetManager::Get();
+
+	AssetManager.PurgeStaleAssetsInDirectory(TargetDirectory);
+
+	AssetManager.ScanDirectory(TargetDirectory, *mRenderer);
+
+	mContentBrowser.RefreshCache();
 }
 
 void FSceneManager::Tick(float deltaTime)
@@ -326,6 +337,7 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 			if (ImGui::Button("[ Content Drawer] (Ctrl+Space)"))
 			{
+				ConsoleWindow::Get().SetIsDrawerOpen(false);
 				mContentBrowser.ToggleDrawer();
 			}
 
@@ -334,6 +346,7 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 			if (ImGui::Button("[ Console ]"))
 			{
 				ConsoleWindow::Get().ToggleDrawer();
+				mContentBrowser.SetIsDrawerOpen(false);
 			}
 
 			ImGui::PopStyleColor();
@@ -390,6 +403,7 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 	updatePropertyWindowGUI(guiReference);
 	updateObjectListPanelGUI(guiReference);
 	ConsoleWindow::Get().Process(mBottomBarHeight);
+	mContentBrowser.SetAssetManager(guiReference.AssetManager);
 	mContentBrowser.Render(mBottomBarHeight);
 #endif
 }

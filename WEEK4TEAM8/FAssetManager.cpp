@@ -116,6 +116,42 @@ void FAssetManager::UnloadAsset(const FGuid& AssetID)
 	}
 }
 
+void FAssetManager::PurgeStaleAssetsInDirectory(const std::filesystem::path& Directory)
+{
+	TArray<FName> StaleAssetKeys;
+
+	std::filesystem::path CanonicalDir = std::filesystem::weakly_canonical(Directory);
+
+	ForEachMetaInfo([&](const FAssetMetaInfo& MetaInfo)
+		{
+			if (MetaInfo.AssetName.IsValid())
+			{
+				std::filesystem::path FilePath(MetaInfo.AssetName.ToString().c_str());
+
+				std::error_code ec;
+				std::filesystem::path CanonicalFilePath = std::filesystem::weakly_canonical(FilePath, ec);
+
+				if (ec) return;
+				
+				auto Relative = std::filesystem::relative(CanonicalFilePath, CanonicalDir, ec);
+				if (!ec && !Relative.empty() && Relative.native()[0] != '.')
+				{
+					if (!std::filesystem::exists(CanonicalFilePath))
+					{
+						StaleAssetKeys.Add(MetaInfo.AssetName);
+					}
+				}
+			}
+		}
+	);
+
+	for (const FName& AssetKey : StaleAssetKeys)
+	{
+		UnregisterAsset(AssetKey);
+		UE_LOG("UnregisterAsset: %s", AssetKey.ToString().c_str());
+	}
+}
+
 // 프로그램 시작 시에 호출하여 Directory 스캔하는 함수
 void FAssetManager::ScanDirectory(const std::filesystem::path& RootDir, URenderer& Renderer)
 {
