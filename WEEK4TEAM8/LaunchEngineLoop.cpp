@@ -91,10 +91,10 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 	mEditorLayout.Initialize(FRect(0, 0, (float)clientWidth, (float)clientHeight));
 
 	static constexpr EViewportType DefaultLayoutTypes[FEngineLoop::MaxViewportCount] = {
-	EViewportType::Perspective,
-	EViewportType::Top,
-	EViewportType::Front,
-	EViewportType::Side
+		EViewportType::Perspective,
+		EViewportType::Top,
+		EViewportType::Front,
+		EViewportType::Side
 	};
 	
 	for (int32 i = 0; i < 4; ++i)
@@ -108,7 +108,6 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 
 	const FVector4 NearTint(1.0f, 0.65f, 0.15f, 0.85f); // 주황 = 가까운 쪽
 	const FVector4 FarTint(0.25f, 0.55f, 1.0f, 0.85f); // 파랑 = 먼 쪽
-
 
 	mSceneManager = new FSceneManager();
 	mFileManager = new FFileManager();
@@ -437,9 +436,13 @@ void FEngineLoop::SaveEditorSettings()
 
 	for (int32 i = 0; i < MaxViewportCount; ++i)
 	{
-		std::string Key = "ViewportType_" + std::to_string(i);
-		std::string Val = std::to_string(static_cast<int32>(mViewports[i].Client->GetViewportType()));
-		WritePrivateProfileStringA("Layout", Key.c_str(), Val.c_str(), ".\\editor.ini");
+		std::string ViewTypeKey = "ViewportType_" + std::to_string(i);
+		std::string ViewTypeVal = std::to_string(static_cast<int32>(mViewports[i].Client->GetViewportType()));
+		WritePrivateProfileStringA("Layout", ViewTypeKey.c_str(), ViewTypeVal.c_str(), ".\\editor.ini");
+
+		std::string ViewModeKey = "ViewportViewMode_" + std::to_string(i);
+		std::string ViewModeVal = std::to_string(static_cast<int32>(mViewports[i].Client->GetViewMode()));
+		WritePrivateProfileStringA("Layout", ViewModeKey.c_str(), ViewModeVal.c_str(), ".\\editor.ini");
 	}
 }
 
@@ -479,11 +482,18 @@ void FEngineLoop::LoadEditorSettings()
 
 	for (int32 i = 0; i < MaxViewportCount; ++i)
 	{
-		std::string Key = "ViewportType_" + std::to_string(i);
-		int32 TypeVal = GetPrivateProfileIntA("Layout", Key.c_str(), -1, ".\\editor.ini");
-		if (TypeVal >= 0 && TypeVal < static_cast<int32>(EViewportType::Max))
+		std::string ViewTypeKey = "ViewportType_" + std::to_string(i);
+		int32 ViewTypeVal = GetPrivateProfileIntA("Layout", ViewTypeKey.c_str(), -1, ".\\editor.ini");
+		if (ViewTypeVal >= 0 && ViewTypeVal < static_cast<int32>(EViewportType::Max))
 		{
-			mViewports[i].Client->SetViewportType(static_cast<EViewportType>(TypeVal));
+			mViewports[i].Client->SetViewportType(static_cast<EViewportType>(ViewTypeVal));
+		}
+
+		std::string ViewModeKey = "ViewportViewMode_" + std::to_string(i);
+		int32 ViewModeVal = GetPrivateProfileIntA("Layout", ViewModeKey.c_str(), -1, ".\\editor.ini");
+		if (ViewModeVal >= 0 && ViewModeVal < static_cast<int32>(EViewModeIndex::VMI_Max))
+		{
+			mViewports[i].Client->SetViewMode(static_cast<EViewModeIndex>(ViewModeVal));
 		}
 	}
 }
