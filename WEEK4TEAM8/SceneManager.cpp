@@ -159,6 +159,8 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 			for (int32 i = 0; i < guiReference.ViewportCount; ++i)
 			{
+				const int32 CurrentViewportIndex = guiReference.EditorLayout->bIsSplitView ? i : guiReference.EditorLayout->MaximizedViewportIndex;
+
 				FEditorViewport* EditorViewport = &guiReference.Viewports[i];
 
 				FRect DrawRect = EditorViewport->Window->Rect;
@@ -172,20 +174,31 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 					const TSharedPtr<FRenderTarget2D>& RenderTarget = EditorViewport->Viewport->RenderTarget;
 					DrawList->AddImage((ImTextureID)(intptr_t)RenderTarget->SRV.Get(), ImVec2(DrawRect.X, DrawRect.Y), ImVec2(DrawRect.X + DrawRect.Width, DrawRect.Y + DrawRect.Height));
 
-					ImGui::PushID(i);
+					ImGui::PushID(CurrentViewportIndex);
 
+					const float ViewportTypeWidth = 95.0f;
+					const float ViewModeWidth = 85.0f;
+					const float MaximizeButtonWidth = 28.0f;
+					const float SplitButtonWidth = 28.0f;
+
+					const float Spacing = ImGui::GetStyle().ItemSpacing.x;
 					const float MarginX = 8.0f;
-					const float MarginY = 8.0f;
-					ImGui::SetCursorScreenPos(ImVec2(DrawRect.X + MarginX, DrawRect.Y + MarginY));
+					const float MarginY = 4.0f;
+					const float ToolBarHeight = 28.0f;
 
-					ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(30, 30, 30, 180));
-					ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(60, 60, 60, 220));
-					ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4.0f, 2.0f));
+					const float ToolBarWidth = ViewportTypeWidth + ViewModeWidth + MaximizeButtonWidth + SplitButtonWidth + (Spacing * 3.0f) + MarginX;
+					const float StartCursorPos = DrawRect.X + DrawRect.Width - ToolBarWidth;
+					const float ItemHeight = 22.0f;
 
-					const char* ViewportTypeNames[] = {"Perspective", "Top", "Front", "Side"};
+					DrawList->AddRectFilled(ImVec2(DrawRect.X, DrawRect.Y), ImVec2(DrawRect.X + DrawRect.Width, DrawRect.Y + ToolBarHeight), IM_COL32(30, 30, 30, 180));
+
+					ImGui::SetCursorScreenPos(ImVec2(StartCursorPos, DrawRect.Y + MarginY));
+
+					ImGui::SetNextItemWidth(100.0f);
+
+					const char* ViewportTypeNames[] = { "Perspective", "Top", "Front", "Side" };
 					int32 CurrentTypeIndex = static_cast<int32>(EditorViewport->Client->GetViewportType());
 
-					ImGui::SetNextItemWidth(95.0f);
 					if (ImGui::Combo("##ViewportType", &CurrentTypeIndex, ViewportTypeNames, IM_ARRAYSIZE(ViewportTypeNames)))
 					{
 						EditorViewport->Client->SetViewportType(static_cast<EViewportType>(CurrentTypeIndex));
@@ -193,20 +206,32 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 					ImGui::SameLine();
 
+					ImGui::SetNextItemWidth(80.0f);
+
 					const char* ViewModeNames[] = { "Lit", "UnLit", "Wireframe" };
 					int32 CurrentModeIndex = static_cast<int32>(EditorViewport->Client->GetViewMode());
 
-					ImGui::SetNextItemWidth(85.0f);
 					if (ImGui::Combo("##ViewMode", &CurrentModeIndex, ViewModeNames, IM_ARRAYSIZE(ViewModeNames)))
 					{
 						EditorViewport->Client->SetViewMode(static_cast<EViewModeIndex>(CurrentModeIndex));
 					}
 
-					ImGui::PopStyleVar();
-					ImGui::PopStyleColor(2);
-					ImGui::PopID();
+					ImGui::SameLine();
 
-					ImGui::SetCursorScreenPos(ImVec2(DrawRect.X, DrawRect.Y));
+					if (ImGui::Button("[ㅁ]##Maximize", ImVec2(MaximizeButtonWidth, ItemHeight)))
+					{
+						guiReference.EditorLayout->MaximizedViewportIndex = CurrentViewportIndex;
+						guiReference.EditorLayout->bIsSplitView = false;
+					}
+
+					ImGui::SameLine();
+
+					if (ImGui::Button("[田]##Split", ImVec2(MaximizeButtonWidth, ItemHeight)))
+					{
+						guiReference.EditorLayout->bIsSplitView = true;
+					}
+
+					ImGui::PopID();
 					ImGui::Dummy(ImVec2(DrawRect.Width, DrawRect.Height));
 				}
 			}

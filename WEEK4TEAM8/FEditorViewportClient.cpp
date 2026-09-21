@@ -30,10 +30,17 @@ void FEditorViewportClient::SetViewportType(EViewportType InViewportType)
 {
 	// 변경 전 뷰포트 타입이 원근 투영이면 이전 카메라 위치 저장
 	// 직교 화면이면 이전 카메라 위치로 설정
-	if(mViewportType == EViewportType::Perspective)
+	const bool bWasPerspective = (mViewportType == EViewportType::Perspective);
+	const bool bWillBePerspective = (InViewportType == EViewportType::Perspective);
+
+	if (bWasPerspective && !bWillBePerspective)
+	{
 		PrevCameraTransform = mCamera.Transform;
-	else
+	}
+	else if (!bWasPerspective && bWillBePerspective)
+	{
 		mCamera.Transform = PrevCameraTransform;
+	}
 
 	mViewportType = InViewportType;
 
