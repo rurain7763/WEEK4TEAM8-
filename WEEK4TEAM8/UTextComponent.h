@@ -29,7 +29,7 @@ public:
 		if (mTextureAsset)
 		{
 			FGuid AssetID = mTextureAsset->GetAssetID();
-			outJson["Properties"]["ObjTextureAsset"] = FGuidToJson(AssetID);
+			outJson["Properties"]["ObjTextureAsset"] = JsonUtils::ToJson(AssetID);
 		}
 	}
 
@@ -48,7 +48,7 @@ public:
 			throw std::runtime_error("UPlaneComponent: ObjTextureAsset property requires an object");
 		}
 
-		FGuid AssetID = FGuidFromJson(PropertiesJson.at("ObjTextureAsset"));
+		FGuid AssetID = JsonUtils::FromJson<FGuid>(PropertiesJson.at("ObjTextureAsset"));
 		if (AssetID.IsValid())
 		{
 			mTextureAsset = FAssetManager::Get().GetAssetAs<FTexture2DAsset>(AssetID, true);

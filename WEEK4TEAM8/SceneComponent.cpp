@@ -21,9 +21,9 @@ USceneComponent::~USceneComponent()
 void USceneComponent::SerializeClass(json::JSON& outJson) const
 {
 	UActorComponent::SerializeClass(outJson);
-	outJson["Properties"]["mRelativeLocation"] = FVectorToJson(mRelativeLocation);
-	outJson["Properties"]["mRelativeRotation"] = FRotatorToJson(mRelativeRotation);
-	outJson["Properties"]["mRelativeScale3D"] = FVectorToJson(mRelativeScale3D);
+	outJson["Properties"]["mRelativeLocation"] = JsonUtils::ToJson(mRelativeLocation);
+	outJson["Properties"]["mRelativeRotation"] = JsonUtils::ToJson(mRelativeRotation);
+	outJson["Properties"]["mRelativeScale3D"] = JsonUtils::ToJson(mRelativeScale3D);
 }
 
 void USceneComponent::DeserializeClass(const json::JSON& inJson)
@@ -53,9 +53,9 @@ void USceneComponent::DeserializeClass(const json::JSON& inJson)
 		throw std::runtime_error(std::format("{}: mRelativeScale3D property requires an array of length 3", GetClass()->Name));
 	}
 
-	mRelativeLocation = FVectorFromJson(propertiesJson.at("mRelativeLocation"));
-	mRelativeRotation = FRotatorFromJson(propertiesJson.at("mRelativeRotation"));
-	mRelativeScale3D = FVectorFromJson(propertiesJson.at("mRelativeScale3D"));
+	mRelativeLocation = JsonUtils::FromJson<FVector>(propertiesJson.at("mRelativeLocation"));
+	mRelativeRotation = JsonUtils::FromJson<FRotator>(propertiesJson.at("mRelativeRotation"));
+	mRelativeScale3D = JsonUtils::FromJson<FVector>(propertiesJson.at("mRelativeScale3D"));
 }
 
 FVector USceneComponent::GetRelativeLocation() const

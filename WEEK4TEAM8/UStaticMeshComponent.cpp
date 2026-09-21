@@ -8,7 +8,6 @@
 #include "EngineMathLibrary.h"
 #include "FLogManager.h"
 
-
 void UStaticMeshComponent::Initialize(const FString& InAssetPathFileName, FVector Location,
     FRotator Rotation, FVector Scale)
 {
@@ -20,7 +19,17 @@ void UStaticMeshComponent::SerializeClass(json::JSON& outJson) const
     USceneComponent::SerializeClass(outJson);
 
     FGuid AssetID = mMeshAsset ? mMeshAsset->GetAssetID() : FGuid();
-    outJson["Properties"]["ObjStaticMeshAsset"] = FGuidToJson(AssetID);
+    outJson["Properties"]["ObjStaticMeshAsset"] = JsonUtils::ToJson(AssetID);
+
+	TArray<FGuid> MaterialAssetIDs;
+	for (int32 i = 0; i < mMaterialAssets.Num(); ++i)
+	{
+		const TSharedPtr<FMaterialAsset>& MaterialAsset = mMaterialAssets[i];
+		FGuid MaterialAssetID = MaterialAsset ? MaterialAsset->GetAssetID() : FGuid();
+		MaterialAssetIDs.Add(MaterialAssetID);
+	}
+	outJson["Properties"]["ObjMaterialAssets"] = JsonUtils::ToJson(MaterialAssetIDs);
+	outJson["Properties"]["UVOffsets"] = JsonUtils::ToJson(mUVOffsets);
 }
 
 void UStaticMeshComponent::DeserializeClass(const json::JSON& inJson)
@@ -28,13 +37,6 @@ void UStaticMeshComponent::DeserializeClass(const json::JSON& inJson)
     USceneComponent::DeserializeClass(inJson);
 
     const json::JSON& PropertiesJson = inJson.at("Properties");
-
-    /*if (!PropertiesJson.hasKey("MeshAssetName") || PropertiesJson.at("MeshAssetName").JSONType() != json::JSON::Class::String)
-    {
-        throw std::runtime_error("UStaticMeshComponent: MeshAssetName property requires a string");
-    }*/
-    /*MeshAssetName = FName(PropertiesJson.at("MeshAssetName").ToString());
-    SetMeshAsset(MeshAssetName);*/
 
     if (!PropertiesJson.hasKey("ObjStaticMeshAsset"))
     {
@@ -46,19 +48,29 @@ void UStaticMeshComponent::DeserializeClass(const json::JSON& inJson)
         throw std::runtime_error("UStaticMeshComponent: ObjStaticMeshAsset property requires an object");
     }
 
-    FGuid AssetID = FGuidFromJson(PropertiesJson.at("ObjStaticMeshAsset"));
+    FGuid AssetID = JsonUtils::FromJson<FGuid>(PropertiesJson.at("ObjStaticMeshAsset"));
 
     if (AssetID.IsValid())
     {
-        mMeshAsset = FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(AssetID, true);
+        SetMesh(FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(AssetID, true));
     }
-}
 
-//void UStaticMeshComponent::SetMeshAsset(const FName& InMeshAssetName)
-//{
-//    MeshAssetName = InMeshAssetName;
-//    MeshAsset = FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(MeshAssetName, true);
-//}
+	TArray<FGuid> MaterialAssetIDs;
+	if (PropertiesJson.hasKey("ObjMaterialAssets"))
+	{
+		JsonUtils::FromJson(PropertiesJson.at("ObjMaterialAssets"), MaterialAssetIDs);
+	}
+
+	for (int32 i = 0; i < MaterialAssetIDs.Num(); ++i)
+	{
+		mMaterialAssets[i] = FAssetManager::Get().GetAssetAs<FMaterialAsset>(MaterialAssetIDs[i], true);
+	}
+
+	if (PropertiesJson.hasKey("UVOffsets"))
+	{
+		JsonUtils::FromJson(PropertiesJson.at("UVOffsets"), mUVOffsets);
+	}
+}
 
 void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
 {
