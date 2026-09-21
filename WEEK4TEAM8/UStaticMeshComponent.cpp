@@ -14,6 +14,13 @@ void UStaticMeshComponent::Initialize(const FString& InAssetPathFileName, FVecto
     FRotator Rotation,  FVector Scale)
 {
     USceneComponent::Initialize(Location, Rotation, Scale);
+
+    // OBJ
+    StaticMesh = FObjManager::LoadObjStaticMesh(InAssetPathFileName);
+    if (StaticMesh)
+    {
+        mMeshAsset = StaticMesh->GetStaticMeshAsset();
+    }
 }
 
 void UStaticMeshComponent::SerializeClass(json::JSON& outJson) const
@@ -88,6 +95,19 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
             : FVector4(1, 1, 1, 1);
 
         TSharedPtr<FTexture2DAsset> SectionTexture = Material ? Material->GetDiffuseTexture() : nullptr;
+
+        // OBJ 직접 로드 경로는 FObjManager가 UStaticMesh에 보관한
+        // material-name 기반 diffuse texture를 fallback으로 사용한다.
+        if (!SectionTexture && StaticMesh)
+        {
+            SectionTexture = StaticMesh->GetDiffuseTexture(Section.MaterialName);
+        }
+
+        // Component에서 명시적으로 지정한 texture는 최종 fallback이다.
+        if (!SectionTexture)
+        {
+            SectionTexture = mTextureAsset;
+        }
 
         FRenderInfo RenderInfo;
         RenderInfo.VertexBuffer = mMeshAsset->GetVertexBuffer();

@@ -1,5 +1,6 @@
 #include "Core.h"
 #include "FObjImporter.h"
+#include "FLogManager.h"
 
 #include <fstream>
 #include <sstream>
@@ -12,6 +13,7 @@ bool FObjImporter::ParseObj(const FString& FilePath, FObjInfo& OutObjInfo)
     if (!File.is_open())
     {
         return false;
+        UE_LOG_ERROR("Failed to convert OBJ mesh");
     }
 
     int32 CurrentMaterialIndex = -1;
@@ -56,6 +58,8 @@ bool FObjImporter::ParseObj(const FString& FilePath, FObjInfo& OutObjInfo)
                 if (!ParseFaceVertex(Token, OutObjInfo, VertexIndex))
                 {
                     return false;
+
+                    UE_LOG_ERROR("Failed to convert OBJ mesh");
                 }
 
                 Face.Vertices.Add(VertexIndex);
@@ -64,6 +68,8 @@ bool FObjImporter::ParseObj(const FString& FilePath, FObjInfo& OutObjInfo)
             if (Face.Vertices.Num() < 3)
             {
                 return false;
+
+                UE_LOG_ERROR("Failed to convert OBJ mesh");
             }
             OutObjInfo.Faces.Add(Face);
         }

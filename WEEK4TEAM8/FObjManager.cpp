@@ -31,7 +31,10 @@ UStaticMesh* FObjManager::LoadObjStaticMesh(const FString& FilePath)
     UStaticMesh** FoundStaticMesh = ObjStaticMeshMap.Find(FilePath);
     if (FoundStaticMesh) return *FoundStaticMesh;
 
-    if (!Renderer) return nullptr;
+    if (!Renderer)
+    {
+        return nullptr;
+    }
 
     FObjImporter Importer;
     FObjInfo ObjInfo;
@@ -146,18 +149,30 @@ UStaticMesh* FObjManager::LoadObjStaticMesh(const FString& FilePath)
         }
     }
 
-    // GetorImport 실패할 경우를 대비해 fallback
-    if (!StaticMeshAsset)
+    // GetorImport 실패뿐 아니라, 이전 포맷 cache를 읽어 빈 mesh가 된 경우에도
+    // OBJ 원본을 즉시 build해 Viewer가 비어 보이지 않도록 한다.
+    if (!StaticMeshAsset
+        || StaticMeshAsset->GetVertices().IsEmpty()
+        || StaticMeshAsset->GetIndices().IsEmpty())
     {
         FMeshDescription MeshDescription;
         FStaticMeshBuildData BuildData;
 
-        if (!Importer.ConvertToMeshDescription(ObjInfo, MeshDescription)) return nullptr;
-        if (!FStaticMeshBuilder::Build(MeshDescription, BuildData)) return nullptr;
+        if (!Importer.ConvertToMeshDescription(ObjInfo, MeshDescription))
+        {
+            UE_LOG_ERROR("Failed to convert OBJ mesh: %s", FilePath.CStr());
+            return nullptr;
+        }
+        if (!FStaticMeshBuilder::Build(MeshDescription, BuildData))
+        {
+            UE_LOG_ERROR("Failed to build OBJ mesh: %s", FilePath.CStr());
+            return nullptr;
+        }
 
         StaticMeshAsset = MakeShared<FStaticMeshAsset>(FGuid::NewGuid(), MeshAssetName, *Renderer, BuildData);
+
+        // 새 asset name이면 cache에도 추가한다. 기존 stale cache는 local asset을 우선 사용한다.
         FAssetManager::Get().RegisterAsset(StaticMeshAsset);
-        
     }
 
     UStaticMesh* StaticMesh = FObjectFactory::ConstructObject<UStaticMesh>();
