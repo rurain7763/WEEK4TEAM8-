@@ -2,6 +2,7 @@
 #include <filesystem>
 #include "FAsset.h"
 #include <optional>
+#include "Transform.h"
 
 class FStaticMeshImporter
 {
@@ -12,6 +13,15 @@ public:
         const std::filesystem::path& OutPath,
         FAssetFileHeader& OutHead
         );
+
+    static bool Export(
+        const std::filesystem::path& InPath,
+        const std::filesystem::path& OutPath,
+        FAssetFileHeader& OutHead,
+        const FTransform& Transform,
+        const FVector4& OverrideColor,
+        bool bUseVertexColor
+    );
 
     // .uasset 반환 or 변환 후 반환
     static std::optional<std::filesystem::path> GetorImport(
