@@ -7,6 +7,8 @@ class FSceneManager;
 class FGraphicsManager;
 class AActor;
 class UStaticMeshComponent;
+class URenderer;
+class FFileManager;
 
 struct FRect;
 
@@ -15,7 +17,7 @@ inline constexpr std::string_view kDefaultOBJPath = ".\\Assets\\Meshes\\";
 class FObjViewer
 {
 public:
-    void Initialize(FSceneManager& InSceneManager);
+    void Initialize(FSceneManager& InSceneManager, URenderer& Renderer, FFileManager& InFileManager);
     void UpdateObjGUI(FGraphicsManager& InGraphicsManager);
     void OpenObj(const std::filesystem::path& FilePath);
     void OpenStaticMeshAsset(const std::filesystem::path& FilePath);
@@ -25,5 +27,5 @@ private:
     FSceneManager* mSceneManager = nullptr;
     FString mLoadedFilePath;
     FRect mViewportRcet;
-    UStaticMeshComponent* mViewerComponent = nullptr;
+    UStaticMeshComponent* mViewerComponent = nullptr;  
 };
