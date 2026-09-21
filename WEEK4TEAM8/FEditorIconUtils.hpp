@@ -66,4 +66,38 @@ public:
 		DrawList->AddTriangleFilled(FoldA, FoldB, FoldC, 0xFFB0B0B0);
 		DrawList->AddTriangle(FoldA, FoldB, FoldC, 0x88000000, 1.0f);
 	}
+
+	static void DrawMaximizeButtonIcon(ImDrawList* DrawList)
+	{
+		const ImU32 IconLineColor = IM_COL32(230, 230, 230, 255);
+		const float LineThickness = 1.5f;
+
+		ImVec2 bMin = ImGui::GetItemRectMin();
+		ImVec2 bMax = ImGui::GetItemRectMax();
+
+		ImVec2 iconMin = ImVec2(bMin.x + 5.0f, bMin.y + 4.0f);
+		ImVec2 iconMax = ImVec2(bMax.x - 5.0f, bMax.y - 4.0f);
+
+		DrawList->AddRect(iconMin, iconMax, IconLineColor, 0.0f, 0, LineThickness);
+	}
+
+	static void DrawSplitButtonIcon(ImDrawList* DrawList)
+	{
+		const ImU32 IconLineColor = IM_COL32(230, 230, 230, 255);
+		const float LineThickness = 1.5f;
+
+		ImVec2 bMin = ImGui::GetItemRectMin();
+		ImVec2 bMax = ImGui::GetItemRectMax();
+
+		ImVec2 iconMin = ImVec2(bMin.x + 5.0f, bMin.y + 4.0f);
+		ImVec2 iconMax = ImVec2(bMax.x - 5.0f, bMax.y - 4.0f);
+
+		DrawList->AddRect(iconMin, iconMax, IconLineColor, 0.0f, 0, LineThickness);
+
+		float midX = (iconMin.x + iconMax.x) * 0.5f;
+		float midY = (iconMin.y + iconMax.y) * 0.5f;
+
+		DrawList->AddLine(ImVec2(midX, iconMin.y), ImVec2(midX, iconMax.y), IconLineColor, LineThickness);
+		DrawList->AddLine(ImVec2(iconMin.x, midY), ImVec2(iconMax.x, midY), IconLineColor, LineThickness);
+	}
 };

@@ -194,6 +194,19 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 					ImGui::SetCursorScreenPos(ImVec2(StartCursorPos, DrawRect.Y + MarginY));
 
+					ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 255, 255));
+					ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(15, 15, 15, 230));
+					ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(45, 45, 45, 240));
+					ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(60, 60, 60, 255));
+
+					ImGui::PushStyleColor(ImGuiCol_PopupBg, IM_COL32(20, 20, 20, 250)); 
+					ImGui::PushStyleColor(ImGuiCol_Header, IM_COL32(50, 50, 50, 255));
+					ImGui::PushStyleColor(ImGuiCol_HeaderHovered, IM_COL32(75, 75, 75, 255));
+
+					ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(15, 15, 15, 230));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(55, 55, 55, 240));
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(80, 80, 80, 255));
+
 					ImGui::SetNextItemWidth(100.0f);
 
 					const char* ViewportTypeNames[] = { "Perspective", "Top", "Front", "Side" };
@@ -218,19 +231,22 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 					ImGui::SameLine();
 
-					if (ImGui::Button("[ㅁ]##Maximize", ImVec2(MaximizeButtonWidth, ItemHeight)))
+					if (ImGui::Button("##Maximize", ImVec2(MaximizeButtonWidth, ItemHeight)))
 					{
 						guiReference.EditorLayout->MaximizedViewportIndex = CurrentViewportIndex;
 						guiReference.EditorLayout->bIsSplitView = false;
 					}
+					FEditorIconUtils::DrawMaximizeButtonIcon(DrawList);
 
 					ImGui::SameLine();
 
-					if (ImGui::Button("[田]##Split", ImVec2(MaximizeButtonWidth, ItemHeight)))
+					if (ImGui::Button("##Split", ImVec2(MaximizeButtonWidth, ItemHeight)))
 					{
 						guiReference.EditorLayout->bIsSplitView = true;
 					}
+					FEditorIconUtils::DrawSplitButtonIcon(DrawList);
 
+					ImGui::PopStyleColor(10);
 					ImGui::PopID();
 					ImGui::Dummy(ImVec2(DrawRect.Width, DrawRect.Height));
 				}
@@ -514,17 +530,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	FCamera& camera = guiReference.ViewportClient->GetCamera();
 	URenderer* renderer = guiReference.GraphicsManager->GetRenderer();
 
-/*	const char* viewModeNames[] = { "Lit", "Unlit", "Wireframe" };
-
-	EViewModeIndex currentViewMode = guiReference.GraphicsManager->GetViewModeIndex();
-	int32 currentViewModeIndex = static_cast<int32>(currentViewMode);
-	// Combo는 선택이 바뀐 프레임에만 true를 돌려주고, 바뀐 값은 이미
-	// currentViewModeIndex에 들어 있다. 그 안에서 Checkbox를 그리면
-	// 한 프레임만 나타났다 사라져 클릭할 수 없다.
-	if (ImGui::Combo("View Mode", &currentViewModeIndex, viewModeNames, IM_ARRAYSIZE(viewModeNames)))
-	{
-		guiReference.GraphicsManager->SetViewModeIndex(static_cast<EViewModeIndex>(currentViewModeIndex));
-	}*/
 	if (ImGui::BeginCombo("##ShowFlags", "Show Flags"))
 	{
 		// 표시 옵션은 표를 그대로 훑어 체크박스를 만든다.
@@ -683,10 +688,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	{
 		guiReference.ViewportClient->mGizmo.SetOperation(static_cast<EGIZMO_TYPE>((currentGizmoIndex + 1) % 3));
 	}
-
-	// 스플릿 뷰포트 여부를 GUI에서 설정할 수 있도록 체크박스 추가
-	ImGui::Checkbox("Split Viewport", &guiReference.EditorLayout->bIsSplitView);
-
 	ImGui::End();
 }
 
