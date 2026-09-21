@@ -62,9 +62,17 @@ void FSceneManager::OnNewAssetFile(const FAssetFileHeader& Header, const std::fi
 		Header.AssetType == EAssetType::Material ||
 		Header.AssetType == EAssetType::StaticMesh)
 	{
+
+		FAssetManager::Get().ScanDirectory("Assets", *mRenderer);
+
+		// 현재 자신이 있는 폴더만 refresh 하는 문제가 있어서 위와 같이 수정함.
+		// (mesh면 mesh 폴더만 refresh. texture 폴더는 안 하는 문제)
+		// guid 검사하여 이미 있는 건 Register pass 하기 때문에 등록 비용 거의 없음.
+		#if 0
 		FAssetManager::Get().ScanDirectory(
 			FilePath.parent_path(),
 			*mRenderer);
+		#endif
 	}
 	else
 	{
@@ -171,7 +179,9 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 				{
 					ImGui::SetCursorScreenPos(ImVec2(DrawRect.X, DrawRect.Y));
 
-					bool bHovered = ImGui::IsMouseHoveringRect(ImVec2(DrawRect.X, DrawRect.Y), ImVec2(DrawRect.X + DrawRect.Width, DrawRect.Y + DrawRect.Height));
+					bool bHovered = ImGui::IsMouseHoveringRect(ImVec2(DrawRect.X, DrawRect.Y), 
+									ImVec2(DrawRect.X + DrawRect.Width, DrawRect.Y + DrawRect.Height))
+								&& !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);		// 팝업창, 콤보 드롭다운 등 열리면 false
 					EditorViewport->Client->SetActive(bHovered);
 
 					const TSharedPtr<FRenderTarget2D>& RenderTarget = EditorViewport->Viewport->RenderTarget;
@@ -415,7 +425,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 		"Circle",
 		"SpotLight",
 		"Explosion",
-		"StaticMesh"
 	};
 
 	int32 ActorTypeIndex = static_cast<int32>(mGuiInputField.PrimitiveType);
@@ -428,7 +437,7 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	const char* CurrentMeshName = mGuiInputField.SelectedStaticMesh
 		? mGuiInputField.SelectedStaticMesh->GetAssetPathFileName().CStr()
 		: "None";
-
+	
 	if (ImGui::Button("Spawn"))
 	{
 		for (int32 i = 0; i < mGuiInputField.SpawnCount; ++i)
@@ -904,12 +913,22 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 				});
 
 				const FString CurrentMeshPath = CurrentStaticMesh ? CurrentStaticMesh->GetAssetName().ToString() : "None";
-				if (ImGui::BeginCombo("Static Mesh", CurrentMeshPath.CStr()))
+				
+				// Path에서 확장자 빼고 파일명만 parsing 하여 보여주기
+				std::filesystem::path meshPath = std::filesystem::path(static_cast<std::string>(CurrentMeshPath)).stem();
+				FString simpleMeshName = meshPath.stem().string();
+
+				if (ImGui::BeginCombo("Static Mesh", simpleMeshName.CStr()))
 				{
 					for (const FString& assetName : StaticMeshAssetNames)
 					{
 						bool isSelected = (CurrentMeshPath == assetName);
-						if (ImGui::Selectable(assetName.CStr(), isSelected))
+						
+						// Path에서 확장자 빼고 파일명만 parsing 하여 보여주기
+						std::filesystem::path assetPath = std::filesystem::path(static_cast<std::string>(assetName)).stem();
+						FString simpleAssetName = assetPath.stem().string();
+
+						if (ImGui::Selectable(simpleAssetName.c_str(), isSelected))
 						{
 							StaticMeshComponent->SetMesh(guiReference.AssetManager->GetAssetAs<FStaticMeshAsset>(FName(assetName), true));
 						}
@@ -957,14 +976,25 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 				const auto& Materials = StaticMeshComponent->GetMaterials();
 				for (int32 i = 0; i < Materials.Num(); i++)
 				{
+					ImGui::PushID(i);
+
 					TSharedPtr<FMaterialAsset> currentMaterial = Materials[i];
 					FString currentMaterialName = currentMaterial ? currentMaterial->GetAssetName().ToString() : "None";
-					if (ImGui::BeginCombo("Material", currentMaterialName.CStr()))
-					{
+					
+					// Path에서 확장자 빼고 파일명만 parsing 하여 보여주기
+					std::filesystem::path materialPath = std::filesystem::path(static_cast<std::string>(currentMaterialName)).stem();
+					FString simpleMaterialName = materialPath.stem().string();
+					
+					if (ImGui::BeginCombo("Material", simpleMaterialName.CStr()))
+					{						
 						for (const FAssetMetaInfo& metaInfo : materialMetaInfos)
 						{
+							// Path에서 확장자 빼고 파일명만 parsing 하여 보여주기
+							std::filesystem::path metaPath = std::filesystem::path(metaInfo.AssetName.ToString().ToString()).stem();
+							FString simpleMetaPath = metaPath.stem().string();
+
 							bool isSelected = (currentMaterialName == metaInfo.AssetName.ToString());
-							if (ImGui::Selectable(metaInfo.AssetName.ToString().CStr(), isSelected))
+							if (ImGui::Selectable(simpleMetaPath.CStr(), isSelected))
 							{
 								TSharedPtr<FMaterialAsset> materialAsset =
 									guiReference.AssetManager->GetAssetAs<FMaterialAsset>(metaInfo.AssetID, true);
@@ -980,6 +1010,7 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 					{
 						StaticMeshComponent->SetUVOffset(i, UVOffset);
 					}
+					ImGui::PopID();
 				}
 
 				/*if (ImGui::BeginDragDropTarget())

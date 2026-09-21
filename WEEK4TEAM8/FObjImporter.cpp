@@ -37,7 +37,10 @@ bool FObjImporter::ParseObj(const FString& FilePath, FObjInfo& OutObjInfo)
         {
             float U, V;
             Stream >> U >> V;
-            OutObjInfo.UVs.Add(FVector2(U, V));
+
+            // .obj vt는 관례상 v=0이 텍스처 하단이나,
+            // directx는 v=0이 텍스처 상단
+            OutObjInfo.UVs.Add(FVector2(U, 1.0f-V));
         }
         else if (Command == "vn")
         {
@@ -263,6 +266,8 @@ bool FObjImporter::ParseFaceVertex(const FString& Token, const FObjInfo& ObjInfo
         ? ""
         : Value.substr(FirstSlash + 1, (SecondSlash == std::string::npos ? Value.size() : SecondSlash) - FirstSlash - 1);
     const std::string NormalText = SecondSlash == std::string::npos ? "" : Value.substr(SecondSlash + 1);
+
+    // UE_LOG_ERROR("UV : %f %f", ObjInfo.UVs[0].X, ObjInfo.UVs[0].Y);
 
     return ParseIndex(PositionText, ObjInfo.Positions.Num(), OutIndex.PositionIndex)
         && ParseIndex(UVText, ObjInfo.UVs.Num(), OutIndex.UVIndex)
