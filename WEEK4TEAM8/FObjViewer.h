@@ -12,6 +12,8 @@ class FFileManager;
 struct FStaticMeshPayload;
 
 struct FRect;
+struct FStaticMeshPayload;
+struct FStaticMeshBuildData;
 
 inline constexpr std::string_view kDefaultOBJPath = ".\\Assets\\Meshes\\";
 
@@ -31,5 +33,6 @@ private:
     UStaticMeshComponent* mViewerComponent = nullptr;  
     URenderer* mRenderer = nullptr;
 
-    bool BuildRuntimeObjMaterials(const std::filesystem::path& ObjPath, FStaticMeshPayload& Payload);
+    bool BuildRuntimeMaterials(const std::filesystem::path& ObjPath,
+        const FStaticMeshPayload& Payload, FStaticMeshBuildData& InOutBuildData);
 };

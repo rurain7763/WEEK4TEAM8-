@@ -62,9 +62,7 @@ public:
 
 struct FStaticMeshPayload
 {
-	FGuid AssetID;
-	FName AssetName;
-	FStaticMeshBuildData BuildData;
+	FMeshDescription MeshDescription;
 	TArray<FObjMaterialInfo> Materials;
 };
 
@@ -99,13 +97,8 @@ public:
 			{
 				return false;
 			}
-			if (!FStaticMeshBuilder::Build(MeshDescription, OutPayload.BuildData))
-			{
-				return false;
-			}
 
-			OutPayload.AssetID = FGuid::NewGuid();
-			OutPayload.AssetName = FName(FilePath.string());
+			OutPayload.MeshDescription = std::move(MeshDescription);
 			OutPayload.Materials = ObjInfo.Materials;
 			return true;
 		}

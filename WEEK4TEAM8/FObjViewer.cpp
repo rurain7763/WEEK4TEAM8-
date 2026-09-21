@@ -13,12 +13,12 @@
 #include "FAssetManager.h"
 #include "FArchive.h"
 #include "UStaticMesh.h"
-#include "FObjManager.h"
 #include "Assets.h"
+#include "FStaticMeshBuilder.h"
+#include "FMeshDescription.h"
 
 void FObjViewer::Initialize(FSceneManager& InSceneManager, URenderer& Renderer, FFileManager& InFileManager)
 {
-	FObjManager::Initialize(Renderer, InFileManager);
 	mSceneManager = &InSceneManager;
 	FShowFlags::Get().SetEnabled(EShowFlag::UUIDText, false); 
 	mRenderer = &Renderer;
@@ -189,7 +189,14 @@ void FObjViewer::OpenObj(const std::filesystem::path& FilePath)
 		return;
 	}
 
-	if (!mRenderer || !BuildRuntimeObjMaterials(FilePath, Payload))
+	FStaticMeshBuildData BuildData;
+	if (!FStaticMeshBuilder::Build(Payload.MeshDescription, BuildData))
+	{
+		UE_LOG_ERROR("Failed to build mesh: %s", FilePath.string().c_str());
+		return;
+	}
+
+	if (!mRenderer || !BuildRuntimeMaterials(FilePath, Payload, BuildData))
 	{
 		UE_LOG_ERROR("Failed to build OBJ material assets: %s", FilePath.string().c_str());
 		return;
@@ -212,12 +219,14 @@ void FObjViewer::OpenObj(const std::filesystem::path& FilePath)
 
 	mViewerActor = FObjectFactory::ConstructObject<AActor>();
 
+	const FName RuntimeAssetName(std::filesystem::weakly_canonical(FilePath).string());
+
 	TSharedPtr<FStaticMeshAsset> MeshAsset =
 		MakeShared<FStaticMeshAsset>(
-			Payload.AssetID,
-			Payload.AssetName,
+			FGuid::NewGuid(),
+			RuntimeAssetName,
 			*mRenderer,
-			Payload.BuildData);
+			BuildData);
 
 	UStaticMeshComponent* objComponent =
 		FObjectFactory::ConstructObject<UStaticMeshComponent>(
@@ -231,7 +240,8 @@ void FObjViewer::OpenObj(const std::filesystem::path& FilePath)
 	mSceneManager->GetCurrentWorld()->AddActor(mViewerActor);
 }
 
-bool FObjViewer::BuildRuntimeObjMaterials(const std::filesystem::path& ObjPath, FStaticMeshPayload& Payload)
+bool FObjViewer::BuildRuntimeMaterials(const std::filesystem::path& ObjPath,
+	const FStaticMeshPayload& Payload, FStaticMeshBuildData& InOutBuildData)
 {
 	const std::filesystem::path ObjDirectory = ObjPath.parent_path();
 
@@ -241,20 +251,22 @@ bool FObjViewer::BuildRuntimeObjMaterials(const std::filesystem::path& ObjPath, 
 
 		if (Material.DiffuseTexturePath.Len() != 0)
 		{
-			const std::filesystem::path TexturePath = std::filesystem::weakly_canonical(
-				ObjDirectory / Material.DiffuseTexturePath.CStr());
+			const std::filesystem::path TexturePath =
+				std::filesystem::weakly_canonical(
+					ObjDirectory / Material.DiffuseTexturePath.CStr());
 
 			const FName TextureAssetName(TexturePath.string());
 
 			TSharedPtr<FTexture2DAsset> TextureAsset =
-				FAssetManager::Get().GetAssetAs<FTexture2DAsset>(TextureAssetName, true);
+				FAssetManager::Get().GetAssetAs<FTexture2DAsset>(
+					TextureAssetName, true);
 
 			if (!TextureAsset)
 			{
 				FImagePayload ImagePayload;
 				if (!FImageFileIO::Load(TexturePath, ImagePayload))
 				{
-					UE_LOG_ERROR("Failed to load diffuse texture: %s", TexturePath.string().c_str());
+					UE_LOG_ERROR("Failed to load diffuse texture: %s",TexturePath.string().c_str());
 					return false;
 				}
 
@@ -270,8 +282,13 @@ bool FObjViewer::BuildRuntimeObjMaterials(const std::filesystem::path& ObjPath, 
 
 				auto Texture = mRenderer->CreateTexture2D(TextureDesc, ImagePayload.ImageData.Data());
 				auto SRV = mRenderer->CreateShaderResourceView(Texture);
+
 				TextureAsset = MakeShared<FTexture2DAsset>(
-					FGuid::NewGuid(), TextureAssetName, Texture, SRV);
+					FGuid::NewGuid(),
+					TextureAssetName,
+					Texture,
+					SRV);
+
 				FAssetManager::Get().RegisterAsset(TextureAsset);
 			}
 
@@ -279,8 +296,10 @@ bool FObjViewer::BuildRuntimeObjMaterials(const std::filesystem::path& ObjPath, 
 		}
 
 		const FName MaterialAssetName(ObjPath.string() + "::" + Material.Name.CStr());
+
 		TSharedPtr<FMaterialAsset> MaterialAsset =
-			FAssetManager::Get().GetAssetAs<FMaterialAsset>(MaterialAssetName, true);
+			FAssetManager::Get().GetAssetAs<FMaterialAsset>(
+				MaterialAssetName, true);
 
 		if (!MaterialAsset)
 		{
@@ -294,10 +313,11 @@ bool FObjViewer::BuildRuntimeObjMaterials(const std::filesystem::path& ObjPath, 
 				FGuid(),
 				FGuid(),
 				Material.Opacity);
+
 			FAssetManager::Get().RegisterAsset(MaterialAsset);
 		}
 
-		for (FStaticMeshSection& Section : Payload.BuildData.Sections)
+		for (FStaticMeshSection& Section : InOutBuildData.Sections)
 		{
 			if (Section.MaterialName == Material.Name)
 			{
@@ -305,7 +325,6 @@ bool FObjViewer::BuildRuntimeObjMaterials(const std::filesystem::path& ObjPath, 
 			}
 		}
 	}
-
 	return true;
 }
 
