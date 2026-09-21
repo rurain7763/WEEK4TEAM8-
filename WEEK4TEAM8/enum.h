@@ -37,3 +37,9 @@ enum class EViewModeIndex
 	// 모드를 추가하면 이 앞에 넣을 것.
 	VMI_Max,
 };
+
+enum class ECoordinateSpace
+{
+	World,
+	Screen
+};

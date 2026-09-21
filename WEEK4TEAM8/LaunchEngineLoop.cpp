@@ -230,6 +230,35 @@ void FEngineLoop::Tick(bool bPumpMessages)
 
 		mSceneManager->Render(deltaTime, RenderCollector);
 
+		// NOTE: 텍스트 렌더링 테스트 코드
+		{
+			TSharedPtr<FFontAtlasAsset> FontAtlasAsset = FAssetManager::Get().GetAssetAs<FFontAtlasAsset>(FName("TestFontAtlas"), true);
+			FTextBuilder TextBuilder(FontAtlasAsset->GetFontAtlas());
+			TextBuilder.SetCoordinateSpace(ECoordinateSpace::Screen);
+
+			float Width = 0.f;
+			float Height = 0.f;
+			TextBuilder.CalculateSize(L"Hello, World!\nThis is a test.", Width, Height);
+
+			FVector2 TextLocation = FVector2(mGraphicsManager->GetRenderer()->GetWidth() * 0.5f, mGraphicsManager->GetRenderer()->GetHeight() * 0.5f);
+			TextBuilder.Build(L"Hello, World!\nThis is a test.", Width, Height, [&](const FRect& TextRect, const FRect& SubUVRect) {
+				if (TextRect.Width <= 0.f || TextRect.Height <= 0.f)
+				{
+					return;
+				}
+
+				FRenderQuad2DInfo Quad2DInfo;
+				Quad2DInfo.Position = FVector2(TextRect.X, TextRect.Y) + TextLocation;
+				Quad2DInfo.Size = { TextRect.Width, TextRect.Height };
+				Quad2DInfo.Color = { 1.f, 1.f, 1.f, 1.f };
+				Quad2DInfo.TextureSRV = FontAtlasAsset->GetSRV();
+				Quad2DInfo.SubUV = { SubUVRect.X, SubUVRect.Y, SubUVRect.Width, SubUVRect.Height };
+				Quad2DInfo.BlendMode = ERenderBlendMode::Transparent;
+
+				RenderCollector.AddQuad2DInfo(Quad2DInfo);
+			});
+		}
+
 		// 마우스 피킹 처리
 		// 뷰포트가 ImGui 창이 되면서 그 위에서는 io.WantCaptureMouse 가 항상 true 다.
 		// 그대로 두면 씬을 클릭해도 선택이 되지 않는다. 카메라/기즈모와 같은 기준을 쓴다.

@@ -61,6 +61,14 @@ void URenderer::Create(HWND hWindow)
 	Triangle2DPipeline->SetShader("Assets/Shaders/Triangle2D.hlsl");
 	Triangle2DPipeline->AddConstantBuffer<FTriangle2DConstants>();
 
+	Quad2DPipeline = CreateRenderPipeline();
+	Quad2DPipeline->SetRasterRizerState(D3D11_CULL_NONE);
+	Quad2DPipeline->SetDepthStencilState(false, false);
+	Quad2DPipeline->SetBlendState(ERenderBlendMode::Transparent);
+	Quad2DPipeline->SetShader("Assets/Shaders/Quad2D.hlsl");
+	Quad2DPipeline->AddConstantBuffer<FQuad2DConstants>();
+	Quad2DPipeline->SetSamplerState(0, D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP);
+
 	WorldAxisPipeline = CreateRenderPipeline();
 	WorldAxisPipeline->SetRasterRizerState(D3D11_CULL_NONE);
 	WorldAxisPipeline->SetBlendState(ERenderBlendMode::Transparent);
@@ -175,6 +183,7 @@ void URenderer::Release()
 
 	WorldGridPipeline.reset();
 	WorldAxisPipeline.reset();
+	Quad2DPipeline.reset();
 	Triangle2DPipeline.reset();
 	Circle2DPipeline.reset();
 	Line2DPipeline.reset();
@@ -478,12 +487,11 @@ void URenderer::RenderLines(const TArray<FRenderLineInfo>& Lines) const
 
 void URenderer::RenderQuad(const FRenderQuadInfo& Info) const
 {
-	QuadPipeline->ClearShaderResource();
+	QuadPipeline->SetShaderResource(0, Info.TextureSRV);
 	
 	DXGI_FORMAT TextureFormat = DXGI_FORMAT_UNKNOWN;
 	if (Info.TextureSRV)
 	{
-		QuadPipeline->SetShaderResource(0, Info.TextureSRV);
 
 		D3D11_SHADER_RESOURCE_VIEW_DESC Desc{};
 		Info.TextureSRV->GetDesc(&Desc);
@@ -572,6 +580,30 @@ void URenderer::RenderPrimitiveIndexed(const TSharedPtr<FRenderPipeline>& Pipeli
 	{
 		DeviceContext->Draw(RenderInfo.VertexCount, 0);
 	}
+}
+
+void URenderer::RenderQuad2D(const FRenderQuad2DInfo& Info) const
+{
+	Quad2DPipeline->SetShaderResource(0, Info.TextureSRV);
+
+	DXGI_FORMAT TextureFormat = DXGI_FORMAT_UNKNOWN;
+	if (Info.TextureSRV)
+	{
+		D3D11_SHADER_RESOURCE_VIEW_DESC Desc{};
+		Info.TextureSRV->GetDesc(&Desc);
+
+		TextureFormat = Desc.Format;
+	}
+
+	Quad2DPipeline->UpdateConstantBuffer(0, FQuad2DConstants{ Projection2D, Info.Color, Info.Position, Info.Size, Info.SubUV, Info.Rotation, Info.TextureSRV ? 1 : 0, TextureFormat == DXGI_FORMAT_R8_UNORM });
+
+	BindPipeline(Quad2DPipeline);
+
+	UINT Offset = 0;
+	ID3D11Buffer* NullVB = nullptr;
+	UINT Stride = 0;
+	DeviceContext->IASetVertexBuffers(0, 1, &NullVB, &Stride, &Offset);
+	DeviceContext->Draw(6, 0);
 }
 
 void URenderer::RenderLine2D(const FVector2& Start, const FVector2& End, const FVector4& Color, float Thickness) const

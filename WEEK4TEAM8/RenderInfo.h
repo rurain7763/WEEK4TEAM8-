@@ -45,6 +45,17 @@ struct FRenderQuadInfo
 	bool EnableDepthWrite = true;
 };
 
+struct FRenderQuad2DInfo
+{
+	FVector2 Position;
+	FVector2 Size;
+	FVector4 Color = { 1.f, 1.f, 1.f, 1.f };
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> TextureSRV;
+	FVector4 SubUV = { 0.f, 0.f, 1.f, 1.f };
+	float Rotation = 0.f;
+	ERenderBlendMode BlendMode = ERenderBlendMode::Opaque;
+};
+
 struct FRenderLineInfo
 {
 	FVector4 Color;
@@ -85,6 +96,11 @@ public:
 		}
 	}
 
+	inline void AddQuad2DInfo(const FRenderQuad2DInfo& Quad2DInfo)
+	{
+		Quad2DInfos.Add(Quad2DInfo);
+	}
+
 	inline void Clear()
 	{
 		RenderInfos.Empty();
@@ -93,14 +109,18 @@ public:
 		OpaqueQuadInfos.Empty();
 		TransparentQuadInfos.Empty();
 		OverlayQuadInfos.Empty();
+		Quad2DInfos.Empty();
 	}
 
 	inline const TArray<FRenderQuadInfo>& GetOpaqueQuadInfos() const { return OpaqueQuadInfos; }
 	inline const TArray<FRenderQuadInfo>& GetTransparentQuadInfos() const { return TransparentQuadInfos; }
 	inline const TArray<FRenderQuadInfo>& GetOverlayQuadInfos() const { return OverlayQuadInfos; }
+	inline const TArray<FRenderQuad2DInfo>& GetQuad2DInfos() const { return Quad2DInfos; }
 
 private:
 	TArray<FRenderQuadInfo> OpaqueQuadInfos;
 	TArray<FRenderQuadInfo> TransparentQuadInfos;
 	TArray<FRenderQuadInfo> OverlayQuadInfos;
+
+	TArray<FRenderQuad2DInfo> Quad2DInfos;
 };

@@ -234,6 +234,11 @@ void FGraphicsManager::Render()
 	{
 		mRenderer->RenderQuad(QuadInfo);
 	}
+
+	for (const FRenderQuad2DInfo& Quad2DInfo : mRenderCollector.GetQuad2DInfos())
+	{
+		mRenderer->RenderQuad2D(Quad2DInfo);
+	}
 }
 
 void FGraphicsManager::Display()

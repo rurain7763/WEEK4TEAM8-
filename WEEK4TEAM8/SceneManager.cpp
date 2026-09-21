@@ -34,7 +34,7 @@
 #include "UStaticMeshComponent.h"
 #include "LaunchEngineLoop.h"
 #include "FAssetManager.h"
-#include "FLogManager.h"
+#include "FTextBuilder.h"
 
 FSceneManager::FSceneManager()
 {
