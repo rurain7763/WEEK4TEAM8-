@@ -8,6 +8,7 @@
 #include "enum.h"
 #include "FAssetManager.h"
 #include "FContentBrowser.h"
+#include "FObjViewer.h"
 
 inline constexpr std::string_view kSceneDataDir = "SceneData\\";
 inline constexpr std::string_view kSceneDataSuffix = ".Scene";
@@ -21,9 +22,11 @@ class URenderer;
 struct FViewport;
 struct FEditorLayout;
 struct FEditorViewport;
+class UStaticMesh;
 
 struct FGuiReference
 {
+	FCamera* EditorCamera;
 	FFrameTimer* FrameTimer;
 	FGraphicsManager* GraphicsManager;
 	FEditorViewportClient* ViewportClient;
@@ -46,6 +49,9 @@ struct FGuiInputField
 	/* Object Lists */
 	TArray<UObject*> SortedObjectLists;
 	uint64 LastGUObjectRevision = -1;
+
+	// Spawn Actor용
+	UStaticMesh* SelectedStaticMesh = nullptr; 
 };
 
 class FSceneManager : public FContentBrowserEventHandler
@@ -68,8 +74,8 @@ public:
 	void DeleteScene();
 
 	// 파일 탐색기용 오버로드
-	void SaveScene(const std::filesystem::path& scenePath, const FFileManager& fileManager);
-	void LoadScene(const std::filesystem::path& scenePath, const FFileManager& fileManager);
+	void SaveScene(FCamera* Camera, const std::filesystem::path& scenePath, const FFileManager& fileManager);
+	void LoadScene(FCamera* Camera, const std::filesystem::path& scenePath, const FFileManager& fileManager);
 
 	UWorld* GetCurrentWorld() const { return mCurrentWorld; }
 
@@ -101,6 +107,7 @@ private:
 	AActor* mSelectedActor = nullptr;
 	FGuiInputField mGuiInputField;
 	FContentBrowser mContentBrowser;
+	FObjViewer mObjViewer;
 	URenderer* mRenderer = nullptr;
 
 	void updateControlPanelGUI(const FGuiReference& guiReference);

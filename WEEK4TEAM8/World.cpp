@@ -25,6 +25,7 @@ void UWorld::SerializeClass(json::JSON& outJson) const
 		actor->SerializeClass(actorJson);
 		actorsJson.append(std::move(actorJson));
 	}
+
 	outJson["Properties"]["mActors"] = actorsJson;
 }
 

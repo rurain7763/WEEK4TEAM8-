@@ -19,6 +19,8 @@
 class FFontManager;
 class URenderer;
 class FAssetManager;
+struct FVertexBuffer;
+struct FIndexBuffer;
 
 namespace BuiltInAssetID
 {
@@ -47,28 +49,30 @@ class FStaticMeshAsset : public FAsset
 {
 public:
 	FStaticMeshAsset() = default;
-	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount);
-	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertexSimple* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount);
+	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertex* InVertices, uint32 InVertexCount);
+	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FVertex* InVertices, uint32 InVertexCount, const uint32* InIndices, uint32 InIndexCount);
 	FStaticMeshAsset(const FGuid& InAssetID, const FName& InAssetName, URenderer& InRenderer, const FStaticMeshBuildData& InBuildData);
 
-	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetVertexBuffer() const { return VertexBuffer; }
-	inline uint32 GetVertexCount() const { return VertexCount; }
-	inline uint32 GetSubMeshCount() const { return SubMeshIndexBuffers.Num(); }
-	inline Microsoft::WRL::ComPtr<ID3D11Buffer> GetIndexBuffer(uint32 SubMeshIndex) const { return SubMeshIndexBuffers[SubMeshIndex]; }
-	inline uint32 GetIndexCount(uint32 SubMeshIndex) const { return SubMeshIndexCounts[SubMeshIndex]; }
-	inline const TArray<Microsoft::WRL::ComPtr<ID3D11Buffer>>& GetSubMeshIndexBuffers() const { return SubMeshIndexBuffers; }
-	inline const TArray<uint32>& GetSubMeshIndexCounts() const { return SubMeshIndexCounts; }
+	Microsoft::WRL::ComPtr<ID3D11Buffer> GetVertexBuffer() const;
+	uint32 GetVertexCount() const;
+	Microsoft::WRL::ComPtr<ID3D11Buffer> GetIndexBuffer() const;
+	uint32 GetIndexCount() const;
+	inline uint32 GetSubMeshCount() const { return Sections.Num(); }
 	inline const FAABB& GetLocalBoundingBox() const { return BoundingBox; }
 	inline const TArray<FStaticMeshSection>& GetSections() const { return Sections; }
+	inline const TArray<FVertex>& GetVertices() const { return Vertices; }
+	inline const TArray<uint32>& GetIndices() const { return Indices; }
 
 private:
-	Microsoft::WRL::ComPtr<ID3D11Buffer> VertexBuffer;
-	uint32 VertexCount;
-
-	TArray<Microsoft::WRL::ComPtr<ID3D11Buffer>> SubMeshIndexBuffers;
-	TArray<uint32> SubMeshIndexCounts;
+	TSharedPtr<FVertexBuffer> VertexBuffer;
+	
+	TSharedPtr<FIndexBuffer> IndexBuffer;
 
 	FAABB BoundingBox;
+
+	TArray<FVertex> Vertices;
+	TArray<uint32> Indices;
+
 	TArray<FStaticMeshSection> Sections;
 };
 
@@ -222,7 +226,8 @@ private:
 class FMaterialAsset : public FAsset
 {
 public:
-	FMaterialAsset(const FGuid& InAssetID, const FName& InAssetName, const FVector& InAmbientColor, const FVector& InDiffuseColor, const FVector& InSpecularColor, const FGuid& InDiffuseTexture, const FGuid& InSpecularTexture, const FGuid& InNormalTexture)
+	FMaterialAsset(const FGuid& InAssetID, const FName& InAssetName, const FVector& InAmbientColor, const FVector& InDiffuseColor, 
+		const FVector& InSpecularColor, const FGuid& InDiffuseTexture, const FGuid& InSpecularTexture, const FGuid& InNormalTexture, const float InOpacity)
 		: FAsset(InAssetID, InAssetName, EAssetType::Material)
 		, AmbientColor(InAmbientColor)
 		, DiffuseColor(InDiffuseColor)
@@ -230,8 +235,12 @@ public:
 		, DiffuseTexture(InDiffuseTexture)
 		, SpecularTexture(InSpecularTexture)
 		, NormalTexture(InNormalTexture)
+		, Opacity(InOpacity)
 	{
 	}
+
+	const FVector& GetDiffuseColor() const { return DiffuseColor; }
+	const float& GetOpacity() const { return Opacity; }
 
 	inline bool HasDiffuseTexture() const { return DiffuseTexture.IsValid(); }
 	TSharedPtr<FTexture2DAsset> GetDiffuseTexture() const;
@@ -249,6 +258,7 @@ private:
 	FGuid DiffuseTexture;
 	FGuid SpecularTexture;
 	FGuid NormalTexture;
+	float Opacity;
 };
 
 class FMaterialAssetLoader : public FAssetLoader

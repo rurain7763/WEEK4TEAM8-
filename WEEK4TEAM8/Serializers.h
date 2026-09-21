@@ -45,9 +45,9 @@ struct FArchiveSerializer<FVector4>
 };
 
 template <>
-struct FArchiveSerializer<FStaticMeshBuildVertex>
+struct FArchiveSerializer<FVertex>
 {
-	static void Serialize(FArchive& Ar, FStaticMeshBuildVertex& Value)
+	static void Serialize(FArchive& Ar, FVertex& Value)
 	{
 		Ar << Value.Pos;
 		Ar << Value.Normal;
@@ -65,7 +65,7 @@ struct FArchiveSerializer<FStaticMeshSection>
 		Ar << Value.FirstIndex;
 		Ar << Value.IndexCount;
 		Ar << Value.MaterialName;
-		
+		Ar << Value.MaterialAssetID;
 	}
 };
 

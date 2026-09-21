@@ -42,7 +42,7 @@ public:
 	void SetScale(FVector scale);
 
 private:
-	int32 getComponentIndex(uint32 componentUUID) const;
+	int32 getComponentIndex(int32 componentUUID) const;
 
 private:
 	

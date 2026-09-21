@@ -1,4 +1,4 @@
-﻿#include "LaunchEngineLoop.h"
+#include "LaunchEngineLoop.h"
 
 #include <windows.h>
 #include "Renderer.h"
@@ -27,6 +27,7 @@
 #include "UStaticMeshComponent.h"
 #include "FObjManager.h"
 #include "Serializers.h"
+#include "NativeFileDialog.h"
 
 void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 {
@@ -63,6 +64,7 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 	RegisterRawInputDevices(&rid, 1, sizeof(rid));
 
 	mGraphicsManager = new FGraphicsManager(hWnd);
+	FNativeFileDialog::Initialize(hWnd);
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -101,6 +103,7 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 	const FVector4 NearTint(1.0f, 0.65f, 0.15f, 0.85f); // 주황 = 가까운 쪽
 	const FVector4 FarTint(0.25f, 0.55f, 1.0f, 0.85f); // 파랑 = 먼 쪽
 
+
 	mSceneManager = new FSceneManager();
 	mFileManager = new FFileManager();
 	mFontManager = new FFontManager();
@@ -108,24 +111,9 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 
 	mComponentVisualizerManager = new FComponentVisualizerManager();
 
-	char Value[64] = {};
-	GetPrivateProfileStringA("Grid", "Gap", "", Value, sizeof(Value), ".\\editor.ini");
-	int32 GridGap = 1;
-	sscanf_s(Value, "%d", &	GridGap);
-	mGraphicsManager->SetGridGap(GridGap);
-
 	mSceneManager->NewScene();
 
-	{
-		AActor* ObjActor = FObjectFactory::ConstructObject<AActor>();
-		UStaticMeshComponent* ObjComponent = 
-			FObjectFactory::ConstructObject<UStaticMeshComponent>(FString("Assets/Meshes/TestTriangle.obj"),
-			FVector(0, 0, 0), FRotator(0, 0, 0), FVector(1, 1, 1));
-
-
-		ObjActor->AddComponent(ObjComponent);
-		mSceneManager->GetCurrentWorld()->AddActor(ObjActor);
-	}
+	LoadEditorSettings();
 }
 
 void FEngineLoop::InitAssetManager()
@@ -134,45 +122,51 @@ void FEngineLoop::InitAssetManager()
 
 	URenderer* renderer = mGraphicsManager->GetRenderer();
 
-	FObjManager::Initialize(*renderer, *mFileManager);
 	FAssetManager::Get().ScanDirectory("Assets", *renderer);
 
-	FObjManager::LoadObjStaticMesh("Assets/Meshes/TestCube.obj");
-	FObjManager::LoadObjStaticMesh("Assets/Meshes/TestTriangle.obj");
-	FObjManager::LoadObjStaticMesh("Assets/Meshes/TestHexagonalPrism.obj");
-	
 	// Register built-in asset types
-	TSharedPtr<FStaticMeshAsset> cubeAsset = MakeShared<FStaticMeshAsset>(BuiltInAssetID::CubeMesh, FName("CubeMesh"), *renderer, Cube_vertices, sizeof(Cube_vertices) / sizeof(FVertexSimple), Cube_indices, sizeof(Cube_indices) / sizeof(uint32));
+	TSharedPtr<FStaticMeshAsset> cubeAsset = MakeShared<FStaticMeshAsset>(BuiltInAssetID::CubeMesh, FName("CubeMesh"), *renderer, Cube_vertices, sizeof(Cube_vertices) / sizeof(FVertex), Cube_indices, sizeof(Cube_indices) / sizeof(uint32));
 	mAssetManager->RegisterAsset(cubeAsset);
 
-	TSharedPtr<FStaticMeshAsset> sphereAsset = MakeShared<FStaticMeshAsset>(BuiltInAssetID::CircleMesh, FName("SphereMesh"), *renderer, Sphere_vertices, sizeof(Sphere_vertices) / sizeof(FVertexSimple), Sphere_indices, sizeof(Sphere_indices) / sizeof(uint32));
+	TSharedPtr<FStaticMeshAsset> sphereAsset = MakeShared<FStaticMeshAsset>(BuiltInAssetID::CircleMesh, FName("SphereMesh"), *renderer, Sphere_vertices, sizeof(Sphere_vertices) / sizeof(FVertex), Sphere_indices, sizeof(Sphere_indices) / sizeof(uint32));
 	mAssetManager->RegisterAsset(sphereAsset);
 
-	TSharedPtr<FStaticMeshAsset> circleAsset = MakeShared<FStaticMeshAsset>(BuiltInAssetID::CircleMesh, FName("CircleMesh"), *renderer, Circle_vertices, sizeof(Circle_vertices) / sizeof(FVertexSimple), Circle_indices, sizeof(Circle_indices) / sizeof(uint32));
+	TSharedPtr<FStaticMeshAsset> circleAsset = MakeShared<FStaticMeshAsset>(BuiltInAssetID::CircleMesh, FName("CircleMesh"), *renderer, Circle_vertices, sizeof(Circle_vertices) / sizeof(FVertex), Circle_indices, sizeof(Circle_indices) / sizeof(uint32));
 	mAssetManager->RegisterAsset(circleAsset);
 
-	TSharedPtr<FStaticMeshAsset> triangleAsset = MakeShared<FStaticMeshAsset>(BuiltInAssetID::TriangleMesh, FName("TriangleMesh"), *renderer, Triangle_vertices, sizeof(Triangle_vertices) / sizeof(FVertexSimple), Triangle_indices, sizeof(Triangle_indices) / sizeof(uint32));
+	TSharedPtr<FStaticMeshAsset> triangleAsset = MakeShared<FStaticMeshAsset>(BuiltInAssetID::TriangleMesh, FName("TriangleMesh"), *renderer, Triangle_vertices, sizeof(Triangle_vertices) / sizeof(FVertex), Triangle_indices, sizeof(Triangle_indices) / sizeof(uint32));
 	mAssetManager->RegisterAsset(triangleAsset);
 
-	TSharedPtr<FStaticMeshAsset> gizmoArrowAsset = MakeShared<FStaticMeshAsset>(BuiltInAssetID::GizmoArrowMesh, FName("GizmoArrowMesh"), *renderer, GizmoArrow_vertices, sizeof(GizmoArrow_vertices) / sizeof(FVertexSimple), GizmoArrow_indices, sizeof(GizmoArrow_indices) / sizeof(uint32));
+	TSharedPtr<FStaticMeshAsset> gizmoArrowAsset = MakeShared<FStaticMeshAsset>(BuiltInAssetID::GizmoArrowMesh, FName("GizmoArrowMesh"), *renderer, GizmoArrow_vertices, sizeof(GizmoArrow_vertices) / sizeof(FVertex), GizmoArrow_indices, sizeof(GizmoArrow_indices) / sizeof(uint32));
 	mAssetManager->RegisterAsset(gizmoArrowAsset);
 
-	TSharedPtr<FStaticMeshAsset> PlaneAsset = MakeShared<FStaticMeshAsset>(BuiltInAssetID::PlaneMesh, FName("PlaneMesh"), *renderer, Plane_vertices, sizeof(Plane_vertices) / sizeof(FVertexSimple), Plane_indices, sizeof(Plane_indices) / sizeof(uint32));
+	TSharedPtr<FStaticMeshAsset> PlaneAsset = MakeShared<FStaticMeshAsset>(BuiltInAssetID::PlaneMesh, FName("PlaneMesh"), *renderer, Plane_vertices, sizeof(Plane_vertices) / sizeof(FVertex), Plane_indices, sizeof(Plane_indices) / sizeof(uint32));
 	mAssetManager->RegisterAsset(PlaneAsset);
 
 	TSharedPtr<FTexture2DAssetLoader> TextureLoader = MakeShared<FTexture2DAssetLoader>(*renderer);
 	TSharedPtr<FFontAssetLoader> FontLoader = MakeShared<FFontAssetLoader>(*mFontManager);
 
-	TSharedPtr<FFileAssetSource> FileAssetSource = MakeShared<FFileAssetSource>("Assets/Textures/Test.jpg");
-	mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("Test"), TextureLoader, FileAssetSource);
+	// ScanDirectory로 파일 자동 스캔하여 uasset 등록하므로 아래 줄과 중복되어 삭제해도 되나,
+	// 참고하고 있는 곳이 있어서 ScanDirectory와 동일한 파일명 규칙으로 수정해 둠.
 
 	TSharedPtr<FFileAssetSource> SpotLightIconAssetSource = MakeShared<FFileAssetSource>("Assets/Textures/Icon_SpotLight.png");
 	mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("Icon_SpotLight"), TextureLoader, SpotLightIconAssetSource);
+	#if 0
+	// TSharedPtr<FFileAssetSource> FileAssetSource = MakeShared<FFileAssetSource>("Assets/Textures/Test.jpg");
+	// mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("TestTexture"), TextureLoader, FileAssetSource);
 
 	TSharedPtr<FFileAssetSource> ExplosionTextureSource = MakeShared<FFileAssetSource>("Assets/Textures/ExplosionAtlas.png");
 	mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("ExplosionAtlas"), TextureLoader, ExplosionTextureSource);
+	// TSharedPtr<FFileAssetSource> SpotLightIconAssetSource = MakeShared<FFileAssetSource>("Assets/Textures/Icon_SpotLight.png");
+	// mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("SpotLightIcon"), TextureLoader, SpotLightIconAssetSource);
 
-	TSharedPtr<FTexture2DAsset> ExplosionTexture2DAsset = mAssetManager->GetAssetAs<FTexture2DAsset>("ExplosionAtlas", true);
+	// TSharedPtr<FFileAssetSource> ExplosionTextureSource = MakeShared<FFileAssetSource>("Assets/Textures/ExplosionAtlas.png");
+	// mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("ExplosionTexture"), TextureLoader, ExplosionTextureSource);
+	#endif
+
+	FName ExplosionTextureName(std::filesystem::weakly_canonical("Assets/Textures/ExplosionAtlas.uasset").string());
+	TSharedPtr<FTexture2DAsset> ExplosionTexture2DAsset = mAssetManager->GetAssetAs<FTexture2DAsset>(ExplosionTextureName, true);
+
 	TSharedPtr<FSpriteAtlasAsset> ExplosionSpriteAtlasAsset = MakeShared<FSpriteAtlasAsset>(FGuid::NewGuid(), FName("ExplosionSpriteAtlas"), *renderer, ExplosionTexture2DAsset, 6, 6);
 	mAssetManager->RegisterAsset(ExplosionSpriteAtlasAsset);
 
@@ -182,36 +176,6 @@ void FEngineLoop::InitAssetManager()
 	TSharedPtr<FFontAsset> TestFontAsset = mAssetManager->GetAssetAs<FFontAsset>(FName("TestFont"), true);
 	TSharedPtr<FFontAtlasAsset> FontAtlasAsset = MakeShared<FFontAtlasAsset>(FGuid::NewGuid(), FName("TestFontAtlas"), *renderer, TestFontAsset, 512, 512, 2, 2);
 	mAssetManager->RegisterAsset(FontAtlasAsset);
-
-	// Register asset files
-	for (const auto& entry : std::filesystem::recursive_directory_iterator(kDefaultAssetsPath))
-	{
-		if (entry.is_regular_file())
-		{
-			std::filesystem::path FilePath = entry.path();
-			std::filesystem::path Extension = FilePath.extension();
-			
-			if (Extension != ".uasset")
-			{
-				continue;
-			}
-
-			FWindowsBinReader Reader(FilePath);
-			
-			FAssetFileHeader Header;
-			Reader << Header;
-
-			switch (Header.AssetType)
-			{
-				case EAssetType::Texture2D:
-				{
-					TSharedPtr<FFileAssetSource> TextureSource = MakeShared<FFileAssetSource>(FilePath);
-					mAssetManager->RegisterAsset(FName(FilePath.stem().string()), TextureLoader, TextureSource);
-				}
-				break;
-			}
-		}
-	}
 }
 
 void FEngineLoop::Tick(bool bPumpMessages)
@@ -278,6 +242,8 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		}
 
 		// 선택된 액터 처리
+		TArray<UPrimitiveComponent*> HighlightedComponents;
+
 		AActor* SelectedActor = mSceneManager->GetSelectedActor();
 		if (SelectedActor)
 		{
@@ -289,26 +255,22 @@ void FEngineLoop::Tick(bool bPumpMessages)
 				if (PrimitiveComponent)
 				{
 					// 선택된 액터의 AABB를 화면에 표시
-					FMatrix WorldMatrix = Transform.MakeMatrix();
+					const FAABB& AABB = PrimitiveComponent->GetBoundingBox();
 
-					TSharedPtr<FStaticMeshAsset> MeshAsset = PrimitiveComponent->GetMesh();
-					if (!MeshAsset.get()) continue;
+					AABB.ForEachCornerLines([&RenderCollector](const FVector& Start, const FVector& End) {
+						FVector4 WorldStart = FVector4(Start, 1.f);
+						FVector4 WorldEnd = FVector4(End, 1.f);
 
-					const FAABB& AABB = MeshAsset->GetLocalBoundingBox().ToWorld(WorldMatrix);
+						FRenderLineInfo LineInfo;
+						LineInfo.Start = WorldStart.ToVec3();
+						LineInfo.End = WorldEnd.ToVec3();
+						LineInfo.Color = FVector4(1.f, 0.f, 0.f, 1.f); // 빨간색
+						LineInfo.Thickness = 5.0f;
 
-					AABB.ForEachCornerLines([&RenderCollector](const FVector& Start, const FVector& End)
-						{
-							FVector4 WorldStart = FVector4(Start, 1.f);
-							FVector4 WorldEnd = FVector4(End, 1.f);
+						RenderCollector.LineInfos.Add(LineInfo);
+					});
 
-							FRenderLineInfo LineInfo;
-							LineInfo.Start = WorldStart.ToVec3();
-							LineInfo.End = WorldEnd.ToVec3();
-							LineInfo.Color = FVector4(1.f, 0.f, 0.f, 1.f); // 빨간색
-							LineInfo.Thickness = 5.0f;
-
-							RenderCollector.LineInfos.Add(LineInfo);
-						});
+					HighlightedComponents.Add(PrimitiveComponent);
 				}
 
 				// 선택된 액터의 컴포넌트 시각화
@@ -319,28 +281,22 @@ void FEngineLoop::Tick(bool bPumpMessages)
 				}
 			}
 
-			CurrentViewport->Client->mGizmo.Update(SelectedActor, CurrentViewport->Window->Rect, CurrentViewport->Client->IsActive(), ViewProjection);
+			CurrentViewport->Client->mGizmo.Tick(SelectedActor, CurrentViewport->Window->Rect, CurrentViewport->Client->IsActive(), ViewProjection);
 		}
 
 		//Render Threads
 		{
 			CurrentViewport->Viewport->Resize(*mGraphicsManager->GetRenderer(), ViewportRect.Width, ViewportRect.Height);
 			mGraphicsManager->Prepare(&CurrentViewport->Client->mCamera, ViewportRect.Width, ViewportRect.Height, *CurrentViewport->Viewport);
+			mGraphicsManager->RenderHighLight(HighlightedComponents);
 			mGraphicsManager->Render();
-
-			//강조
-			if (mSceneManager->GetSelectedActor())
-			{
-				FRenderInfo clickedRenderInfo;
-				mSceneManager->GetSelectedActor()->GetFirstRenderInfo(clickedRenderInfo);
-				mGraphicsManager->RenderHighLight(clickedRenderInfo);
-			}
 
 			CurrentViewport->Client->mGizmo.Render(SelectedActor, CurrentViewport->Client->mCamera.Transform.Location, ViewProjection);
 		}
 	}
 
 	FGuiReference GuiReference;
+	GuiReference.EditorCamera = &mMainViewport.Client->GetCamera();
 	GuiReference.FrameTimer = FrameTimer;
 	GuiReference.GraphicsManager = mGraphicsManager;
 	GuiReference.ViewportClient = mMainViewport.Client.get();
@@ -358,7 +314,6 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		GuiReference.Viewports = &mMainViewport;
 		GuiReference.ViewportCount = 1;
 	}
-
 	mSceneManager->UpdateGUI(GuiReference);
 
 	FRect ViewportRect;
@@ -382,19 +337,8 @@ void FEngineLoop::Tick(bool bPumpMessages)
 
 void FEngineLoop::End()
 {
-	const std::string Value = std::format("{:.6f}", mMainViewport.Client->GetCamera().Sensitivity);
+	SaveEditorSettings();
 
-	if (!WritePrivateProfileStringA("Camera", "Sensitivity", Value.c_str(), ".\\editor.ini"))
-	{
-		UE_LOG_ERROR("Failed to save camera sensitivity to editor.ini");
-	}
-
-	const std::string ValueGrid = std::format("{:6d}", mGraphicsManager->GetGridGap());
-
-	if (!WritePrivateProfileStringA("Grid", "Gap", ValueGrid.c_str(), ".\\editor.ini"))
-	{
-		UE_LOG_ERROR("Failed to save grid gap to editor.ini");
-	}
 	mSceneManager->DeleteScene();
 
 	ImGui_ImplDX11_Shutdown();
@@ -415,4 +359,66 @@ void FEngineLoop::End()
 	delete mFontManager;
 
 	delete mGraphicsManager;
+}
+
+void FEngineLoop::SaveEditorSettings()
+{
+	// Save camera sensitivity
+	const std::string Value = std::format("{:.6f}", mMainViewport.Client->GetCamera().Sensitivity);
+	if (!WritePrivateProfileStringA("Camera", "Sensitivity", Value.c_str(), ".\\editor.ini"))
+	{
+		UE_LOG_ERROR("Failed to save camera sensitivity to editor.ini");
+	}
+
+	// Save grid gap
+	const std::string ValueGrid = std::format("{:6d}", mGraphicsManager->GetGridGap());
+	if (!WritePrivateProfileStringA("Grid", "Gap", ValueGrid.c_str(), ".\\editor.ini"))
+	{
+		UE_LOG_ERROR("Failed to save grid gap to editor.ini");
+	}
+
+	// Save split infos
+	const std::string ValueH = std::format("{:.6f}", mEditorLayout.HSplitter->SplitterRatio);
+	if (!WritePrivateProfileStringA("Split", "HorizontalRatio", ValueH.c_str(), ".\\editor.ini"))
+	{
+		UE_LOG_ERROR("Failed to save horizontal split ratio to editor.ini");
+	}
+
+	const std::string ValueV = std::format("{:.6f}", mEditorLayout.VSplitter[0]->SplitterRatio);
+	if (!WritePrivateProfileStringA("Split", "VerticalRatio", ValueV.c_str(), ".\\editor.ini"))
+	{
+		UE_LOG_ERROR("Failed to save vertical split ratio to editor.ini");
+	}
+}
+
+void FEngineLoop::LoadEditorSettings()
+{
+	char Value[64] = {};
+
+	// Load camera sensitivity
+	GetPrivateProfileStringA("Camera", "Sensitivity", "", Value, sizeof(Value), ".\\editor.ini");
+
+	float Sensitivity = 1.0f;
+	sscanf_s(Value, "%f", &Sensitivity);
+	mMainViewport.Client->GetCamera().Sensitivity = Sensitivity;
+
+	// Load grid gap
+	GetPrivateProfileStringA("Grid", "Gap", "", Value, sizeof(Value), ".\\editor.ini");
+
+	int32 GridGap = 1;
+	sscanf_s(Value, "%d", &GridGap);
+	mGraphicsManager->SetGridGap(GridGap);
+
+	// Load split infos
+	GetPrivateProfileStringA("Split", "HorizontalRatio", "", Value, sizeof(Value), ".\\editor.ini");
+
+	float HorizontalRatio = 0.5f;
+	sscanf_s(Value, "%f", &HorizontalRatio);
+
+	GetPrivateProfileStringA("Split", "VerticalRatio", "", Value, sizeof(Value), ".\\editor.ini");
+
+	float VerticalRatio = 0.5f;
+	sscanf_s(Value, "%f", &VerticalRatio);
+	
+	mEditorLayout.SetSplitRatios(HorizontalRatio, VerticalRatio);
 }

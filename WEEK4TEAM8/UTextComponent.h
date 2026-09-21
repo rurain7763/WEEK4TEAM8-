@@ -9,6 +9,7 @@
 #include "ShowFlags.h"
 #include "MathUtility.h"
 #include "Json/json.hpp"
+#include "JsonUtil.h"
 
 class UPlaneComponent : public UPrimitiveComponent
 {
@@ -17,8 +18,40 @@ class UPlaneComponent : public UPrimitiveComponent
 public:
 	UPlaneComponent()
 	{
-		mePrimitive = EPrimitive::EP_Plane;
 		mMeshAsset = FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(FName("PlaneMesh"), true);
+	}
+
+	void SerializeClass(json::JSON& outJson) const override
+	{
+		UPrimitiveComponent::SerializeClass(outJson);
+
+		if (mTextureAsset)
+		{
+			FGuid AssetID = mTextureAsset->GetAssetID();
+			outJson["Properties"]["ObjTextureAsset"] = FGuidToJson(AssetID);
+		}
+	}
+
+	void DeserializeClass(const json::JSON& inJson) override
+	{
+		UPrimitiveComponent::DeserializeClass(inJson);
+
+		const json::JSON& PropertiesJson = inJson.at("Properties");
+		if (!PropertiesJson.hasKey("ObjTextureAsset"))
+		{
+			throw std::runtime_error("UPlaneComponent: ObjTextureAsset property is required");
+		}
+
+		if (PropertiesJson.at("ObjTextureAsset").JSONType() != json::JSON::Class::Object)
+		{
+			throw std::runtime_error("UPlaneComponent: ObjTextureAsset property requires an object");
+		}
+
+		FGuid AssetID = FGuidFromJson(PropertiesJson.at("ObjTextureAsset"));
+		if (AssetID.IsValid())
+		{
+			mTextureAsset = FAssetManager::Get().GetAssetAs<FTexture2DAsset>(AssetID, true);
+		}
 	}
 
 	void Tick(float DeltaTime) override
@@ -47,7 +80,7 @@ public:
 		QuadInfo.Model = PivotTransform.MakeMatrix();
 		QuadInfo.Color = FVector4(1.f, 1.f, 1.f, 1.f);
 		QuadInfo.TextureSRV = mTextureAsset ? mTextureAsset->GetSRV() : nullptr;
-		QuadInfo.SubUV = mSubUV;
+		QuadInfo.SubUV = mSubUV + FVector4(mSubUVOffset.X, mSubUVOffset.Y, 0.f, 0.f);
 		QuadInfo.BlendMode = mBlendMode;
 		QuadInfo.EnableDepthTest = mEnableDepthTest;
 		QuadInfo.EnableDepthWrite = mEnableDepthWrite;
@@ -55,15 +88,49 @@ public:
 		RenderCollector.AddQuadInfo(QuadInfo);
 	}
 
+	FAABB GetBoundingBox() const override
+	{
+		if (!mMeshAsset)
+		{
+			return FAABB();
+		}
+
+		return mMeshAsset->GetLocalBoundingBox().ToWorld(GetTransformMatrix().MakeMatrix());
+	}
+
+	const TArray<FVertex>& GetMeshVertices() const override
+	{
+		if (!mMeshAsset)
+		{
+			return UPrimitiveComponent::GetMeshVertices();
+		}
+		return mMeshAsset->GetVertices();
+	}
+
+	const TArray<uint32>& GetMeshIndices() const override
+	{
+		if (!mMeshAsset)
+		{
+			return UPrimitiveComponent::GetMeshIndices();
+		}
+
+		return mMeshAsset->GetIndices();
+	}
+
+	inline void SetTexture(const TSharedPtr<FTexture2DAsset>& textureAsset) { mTextureAsset = textureAsset; }
+	inline const TSharedPtr<FTexture2DAsset>& GetTexture() const { return mTextureAsset; }
+
 	inline void SetBillboard(bool billboard) { mbBillboard = billboard; }
 	inline void SetDepthState(bool enableDepthTest, bool enableDepthWrite) { mEnableDepthTest = enableDepthTest; mEnableDepthWrite = enableDepthWrite; }
 	void SetBlendState(ERenderBlendMode InBlendMode) { mBlendMode = InBlendMode; }
 
 protected:
+	TSharedPtr<FStaticMeshAsset> mMeshAsset;
+	TSharedPtr<FTexture2DAsset> mTextureAsset;
 	FVector4 mSubUV = { 0.f, 0.f, 1.f, 1.f };
-	ERenderBlendMode mBlendMode = ERenderBlendMode::Opaque;
+	FVector2 mSubUVOffset = { 0.f, 0.f };
 
-private:
+	ERenderBlendMode mBlendMode = ERenderBlendMode::Opaque;
 	bool mbBillboard = false;
 	bool mEnableDepthTest = true;
 	bool mEnableDepthWrite = true;
@@ -150,7 +217,10 @@ public:
 		Super::CreateEditorComponents();
 
 		UPlaneComponent* PlaneComponent = FObjectFactory::ConstructObject<UPlaneComponent>(FVector(0, 0, 1), FRotator(0, 0, 0), FVector(1, 1, 1));
-		PlaneComponent->SetTexture(FAssetManager::Get().GetAssetAs<FTexture2DAsset>(FName("SpotLightIcon"), true));
+		
+		FName SpotLightIconName(std::filesystem::weakly_canonical("Assets/Textures/Icon_SpotLight.uasset").string());
+		PlaneComponent->SetTexture(FAssetManager::Get().GetAssetAs<FTexture2DAsset>(SpotLightIconName, true));
+
 		PlaneComponent->SetBillboard(true);
 		PlaneComponent->SetBlendState(ERenderBlendMode::Transparent);
 		PlaneComponent->SetBillboard(true);

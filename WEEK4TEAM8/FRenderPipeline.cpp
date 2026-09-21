@@ -12,7 +12,8 @@ FRenderPipeline::FRenderPipeline(ID3D11Device* InDevice, ID3D11DeviceContext* In
 	, DepthStencilStatePool(InDepthStencilStatePool)
 	, BlendStatePool(InBlendStatePool)
 {
-	BlendState = InBlendStatePool->GetOrCreateBlendState(Device, ERenderBlendMode::Opaque);
+	FBlendStateKey Key{ ERenderBlendMode::Opaque, true };
+	BlendState = InBlendStatePool->GetOrCreateBlendState(Device, Key);
 }
 
 FRenderPipeline::~FRenderPipeline()
@@ -126,20 +127,20 @@ ID3D11RasterizerState* FRenderPipeline::GetRasterizerState(EViewModeIndex ViewMo
 
 void FRenderPipeline::SetDepthStencilState(bool bEnableDepthTest, bool bEnableDepthWrite)
 {
-	FDepthStencilStateKey Key{ bEnableDepthTest, bEnableDepthWrite };
+	FDepthStencilStateKey Key{ bEnableDepthTest, bEnableDepthWrite, false, D3D11_COMPARISON_ALWAYS, D3D11_STENCIL_OP_KEEP };
 	DepthStencilState = DepthStencilStatePool->GetOrCreateDepthStencilState(Device, Key);
 }
 
-void FRenderPipeline::SetStencilState(bool bEnableDepthTest, bool bEnableDepthWrite, D3D11_COMPARISON_FUNC StencilFunc, D3D11_STENCIL_OP StencilPassOp, uint32 InStencilRef)
+void FRenderPipeline::SetDepthStencilState(bool bEnableDepthTest, bool bEnableDepthWrite, D3D11_COMPARISON_FUNC StencilFunc, D3D11_STENCIL_OP StencilPassOp)
 {
 	FDepthStencilStateKey Key{ bEnableDepthTest, bEnableDepthWrite, true, StencilFunc, StencilPassOp };
 	DepthStencilState = DepthStencilStatePool->GetOrCreateDepthStencilState(Device, Key);
-	StencilRef = InStencilRef;
 }
 
-void FRenderPipeline::SetBlendState(ERenderBlendMode BlendMode)
+void FRenderPipeline::SetBlendState(ERenderBlendMode BlendMode, bool bColorWriteEnable)
 {
-	BlendState = BlendStatePool->GetOrCreateBlendState(Device, BlendMode);
+	FBlendStateKey Key{ BlendMode, bColorWriteEnable };
+	BlendState = BlendStatePool->GetOrCreateBlendState(Device, Key);
 }
 
 void FRenderPipeline::SetShader(const FString& ShaderPath)
@@ -164,7 +165,7 @@ void FRenderPipeline::SetShader(const FString& ShaderPath)
 	};
 
 	Device->CreateInputLayout(Layout, ARRAYSIZE(Layout), VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), &InputLayout);
-	Stride = sizeof(FStaticMeshBuildVertex);
+	Stride = sizeof(FVertex);
 
 	VertexShaderCSO->Release();
 	PixelShaderCSO->Release();

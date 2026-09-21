@@ -18,6 +18,7 @@
 class Sphere;
 class FGraphicsManager;
 
+
 struct FEditorLayout
 {
 	bool bIsSplitView = false;
@@ -111,6 +112,9 @@ public:
 
 private:
 	void InitAssetManager();
+	
+	void SaveEditorSettings();
+	void LoadEditorSettings();
 
 private:
 	// Todo: Make as pointer

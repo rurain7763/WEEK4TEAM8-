@@ -7,8 +7,10 @@
 #include <filesystem>
 #include "FTexture2DImporter.h"
 #include "FStaticMeshImporter.h"
+#include "FMaterialImporter.h"
 #include "FLogManager.h"
 #include "FEditorIconUtils.hpp"
+
 
 struct FContentBrowserEventHandler
 {

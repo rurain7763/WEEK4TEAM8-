@@ -223,7 +223,7 @@ void AActor::SetScale(FVector scale)
 	}
 }
 
-int32 AActor::getComponentIndex(uint32 componentUUID) const
+int32 AActor::getComponentIndex(int32 componentUUID) const
 {
 	for (uint32 i = 0; i < mComponents.Num(); ++i)
 	{

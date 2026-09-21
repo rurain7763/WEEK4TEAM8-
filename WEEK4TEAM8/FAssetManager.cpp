@@ -125,7 +125,7 @@ void FAssetManager::ScanDirectory(const std::filesystem::path& RootDir, URendere
 		if (Entry.is_directory() || Entry.path().extension() != ".uasset") continue;
 
 		// 이름 중복 해결을 위해 전체 경로
-		FName AssetName(NormalizeAssetPath(Entry.path()));
+		FName AssetName(std::filesystem::weakly_canonical(Entry.path()).string());
 		FAssetFileHeader Header;
 		
 		try
@@ -165,7 +165,7 @@ void FAssetManager::ScanDirectory(const std::filesystem::path& RootDir, URendere
 	}
 
 	// Asset 등록
-	RegisterAsset(Header.AssetID, AssetName, Loader, MakeShared<FFileAssetSource>(Entry.path()));
+	RegisterAsset(AssetName, Loader, MakeShared<FFileAssetSource>(Entry.path()));
 	
 	}
 }

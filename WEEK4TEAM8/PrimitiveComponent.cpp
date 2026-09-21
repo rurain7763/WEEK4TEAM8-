@@ -1,4 +1,4 @@
-﻿
+
 #include "PrimitiveComponent.h"
 
 #include <format>
@@ -18,53 +18,6 @@
 #include "Circle.h"
 #include "Plane.h"
 #include "ShowFlags.h"
-
-// 정점 배열이 보이는 스코프라 sizeof 로 개수가 나온다.
-// 포인터로 받으면 배열 크기 정보가 사라지므로 여기서 개수를 같이 넘긴다.
-static bool GetPrimitiveMesh(EPrimitive ePrimitive, const FVertexSimple*& OutVertices, uint32& OutCount, const uint32*& OutIndices, uint32& OutIndexCount)
-{
-	switch (ePrimitive)
-	{
-	case EPrimitive::EP_Cube:
-		OutVertices = Cube_vertices;
-		OutCount = static_cast<uint32>(sizeof(Cube_vertices) / sizeof(FVertexSimple));
-		OutIndices = Cube_indices;
-		OutIndexCount = static_cast<uint32>(sizeof(Cube_indices) / sizeof(uint32));
-		return true;
-	case EPrimitive::EP_Sphere:
-		OutVertices = Sphere_vertices;
-		OutCount = static_cast<uint32>(sizeof(Sphere_vertices) / sizeof(FVertexSimple));
-		OutIndices = Sphere_indices;
-		OutIndexCount = static_cast<uint32>(sizeof(Sphere_indices) / sizeof(uint32));
-		return true;
-	case EPrimitive::EP_Triangle:
-		OutVertices = Triangle_vertices;
-		OutCount = static_cast<uint32>(sizeof(Triangle_vertices) / sizeof(FVertexSimple));
-		OutIndices = Triangle_indices;
-		OutIndexCount = static_cast<uint32>(sizeof(Triangle_indices) / sizeof(uint32));
-		return true;
-	case EPrimitive::EP_GizmoArrow:
-		OutVertices = GizmoArrow_vertices;
-		OutCount = static_cast<uint32>(sizeof(GizmoArrow_vertices) / sizeof(FVertexSimple));
-		OutIndices = GizmoArrow_indices;
-		OutIndexCount = static_cast<uint32>(sizeof(GizmoArrow_indices) / sizeof(uint32));
-		return true;
-	case EPrimitive::EP_Circle:
-		OutVertices = Circle_vertices;
-		OutCount = static_cast<uint32>(sizeof(Circle_vertices) / sizeof(FVertexSimple));
-		OutIndices = Circle_indices;
-		OutIndexCount = static_cast<uint32>(sizeof(Circle_indices) / sizeof(uint32));
-		return true;
-	case EPrimitive::EP_Plane:
-		OutVertices = Plane_vertices;
-		OutCount = static_cast<uint32>(sizeof(Plane_vertices) / sizeof(FVertexSimple));
-		OutIndices = Plane_indices;
-		OutIndexCount = static_cast<uint32>(sizeof(Plane_indices) / sizeof(uint32));
-		return true;
-	}
-
-	return false;
-}
 
 UPrimitiveComponent::UPrimitiveComponent()
 {
@@ -88,21 +41,6 @@ void UPrimitiveComponent::Initialize(EPrimitive ePrimitive)
 void UPrimitiveComponent::Initialize(EPrimitive ePrimitive, FVector location, FRotator rotation, FVector scale3D)
 {
 	USceneComponent::Initialize(location, rotation, scale3D);
-
-	mePrimitive = ePrimitive;
-
-	FName MeshAssetName;
-	switch (mePrimitive)
-	{
-		case EPrimitive::EP_Sphere:		MeshAssetName = "SphereMesh"; break;
-		case EPrimitive::EP_Cube:		MeshAssetName = "CubeMesh"; break;
-		case EPrimitive::EP_Triangle:	MeshAssetName = "TriangleMesh"; break;
-		case EPrimitive::EP_GizmoArrow:	MeshAssetName = "GizmoArrowMesh"; break;
-		case EPrimitive::EP_Circle:		MeshAssetName = "CircleMesh"; break;
-		case EPrimitive::EP_Plane:		MeshAssetName = "PlaneMesh"; break;
-	}
-
-	mMeshAsset = FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(MeshAssetName);
 }
 
 UPrimitiveComponent::~UPrimitiveComponent()
@@ -112,79 +50,15 @@ UPrimitiveComponent::~UPrimitiveComponent()
 void UPrimitiveComponent::SerializeClass(json::JSON& outJson) const
 {
 	USceneComponent::SerializeClass(outJson);
-	outJson["Properties"]["mePrimitiveType"] = EPrimitiveToJson(mePrimitive);
-	outJson["Properties"]["TextureAssetName"] = mTextureAsset ? mTextureAsset->GetAssetName().ToString().CStr() : "";
 }
 
 void UPrimitiveComponent::DeserializeClass(const json::JSON& inJson)
 {
 	USceneComponent::DeserializeClass(inJson);
-
-	const json::JSON& propertiesJson = inJson.at("Properties");
-	if (!propertiesJson.hasKey("mePrimitiveType") || propertiesJson.at("mePrimitiveType").JSONType() != json::JSON::Class::String)
-	{
-		throw std::runtime_error(std::format("{}: mePrimitiveType property requires a string", GetRuntimeClass()->Name));
-	}
-
-	mePrimitive = EPrimitiveFromJson(propertiesJson.at("mePrimitiveType"));
-
-	RestoreMeshAsset();
-
-
-	if (propertiesJson.hasKey("TextureAssetName") && propertiesJson.at("TextureAssetName").JSONType()
-		== json::JSON::Class::String)
-	{
-		const FString AssetName = propertiesJson.at("TextureAssetName").ToString();
-
-		if (AssetName.Len() > 0)
-		{
-			mTextureAsset = FAssetManager::Get().GetAssetAs<FTexture2DAsset>(FName(AssetName), true);
-		}
-		else
-		{
-			mTextureAsset = nullptr;
-		}
-	}
-}
-
-void UPrimitiveComponent::RestoreMeshAsset()
-{
-	FName MeshAssetName;
-
-	switch (mePrimitive)
-	{
-	case EPrimitive::EP_Sphere:
-		MeshAssetName = "SphereMesh";
-		break;
-
-	case EPrimitive::EP_Cube:
-		MeshAssetName = "CubeMesh";
-		break;
-
-	case EPrimitive::EP_Triangle:
-		MeshAssetName = "TriangleMesh";
-		break;
-
-	case EPrimitive::EP_GizmoArrow:
-		MeshAssetName = "GizmoArrowMesh";
-		break;
-
-	case EPrimitive::EP_Circle:
-		MeshAssetName = "CircleMesh";
-		break;
-
-	case EPrimitive::EP_Plane:
-		MeshAssetName = "PlaneMesh";
-		break;
-	}
-
-	mMeshAsset = FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(MeshAssetName, true);
 }
 
 void UPrimitiveComponent::Render(FRenderCollector& RenderCollector)
 {
-	if (FShowFlags::Get().IsEnabled(EShowFlag::Primitive))
-		RenderCollector.RenderInfos.Add({ mMeshAsset, mTextureAsset, mePrimitive, GetTransformMatrix().MakeMatrix(),{ mOwner->UUID, mOwner->InternalIndex }, FVector4(0, 0, 0, 0) });
 }
 
 void UPrimitiveComponent::RegisterPickTarget(FRenderCollector& RenderCollector)
@@ -192,31 +66,35 @@ void UPrimitiveComponent::RegisterPickTarget(FRenderCollector& RenderCollector)
 	RenderCollector.PickTargets.Add(this);
 }
 
+FAABB UPrimitiveComponent::GetBoundingBox() const
+{
+	return FAABB();
+}
+
+const TArray<FVertex>& UPrimitiveComponent::GetMeshVertices() const
+{
+	static const TArray<FVertex> EmptyVertices; return EmptyVertices;
+}
+
+const TArray<uint32>& UPrimitiveComponent::GetMeshIndices() const
+{
+	static const TArray<uint32> EmptyIndices; return EmptyIndices;
+}
+
 bool UPrimitiveComponent::RayCastComponent(const FPickingRay& PickingRay, float& OutHitT) const
 {
-	if (!mMeshAsset)
-	{
-		return false;
-	}
-
 	const FMatrix WorldMatrix = GetTransformMatrix().MakeMatrix();
 
 	// AABB 충돌체를 이용한 광선-메시 충돌 최적화
-	const FAABB BoundingBox = mMeshAsset->GetLocalBoundingBox().ToWorld(WorldMatrix);
+	const FAABB BoundingBox = GetBoundingBox();
 	if (!RayIntersectsAABB(PickingRay.ToRay(), PickingRay.Length, BoundingBox))
 	{
 		return false;
 	}
 
 	// 메시 충돌체를 이용한 광선-삼각형 충돌 판정
-	const FVertexSimple* vertices = nullptr;
-	uint32 length = 0;
-	const uint32* indices = nullptr;
-	uint32 indexCount = 0;
-	if (!GetPrimitiveMesh(mePrimitive, vertices, length, indices, indexCount))
-	{
-		return false;
-	}
+	const TArray<FVertex>& vertices = GetMeshVertices();
+	const TArray<uint32>& indices = GetMeshIndices();
 
 	const FMatrix WorldToLocal = WorldMatrix.AffineInverse();
 	if (WorldToLocal == FMatrix::Zero)
@@ -232,7 +110,7 @@ bool UPrimitiveComponent::RayCastComponent(const FPickingRay& PickingRay, float&
 	float NearestT = FLT_MAX;
 
 	// 삼각형 리스트라 정점 3개씩 묶인다
-	for (int32 i = 0; i < indexCount; i += 3)
+	for (int32 i = 0; i < indices.Num(); i += 3)
 	{
 		const FVector V0 = vertices[indices[i]].GetPosition();
 		const FVector V1 = vertices[indices[i + 1]].GetPosition();

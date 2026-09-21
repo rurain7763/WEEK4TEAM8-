@@ -6,6 +6,7 @@
 #include "Serializers.h"
 #include "FStaticMeshBuilder.h"
 #include "FMaterialImporter.h"
+#include "AssetFileIOs.h"
 
 
 // .obj -> .uasset 변환
@@ -38,23 +39,28 @@ bool FStaticMeshImporter::Import(const std::filesystem::path& InPath, const std:
     OutHead.AssetType = EAssetType::StaticMesh;
     OutHead.AssetID = FGuid::NewGuid();
 
-    
     try
     {
-        FWindowsBinWriter FileWriter(OutPath);
-        
-        FileWriter << OutHead;
-        FileWriter << BuildData.Vertices;
-        FileWriter << BuildData.Indices;
-        FileWriter << BuildData.Sections;
-        
         // FMeshDescription MeshDescription;
         for (FObjMaterialInfo Material : ObjInfo.Materials)
         {
             std::filesystem::path MaterialPath = OutPath.parent_path() / (OutPath.stem().string() + "_" + Material.Name.CStr() + ".uasset");
             FAssetFileHeader MaterialHeader;
             FMaterialImporter::Import(Material, InPath.parent_path(), MaterialPath, MaterialHeader);
+            
+            for (FStaticMeshSection& Section : BuildData.Sections)
+            {
+                if (Section.MaterialName == Material.Name)
+                {
+                    Section.MaterialAssetID = MaterialHeader.AssetID;
+                }
+            }
         }
+        FWindowsBinWriter FileWriter(OutPath);
+        
+        FileWriter << OutHead;
+
+        FStaticMeshFileIO::Save(FileWriter, BuildData);
     }
     catch(const std::exception& e)
     {

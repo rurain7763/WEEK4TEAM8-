@@ -18,13 +18,18 @@ public:
 	{
 		Super::DeserializeClass(inJson);
 
-		RestoreAtlasState();
-
+		Frame = 0;
+		FrameAccumulator = 0.f;
 
 		SetBillboard(true);
 		SetDepthState(true, false);
-
 		Play();
+
+		Asset = std::static_pointer_cast<FSpriteAtlasAsset>(mTextureAsset);
+		if (Asset && Asset->GetFrameCount() > 0)
+		{
+			mSubUV = Asset->GetFrameSubUV(Frame);
+		}
 	}
 
 	void SetAtlas(const TSharedPtr<FSpriteAtlasAsset>& InAtlas);
@@ -45,8 +50,8 @@ public:
 	void SetFrameRate(int32 InFrameRate) { FrameRate = FMath::Max(InFrameRate, 1); }
 
 	virtual void Tick(float deltaTime) override;
+
 private:
-	void RestoreAtlasState();
 	TSharedPtr<FSpriteAtlasAsset> Asset;
 	bool bPlaying = false;
 	bool bLooping = true;

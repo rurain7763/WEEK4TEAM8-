@@ -50,7 +50,7 @@ bool FGizmo::IsMouseOverHandle() const
 	return bIsHoveredAxis; 
 }
 
-void FGizmo::Update(AActor* TargetActor, const FRect& ViewportRect, bool bViewportHovered, const FMatrix& ViewProjection)
+void FGizmo::Tick(AActor* TargetActor, const FRect& ViewportRect, bool bViewportHovered, const FMatrix& ViewProjection)
 {
     if (!TargetActor)
     {

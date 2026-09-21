@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "MathUtility.h"
 
@@ -78,6 +78,14 @@ typedef struct FVector
         y -= Others.y;
         z -= Others.z;
     }
+
+	FVector& operator*=(float Scalar)
+	{
+		x *= Scalar;
+		y *= Scalar;
+		z *= Scalar;
+		return *this;
+	}
 
 	void operator/=(float Scalar)
 	{
@@ -164,7 +172,12 @@ typedef struct FVector4
 	FVector4(float _x, float _y, float _z, float _w) : x(_x), y(_y), z(_z), w(_w) {}
 	FVector4(const FVector3& v, float _w) : x(v.x), y(v.y), z(v.z), w(_w) {}
 
-	const FVector4 operator-(const FVector4& Others) const
+	FVector4 operator+(const FVector4& Others) const
+	{
+		return FVector4(x + Others.x, y + Others.y, z + Others.z, w + Others.w);
+	}
+
+	FVector4 operator-(const FVector4& Others) const
 	{
 		return FVector4(x - Others.x, y - Others.y, z - Others.z, w - Others.w);
 	}
@@ -236,14 +249,4 @@ struct FRect
 	FRect(float InX, float InY, float InWidth, float InHeight)
 		: X(InX), Y(InY), Width(InWidth), Height(InHeight) {
 	}
-};
-
-// 1. Define the triangle vertices
-struct FVertexSimple
-{
-	float x, y, z;    // Position
-	float r, g, b, a; // Color
-	float u, v;       // Texture coordinates
-
-	FVector GetPosition() const { return FVector(x, y, z); }
 };

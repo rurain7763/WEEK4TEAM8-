@@ -41,6 +41,16 @@ json::JSON EPrimitiveToJson(const EPrimitive& Primitive)
 	}
 }
 
+json::JSON FGuidToJson(const FGuid& Guid)
+{
+	json::JSON GuidJson = json::JSON::Make(json::JSON::Class::Object);
+	GuidJson["A"] = Guid.A;
+	GuidJson["B"] = Guid.B;
+	GuidJson["C"] = Guid.C;
+	GuidJson["D"] = Guid.D;
+	return GuidJson;
+}
+
 FVector FVectorFromJson(const json::JSON& json)
 {
 	if (json.JSONType() != json::JSON::Class::Array)
@@ -96,4 +106,14 @@ EPrimitive EPrimitiveFromJson(const json::JSON& json)
 	{
 		throw std::runtime_error("Unknown EPrimitive value in JSON");
 	}
+}
+
+FGuid FGuidFromJson(const json::JSON& json)
+{
+	if (json.JSONType() != json::JSON::Class::Object)
+	{
+		throw std::runtime_error("Json Object expected for FGuid");
+	}
+
+	return FGuid(json.at("A").ToInt(), json.at("B").ToInt(), json.at("C").ToInt(), json.at("D").ToInt());
 }

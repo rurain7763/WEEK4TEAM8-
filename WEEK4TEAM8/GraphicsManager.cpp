@@ -1,4 +1,4 @@
-﻿#include "GraphicsManager.h"
+#include "GraphicsManager.h"
 #include "Renderer.h"
 #include "Camera.h"
 #include "Console.h"
@@ -18,9 +18,6 @@ FGraphicsManager::FGraphicsManager(HWND hWindow) :
 {
 	mRenderer = new URenderer;
 	mRenderer->Create(hWindow);
-#if 0
-	mRenderer->CreateLineVertexBuffer(LINE_VERTEX_CAPACITY);
-#endif
 
 	mAspect = mRenderer->GetWidth() / static_cast<float>(mRenderer->GetHeight());
 
@@ -30,10 +27,32 @@ FGraphicsManager::FGraphicsManager(HWND hWindow) :
 	mMeshPipeline->SetShader("Assets/Shaders/StaticMeshShader.hlsl");
 	mMeshPipeline->AddConstantBuffer<FConstants>();
 	mMeshPipeline->AddConstantBuffer<FMatrix>();
+
+	mHighlightMarkPipeline = mRenderer->CreateRenderPipeline();
+	mHighlightMarkPipeline->SetRasterRizerState(D3D11_CULL_BACK);
+	mHighlightMarkPipeline->SetDepthStencilState(true, false, D3D11_COMPARISON_ALWAYS, D3D11_STENCIL_OP_REPLACE);
+	mHighlightMarkPipeline->SetBlendState(ERenderBlendMode::Opaque, false);
+	mHighlightMarkPipeline->SetShader("Assets/Shaders/StaticMeshShader.hlsl");
+	mHighlightMarkPipeline->AddConstantBuffer<FConstants>();
+	mHighlightMarkPipeline->AddConstantBuffer<FMatrix>();
+	mHighlightMarkPipeline->SetSamplerState(0, D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP);
+
+	mHighlightDrawPipeline = mRenderer->CreateRenderPipeline();
+	mHighlightDrawPipeline->SetRasterRizerState(D3D11_CULL_BACK);
+	mHighlightDrawPipeline->SetDepthStencilState(false, false, D3D11_COMPARISON_NOT_EQUAL, D3D11_STENCIL_OP_KEEP);
+	mHighlightDrawPipeline->SetShader("Assets/Shaders/Outline.hlsl");
+	mHighlightDrawPipeline->AddConstantBuffer<FOutlineConstants>();
+
+	mHighlightVertexBuffer = mRenderer->CreateVertexBuffer<FVertex>(nullptr, 1024, D3D11_USAGE_DYNAMIC); // 초기 용량 1024개, 필요하면 늘어난다
+	mHighlightIndexBuffer = mRenderer->CreateIndexBuffer(nullptr, 1024, D3D11_USAGE_DYNAMIC); // 초기 용량 1024개, 필요하면 늘어난다
 }
 
 FGraphicsManager::~FGraphicsManager()
 {
+	mHighlightVertexBuffer.reset();
+	mHighlightIndexBuffer.reset();
+	mHighlightMarkPipeline.reset();
+	mHighlightDrawPipeline.reset();
 	mMeshPipeline.reset();
 	mRenderCollector.Clear();
 	mRenderer->Release();
@@ -82,44 +101,116 @@ void FGraphicsManager::Prepare(const FCamera* mCamera, float viewportWidth, floa
 	mRenderer->BindRenderTarget(Viewport.RenderTarget, Viewport.DepthStencil);
 }
 
-void FGraphicsManager::GizmoPrepare()
+void FGraphicsManager::RenderHighLight(const TArray<UPrimitiveComponent*>& Primitives)
 {
-	mRenderer->RSUpdateState();
+	if (Primitives.Num() == 0)
+	{
+		return;
+	}
 
+	TSharedPtr<FRenderTarget2D> CurrentRenderTarget = mRenderer->GetBindedRenderTarget();
+	TSharedPtr<FDepthStencil> CurrentDepthStencil = mRenderer->GetBindedDepthStencil();
+
+	if (CurrentDepthStencil == nullptr)
+	{
+		UE_DEBUG_LOG_WARN("RenderHighLight: CurrentDepthStencil is nullptr. Skipping highlight rendering.");
+		return;
+	}
+
+	mHighlightMarkPipeline->UpdateConstantBuffer(1, mViewUnifiedProjectionMatrix);
+	mHighlightDrawPipeline->UpdateConstantBuffer(1, mViewUnifiedProjectionMatrix);
+
+	// Mark Pass: 스텐실에 마크만 찍는다.
+	for (UPrimitiveComponent* Primitive : Primitives)
+	{
+		const TArray<FVertex>& Vertices = Primitive->GetMeshVertices();
+		const TArray<uint32>& Indices = Primitive->GetMeshIndices();
+
+		if (Vertices.Num() * sizeof(FVertex) > mHighlightVertexBuffer->GetBufferSize())
+		{
+			mHighlightVertexBuffer = mRenderer->CreateVertexBuffer<FVertex>(Vertices.Data(), Vertices.Num(), D3D11_USAGE_DYNAMIC);
+		}
+
+		if (Indices.Num() * sizeof(uint32) > mHighlightIndexBuffer->GetBufferSize())
+		{
+			mHighlightIndexBuffer = mRenderer->CreateIndexBuffer(Indices.Data(), Indices.Num(), D3D11_USAGE_DYNAMIC);
+		}
+
+		mHighlightVertexBuffer->UpdateBuffer(Vertices.Data(), Vertices.Num());
+		mHighlightIndexBuffer->UpdateBuffer(Indices.Data(), Indices.Num());
+
+		FTransform Transform = Primitive->GetTransformMatrix();
+
+		FConstants Constants{};
+		Constants.Matrix = Transform.MakeMatrix();
+		Constants.Color = FVector4(0.f, 0.f, 0.f, 0.f);
+		Constants.HasTexture = 0;
+		Constants.UseVertexColor = 0;
+		Constants.UVOffset = FVector2(0.f, 0.f);
+
+		mHighlightMarkPipeline->UpdateConstantBuffer(0, Constants);
+
+		FRenderInfo RenderInfo{};
+		RenderInfo.VertexBuffer = mHighlightVertexBuffer->Buffer;
+		RenderInfo.VertexCount = static_cast<uint32>(Vertices.Num());
+		RenderInfo.IndexBuffer = mHighlightIndexBuffer->Buffer;
+		RenderInfo.StartIndex = 0;
+		RenderInfo.IndexCount = static_cast<uint32>(Indices.Num());
+		RenderInfo.Model = Primitive->GetTransformMatrix().MakeMatrix();
+
+		mRenderer->RenderPrimitiveIndexed(mHighlightMarkPipeline, RenderInfo, 1);
+	}
+
+	// Draw Pass: 잠시 DepthStencil을 해제
+	mRenderer->BindRenderTarget(CurrentRenderTarget, nullptr, false);
+	mHighlightDrawPipeline->SetShaderResource(0, CurrentDepthStencil->SRV);
+
+	// Draw Pass: 스텐실에 마크가 찍힌 영역만 그린다.
+	FOutlineConstants OutlineConstants{};
+	OutlineConstants.OutlineColor = FVector4(1.f, 0.6f, 0.f, 1.f);
+	OutlineConstants.StencilTexWidth = CurrentDepthStencil->Width;
+	OutlineConstants.StencilTexHeight = CurrentDepthStencil->Height;
+	OutlineConstants.OutlineRadius = 5;
+	
+	mHighlightDrawPipeline->UpdateConstantBuffer(0, OutlineConstants);
+
+	mRenderer->Render(mHighlightDrawPipeline, 6);
+
+	// Draw Pass가 끝나면 원래 DepthStencil을 복원한다.
+	mRenderer->ClearAllShaderResources();
+	mRenderer->BindRenderTarget(CurrentRenderTarget, CurrentDepthStencil, false);
 }
+
 void FGraphicsManager::Render()
 {
 	mRenderer->RenderLines(mRenderCollector.LineInfos);
 
-	for (const FRenderInfo& renderInfo : mRenderCollector.RenderInfos)
+	for (const FRenderInfo& RenderInfo : mRenderCollector.RenderInfos)
 	{
-		TSharedPtr<FStaticMeshAsset> Asset = renderInfo.StaticMesh;
-
-		if (!Asset)
+		if (RenderInfo.Texture)
 		{
-			continue;
-		}
+			mMeshPipeline->ClearShaderResource();
+			mMeshPipeline->ClearSamplerState();
 
-		mMeshPipeline->ClearShaderResource();
-		mMeshPipeline->ClearSamplerState();
+			FConstants Constants{};
+			Constants.Matrix = RenderInfo.Model;
+			Constants.Color = RenderInfo.Color;
+			Constants.UseVertexColor = RenderInfo.UseVertexColor;
+			Constants.HasTexture = RenderInfo.Texture ? 1 : 0;
+			Constants.UVOffset = RenderInfo.UVOffset;
 
-		FConstants Constants{};
-		Constants.Matrix = renderInfo.WorldTransformMatrix;
-		Constants.Color = renderInfo.Color;
-		Constants.UseVertexColor = renderInfo.UseVertexColor ? 1 : 0;
-		Constants.HasTexture = renderInfo.Texture ? 1 : 0;
+			mMeshPipeline->UpdateConstantBuffer(0, Constants);
+			mMeshPipeline->UpdateConstantBuffer(1, mViewUnifiedProjectionMatrix);
 
-		mMeshPipeline->UpdateConstantBuffer(0, Constants);
-		mMeshPipeline->UpdateConstantBuffer(1, mViewUnifiedProjectionMatrix);
-
-		if (renderInfo.Texture)
-		{
-			mMeshPipeline->SetShaderResource(0, renderInfo.Texture->GetSRV());
+			mMeshPipeline->SetShaderResource(0, RenderInfo.Texture->GetSRV());
 			mMeshPipeline->SetSamplerState(0, D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP);
-		}
 
-		const uint32 DrawIndexCount = renderInfo.IndexCount > 0 ? renderInfo.IndexCount : Asset->GetIndexCount(0);
-		mRenderer->RenderPrimitiveIndexed(mMeshPipeline, Asset->GetVertexBuffer(), Asset->GetIndexBuffer(0), DrawIndexCount, renderInfo.FirstIndex);
+			mRenderer->RenderPrimitiveIndexed(mMeshPipeline, RenderInfo);
+		}
+		else
+		{
+			mRenderer->RenderPrimitiveIndexed(RenderInfo);
+		}
 	}
 
 	for (const FRenderQuadInfo& QuadInfo : mRenderCollector.GetOpaqueQuadInfos())
@@ -143,13 +234,6 @@ void FGraphicsManager::Render()
 	{
 		mRenderer->RenderQuad(QuadInfo);
 	}
-}
-
-void FGraphicsManager::DrawLine(const FVector& start, const FVector& end, const FVector4& color)
-{
-	// 월드 좌표 그대로 넣는다. 그래서 그릴 때 World 행렬이 단위행렬이다
-	mLineVertices.Add({ start.x, start.y, start.z, color.x, color.y, color.z, color.w });
-	mLineVertices.Add({ end.x,   end.y,   end.z,   color.x, color.y, color.z, color.w });
 }
 
 void FGraphicsManager::Display()
@@ -184,19 +268,6 @@ void FGraphicsManager::OnResize(UINT width, UINT height)
 	mRenderer->OnResize(width, height);
 }
 
-FVector FGraphicsManager::GetPrimitiveCenter(EPrimitive type)
-{
-	switch (type)
-	{
-	case EPrimitive::EP_Sphere:	return FVector(0, 0, 0);
-	case EPrimitive::EP_Cube:	return FVector(0, 0, 0);
-	default:					return FVector(0, 0, 0);
-	}
-}
-
-// 테두리가 화면에서 차지할 두께(픽셀). 물체 크기와 카메라 거리 어느 쪽에도 영향받지 않는다.
-static constexpr float OUTLINE_PIXELS = 3.0f;
-
 // 월드 공간 반지름이 worldHalfExtent인 축을 worldThickness 만큼 키우는 배율
 static float GetOutlineAxisScale(float worldHalfExtent, float worldThickness)
 {
@@ -206,64 +277,6 @@ static float GetOutlineAxisScale(float worldHalfExtent, float worldThickness)
 	}
 
 	return 1.0f + worldThickness / worldHalfExtent;
-}
-
-FVector FGraphicsManager::GetPrimitiveHalfExtent(EPrimitive type)
-{
-	switch (type)
-	{
-	case EPrimitive::EP_Sphere:	return FVector(1.0f, 1.0f, 1.0f);
-	case EPrimitive::EP_Cube:	return FVector(0.5f, 0.5f, 0.5f);
-	default:					return FVector(0.5f, 0.5f, 0.5f);
-	}
-}
-
-void FGraphicsManager::RenderHighLight(const FRenderInfo& RI)
-{
-	if (!RI.StaticMesh)
-	{
-		return;
-	}
-
-	const FVector Center = GetPrimitiveCenter(RI.ePrimitive);
-	const FVector HalfExtent = GetPrimitiveHalfExtent(RI.ePrimitive);
-
-	// 화면에서 OUTLINE_PIXELS 만큼 보이려면 이 깊이에서 월드로 얼마여야 하는지 환산한다.
-	// 깊이 d에서 뷰포트가 담는 월드 높이가 2*d*tan(fov/2) 이므로, 그걸 픽셀 수로 나누면 픽셀당 월드 크기다.
-	const FVector ObjectLocation = RI.WorldTransformMatrix.TransformPosition(Center);
-	const float Depth = FVector::dot(ObjectLocation - mCameraLocation, mCameraForward);
-	const float TanHalfFov = tanf(FMath::DegreesToRadians(mCameraFovDegree * 0.5f));
-	const float effectiveDepth = FMath::Max(
-		(1.0f - mProjectionRatio) * mCameraOrthoDistance + mProjectionRatio * Depth
-		, 0.01f);
-	//const float H = mbPerspectiveProjection ? 2.0f * Depth * TanHalfFov : 5.774f;
-	const float H = 2.0f * effectiveDepth * TanHalfFov;
-	const float WorldThickness = OUTLINE_PIXELS * H / mRenderer->GetHeight();
-
-
-	// 축마다 월드 공간에서 WorldThickness 만큼만 자라도록 배율을 따로 구한다.
-	const FVector WorldScale(
-		RI.WorldTransformMatrix.GetUnitAxis(EAxis::X).Length(),
-		RI.WorldTransformMatrix.GetUnitAxis(EAxis::Y).Length(),
-		RI.WorldTransformMatrix.GetUnitAxis(EAxis::Z).Length());
-
-	FVector OutlineScale = {
-		GetOutlineAxisScale(HalfExtent.x * WorldScale.x, WorldThickness),
-		GetOutlineAxisScale(HalfExtent.y * WorldScale.y, WorldThickness),
-		GetOutlineAxisScale(HalfExtent.z * WorldScale.z, WorldThickness) };
-
-
-	const FMatrix Outline = FMatrix::Translation(FVector(-Center.x, -Center.y, -Center.z))
-		* FMatrix::Scale(OutlineScale)
-		* FMatrix::Translation(Center)
-		* RI.WorldTransformMatrix;
-
-	mRenderer->RenderHighlight(
-		RI.StaticMesh->GetVertexBuffer(), RI.StaticMesh->GetVertexCount(),
-		RI.StaticMesh->GetIndexBuffer(0), RI.StaticMesh->GetIndexCount(0),
-		RI.WorldTransformMatrix,
-		Outline,
-		FVector4(1.f, 0.6f, 0.f, 1.f));
 }
 
 void FGraphicsManager::StartProjectionTransition(bool orthographic)
