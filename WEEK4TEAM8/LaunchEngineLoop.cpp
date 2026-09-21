@@ -25,7 +25,6 @@
 #include "FStaticMeshBuilder.h"
 #include "FObjImporter.h"
 #include "UStaticMeshComponent.h"
-#include "FObjManager.h"
 #include "Serializers.h"
 #include "NativeFileDialog.h"
 

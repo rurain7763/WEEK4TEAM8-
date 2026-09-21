@@ -60,10 +60,13 @@ public:
 	FVector2 GetUVOffset(int32 index) const { return mUVOffsets[index]; }
 	void SetUVOffset(int32 index, const FVector2& InUVOffset) { mUVOffsets[index] = InUVOffset; }
 
+	UStaticMesh* StaticMesh = nullptr;
+
 private:
 	bool bUseVertexColor = true;
 	FVector4 Color = FVector4(1.f, 1.f, 1.f, 1.f);
 	TSharedPtr<FStaticMeshAsset> mMeshAsset;
 	TArray<TSharedPtr<FMaterialAsset>> mMaterialAssets;
+	TSharedPtr<FTexture2DAsset> mTextureAsset;
 	TArray<FVector2> mUVOffsets;
 };

@@ -19,7 +19,8 @@ bool FMaterialImporter::Import(const FObjMaterialInfo& MaterialInfo, const std::
         if (MaterialInfo.DiffuseTexturePath.Len() != 0)
         {
             // 1차 검색 : Textures 폴더에서 찾기
-            std::filesystem::path TexturePath = InPath.parent_path() / "Textures" / MaterialInfo.DiffuseTexturePath.CStr();
+           // std::filesystem::path TexturePath = InPath.parent_path() / "Textures" / MaterialInfo.DiffuseTexturePath.CStr();
+            std::filesystem::path TexturePath = std::filesystem::weakly_canonical(InPath / MaterialInfo.DiffuseTexturePath.CStr());
             std::optional<std::filesystem::path> TextureUAssetPath = FTexture2DImporter::GetorImport(TexturePath);
             
             // 2차 검색 : mtl과 같은 폴더 (Mashes)에서 찾기

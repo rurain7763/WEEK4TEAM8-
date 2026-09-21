@@ -5,7 +5,6 @@
 #include "ShowFlags.h"
 #include "Actor.h"
 #include "JsonUtil.h"
-#include "FObjManager.h"
 #include "EngineMathLibrary.h"
 #include "FLogManager.h"
 
@@ -76,9 +75,9 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
     for (int32 SectionIndex = 0; SectionIndex < mMeshAsset->GetSections().Num(); ++SectionIndex)
     {
         const FStaticMeshSection& Section = mMeshAsset->GetSections()[SectionIndex];
-        TSharedPtr<FMaterialAsset> Material = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
 
-        // 콤보에서 고른 게 있으면 그 material 적용, 없으면 기존 material 사용
+        TSharedPtr<FMaterialAsset> Material = mMaterialAssets[SectionIndex];
+
         const FVector4 MaterialColor = Material
             ? FVector4(
                 Material->GetDiffuseColor().x,
@@ -88,6 +87,15 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
             : FVector4(1, 1, 1, 1);
 
         TSharedPtr<FTexture2DAsset> SectionTexture = Material ? Material->GetDiffuseTexture() : nullptr;
+
+        if (!SectionTexture && StaticMesh)
+        {
+            SectionTexture = StaticMesh->GetDiffuseTexture(Section.MaterialName);
+        }
+        if (!SectionTexture)
+        {
+            SectionTexture = mTextureAsset;
+        }
 
         FRenderInfo RenderInfo;
         RenderInfo.VertexBuffer = mMeshAsset->GetVertexBuffer();
@@ -124,7 +132,7 @@ void UStaticMeshComponent::SetMesh(const TSharedPtr<FStaticMeshAsset>& InMesh)
     for (int32 i = 0; i < Sections.Num(); i++)
     {
         auto& Section = Sections[i];
-        mMaterialAssets[i] = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID);
+        mMaterialAssets[i] = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
     }
     mMeshAsset = InMesh;
 }
