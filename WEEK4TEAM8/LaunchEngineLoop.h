@@ -12,10 +12,9 @@
 #include "FFontManager.h"
 #include "FComponentVisualizer.h"
 #include "FContentBrowser.h"
+#include "GraphicsManager.h"
 
 #include <d3d11.h>
-
-#define MainViewport mViewports[0]
 
 class Sphere;
 class FGraphicsManager;

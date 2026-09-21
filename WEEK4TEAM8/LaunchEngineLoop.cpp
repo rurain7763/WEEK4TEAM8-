@@ -401,7 +401,7 @@ void FEngineLoop::End()
 void FEngineLoop::SaveEditorSettings()
 {
 	// Save camera sensitivity
-	const std::string Value = std::format("{:.6f}", MainViewport.Client->GetCamera().Sensitivity);
+	const std::string Value = std::format("{:.6f}", GetMainViewport().Client->GetCamera().Sensitivity);
 	if (!WritePrivateProfileStringA("Camera", "Sensitivity", Value.c_str(), ".\\editor.ini"))
 	{
 		UE_LOG_ERROR("Failed to save camera sensitivity to editor.ini");
@@ -447,7 +447,7 @@ void FEngineLoop::LoadEditorSettings()
 
 	float Sensitivity = 1.0f;
 	sscanf_s(Value, "%f", &Sensitivity);
-	MainViewport.Client->GetCamera().Sensitivity = Sensitivity;
+	GetMainViewport().Client->GetCamera().Sensitivity = Sensitivity;
 
 	// Load grid gap
 	GetPrivateProfileStringA("Grid", "Gap", "", Value, sizeof(Value), ".\\editor.ini");
