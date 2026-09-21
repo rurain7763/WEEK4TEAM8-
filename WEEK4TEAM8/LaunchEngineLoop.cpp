@@ -102,6 +102,14 @@ void FEngineLoop::Init(HINSTANCE hInstance, WNDPROC WndProc)
 		mSplitViewports[i].Viewport = MakeShared<FViewport>();
 		mSplitViewports[i].Viewport->Resize(*mGraphicsManager->GetRenderer(), mEditorLayout.ViewportWindows[i]->Rect.Width, mEditorLayout.ViewportWindows[i]->Rect.Height);
 		mSplitViewports[i].Client = MakeShared<FEditorViewportClient>(*mGraphicsManager->GetRenderer());
+		if (i == static_cast<int32>(EViewportType::Top))
+			mSplitViewports[i].Client->SetViewportType(EViewportType::Top);
+		else if(i == static_cast<int32>(EViewportType::Perspective))
+			mSplitViewports[i].Client->SetViewportType(EViewportType::Perspective);
+		else if (i == static_cast<int32>(EViewportType::Front))
+			mSplitViewports[i].Client->SetViewportType(EViewportType::Front);
+		else if(i == static_cast<int32>(EViewportType::Side))
+			mSplitViewports[i].Client->SetViewportType(EViewportType::Side);
 	}
 
 	const FVector4 NearTint(1.0f, 0.65f, 0.15f, 0.85f); // 주황 = 가까운 쪽
@@ -225,9 +233,16 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		RenderCollector.Clear();
 		RenderCollector.Camera = &Camera;
 
-		CurrentViewport->Client->Update(deltaTime, mGraphicsManager->GetPerspectiveRatio(), RenderCollector);
+		bool bIsOrtho = CurrentViewport->Client->IsOrtho();
+		float CurrentRatio = bIsOrtho ? 0.0f : mGraphicsManager->GetPerspectiveRatio();
 
-		FMatrix ViewProjection = Camera.GetViewMatrix() * Camera.GetProjectionMatrix();
+		// 뷰포트가 직교 타입이면 현재 -5000 ~ 5000으로 보이게 하드코딩, 나중에 카메라 위치에 따라 랜더 거리를 늘려야 함
+		Camera.mNear = bIsOrtho ? -5000.0f : Camera.mNear;
+		Camera.mFar = bIsOrtho ? 5000.0f : Camera.mFar;
+
+		CurrentViewport->Client->Update(deltaTime, CurrentRatio, RenderCollector);
+
+		FMatrix ViewProjection = Camera.GetViewMatrix() * Camera.GetUnifiedProjectionMatrix(Camera.mOrthoDistance, CurrentRatio);
 
 		mSceneManager->Render(deltaTime, RenderCollector);
 
@@ -235,9 +250,10 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		// 뷰포트가 ImGui 창이 되면서 그 위에서는 io.WantCaptureMouse 가 항상 true 다.
 		// 그대로 두면 씬을 클릭해도 선택이 되지 않는다. 카메라/기즈모와 같은 기준을 쓴다.
 		const FInputState& Input = WindowApplication.Input;
+
 		if (CurrentViewport->Client->IsActive() && Input.WasPressed(VK_LBUTTON) && !CurrentViewport->Client->mGizmo.IsDragging() && !CurrentViewport->Client->mGizmo.IsMouseOverHandle())
 		{
-			AActor* HitActor = CurrentViewport->Client->PerformMousePicking(CurrentViewport->Window->Rect, mGraphicsManager->GetPerspectiveRatio(), RenderCollector);
+			AActor* HitActor = CurrentViewport->Client->PerformMousePicking(CurrentViewport->Window->Rect, CurrentRatio, RenderCollector);
 			if (HitActor)
 			{
 				mSceneManager->SetSelectedActor(HitActor);
@@ -294,11 +310,11 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		//Render Threads
 		{
 			CurrentViewport->Viewport->Resize(*mGraphicsManager->GetRenderer(), ViewportRect.Width, ViewportRect.Height);
-			mGraphicsManager->Prepare(&CurrentViewport->Client->mCamera, ViewportRect.Width, ViewportRect.Height, *CurrentViewport->Viewport);
+			mGraphicsManager->Prepare(&CurrentViewport->Client->mCamera, ViewportRect.Width, ViewportRect.Height, *CurrentViewport->Viewport, CurrentViewport->Client->GetViewMode(), CurrentViewport->Client->GetViewportType());
 			mGraphicsManager->RenderHighLight(HighlightedComponents);
 			mGraphicsManager->Render();
 
-			CurrentViewport->Client->mGizmo.Render(SelectedActor, CurrentViewport->Client->mCamera.Transform.Location, ViewProjection);
+			CurrentViewport->Client->mGizmo.Render(SelectedActor, CurrentViewport->Client->mCamera.Transform.Location, ViewProjection, CurrentViewport->Client->IsOrtho(), CurrentViewport->Client->GetCamera().mOrthoDistance);
 		}
 	}
 

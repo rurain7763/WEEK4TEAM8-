@@ -171,8 +171,43 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 					const TSharedPtr<FRenderTarget2D>& RenderTarget = EditorViewport->Viewport->RenderTarget;
 					DrawList->AddImage((ImTextureID)(intptr_t)RenderTarget->SRV.Get(), ImVec2(DrawRect.X, DrawRect.Y), ImVec2(DrawRect.X + DrawRect.Width, DrawRect.Y + DrawRect.Height));
-					ImGui::Dummy(ImVec2(DrawRect.Width, DrawRect.Height));
 
+					ImGui::PushID(i);
+
+					const float MarginX = 8.0f;
+					const float MarginY = 8.0f;
+					ImGui::SetCursorScreenPos(ImVec2(DrawRect.X + MarginX, DrawRect.Y + MarginY));
+
+					ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(30, 30, 30, 180));
+					ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(60, 60, 60, 220));
+					ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4.0f, 2.0f));
+
+					const char* ViewportTypeNames[] = {"Perspective", "Top", "Front", "Side"};
+					int32 CurrentTypeIndex = static_cast<int32>(EditorViewport->Client->GetViewportType());
+
+					ImGui::SetNextItemWidth(95.0f);
+					if (ImGui::Combo("##ViewportType", &CurrentTypeIndex, ViewportTypeNames, IM_ARRAYSIZE(ViewportTypeNames)))
+					{
+						EditorViewport->Client->SetViewportType(static_cast<EViewportType>(CurrentTypeIndex));
+					}
+
+					ImGui::SameLine();
+
+					const char* ViewModeNames[] = { "Lit", "UnLit", "Wireframe" };
+					int32 CurrentModeIndex = static_cast<int32>(EditorViewport->Client->GetViewMode());
+
+					ImGui::SetNextItemWidth(85.0f);
+					if (ImGui::Combo("##ViewMode", &CurrentModeIndex, ViewModeNames, IM_ARRAYSIZE(ViewModeNames)))
+					{
+						EditorViewport->Client->SetViewMode(static_cast<EViewModeIndex>(CurrentModeIndex));
+					}
+
+					ImGui::PopStyleVar();
+					ImGui::PopStyleColor(2);
+					ImGui::PopID();
+
+					ImGui::SetCursorScreenPos(ImVec2(DrawRect.X, DrawRect.Y));
+					ImGui::Dummy(ImVec2(DrawRect.Width, DrawRect.Height));
 				}
 			}
 
@@ -454,7 +489,7 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	FCamera& camera = guiReference.ViewportClient->GetCamera();
 	URenderer* renderer = guiReference.GraphicsManager->GetRenderer();
 
-	const char* viewModeNames[] = { "Lit", "Unlit", "Wireframe" };
+/*	const char* viewModeNames[] = { "Lit", "Unlit", "Wireframe" };
 
 	EViewModeIndex currentViewMode = guiReference.GraphicsManager->GetViewModeIndex();
 	int32 currentViewModeIndex = static_cast<int32>(currentViewMode);
@@ -464,7 +499,7 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	if (ImGui::Combo("View Mode", &currentViewModeIndex, viewModeNames, IM_ARRAYSIZE(viewModeNames)))
 	{
 		guiReference.GraphicsManager->SetViewModeIndex(static_cast<EViewModeIndex>(currentViewModeIndex));
-	}
+	}*/
 	if (ImGui::BeginCombo("##ShowFlags", "Show Flags"))
 	{
 		// 표시 옵션은 표를 그대로 훑어 체크박스를 만든다.

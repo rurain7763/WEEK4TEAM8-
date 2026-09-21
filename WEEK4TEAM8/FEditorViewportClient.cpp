@@ -26,6 +26,38 @@ FEditorViewportClient::FEditorViewportClient(URenderer& InRenderer)
 {
 }
 
+void FEditorViewportClient::SetViewportType(EViewportType InViewportType)
+{
+	// 변경 전 뷰포트 타입이 원근 투영이면 이전 카메라 위치 저장
+	// 직교 화면이면 이전 카메라 위치로 설정
+	if(mViewportType == EViewportType::Perspective)
+		PrevCameraTransform = mCamera.Transform;
+	else
+		mCamera.Transform = PrevCameraTransform;
+
+	mViewportType = InViewportType;
+
+	switch (InViewportType)
+	{
+	case EViewportType::Top:
+		mCamera.Transform.Rotation = FRotator(-90.0f, 0.0f, 0.0f);
+		mCamera.Transform.Location.z = 0.0f;
+		break;
+	case EViewportType::Front:
+		mCamera.Transform.Rotation = FRotator(0.0f, 0.0f, 0.0f);
+		mCamera.Transform.Location.x = 0.0f;
+		break;
+	case EViewportType::Side:
+		mCamera.Transform.Rotation = FRotator(0.0f, -90.0f, 0.0f);
+		mCamera.Transform.Location.y = 0.0f;
+		break;
+	case EViewportType::Perspective:
+		break;
+	default:
+		break;
+	}
+}
+
 AActor* FEditorViewportClient::PerformMousePicking(const FRect& ViewportRect, float perspectiveRatio, const FRenderCollector& RenderCollector)
 {
 	// 씬은 ImGui "Viewport" 창의 이미지 위에 그려진다.
@@ -43,7 +75,7 @@ AActor* FEditorViewportClient::PerformMousePicking(const FRect& ViewportRect, fl
 
 	// 투영 방식에 따라 광선을 만드는 법만 다르다. 두 점을 구하고 나면 이후 판정은 완전히 같다
 	FVector NearPoint, FarPoint;
-	DeprojectScreenToWorldForUnified(MouseXInViewport, MouseYInViewport, ViewportWidth, ViewportHeight, 0.1f, 100.f, mCamera.mOrthoDistance, perspectiveRatio, NearPoint, FarPoint);
+	DeprojectScreenToWorldForUnified(MouseXInViewport, MouseYInViewport, ViewportWidth, ViewportHeight, mCamera.mNear, mCamera.mFar, mCamera.mOrthoDistance, perspectiveRatio, NearPoint, FarPoint);
 
 	mRayNear = NearPoint;
 	mRayFar = FarPoint;
@@ -77,6 +109,44 @@ void FEditorViewportClient::Update(float deltaTime, float perspectiveRatio, FRen
 	bool bAllowMouse = mbActive;
 	bool bAllowKeyboardInput = bAllowMouse && !ImGui::GetIO().WantCaptureKeyboard;
 
+	if (IsOrtho() && bAllowMouse)
+	{
+		if (Input.IsDown(VK_RBUTTON))
+		{
+			float DeltaX = static_cast<float>(Input.MouseDX);
+			float DeltaY = static_cast<float>(Input.MouseDY);
+
+			float PanSpeed = mCamera.mOrthoDistance * 0.0015f;
+
+			mCamera.Transform.Location += -mCamera.GetRightVector() * (DeltaX * PanSpeed);
+			mCamera.Transform.Location += mCamera.GetUpVector() * (DeltaY * PanSpeed);
+		}
+
+		if (Input.MouseWheelDelta != 0)
+		{
+			float ZoomFactor = (Input.MouseWheelDelta > 0) ? 0.85f : 1.15f;
+			mCamera.mOrthoDistance = FMath::Clamp(mCamera.mOrthoDistance * ZoomFactor, 0.5f, 500.0f);
+		}
+
+		if (bAllowKeyboardInput)
+		{
+			if (Input.WasPressed(VK_SPACE))
+			{
+				mGizmo.SetOperation(static_cast<EGIZMO_TYPE>((static_cast<int32>(mGizmo.GetOperation()) + 1) % 3));
+			}
+
+			if (Input.WasPressed('V'))
+			{
+				mGizmo.SetWorldMode(true);
+			}
+			else if (Input.WasPressed('B'))
+			{
+				mGizmo.SetWorldMode(false);
+			}
+		}
+
+		return;
+	}
 	// Camera Rotate
 	// 회전을 이동보다 먼저, 이번 프레임에 돌린 방향으로 바로 움직이게
 	if (bAllowMouse && Input.IsDown(VK_RBUTTON))
