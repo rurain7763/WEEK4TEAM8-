@@ -11,24 +11,17 @@
 
 
 void UStaticMeshComponent::Initialize(const FString& InAssetPathFileName, FVector Location,
-    FRotator Rotation,  FVector Scale)
+    FRotator Rotation, FVector Scale)
 {
     USceneComponent::Initialize(Location, Rotation, Scale);
-
-    // OBJ
-    StaticMesh = FObjManager::LoadObjStaticMesh(InAssetPathFileName);
-    if (StaticMesh)
-    {
-        mMeshAsset = StaticMesh->GetStaticMeshAsset();
-    }
 }
 
 void UStaticMeshComponent::SerializeClass(json::JSON& outJson) const
 {
     USceneComponent::SerializeClass(outJson);
 
-	FGuid AssetID = mMeshAsset ? mMeshAsset->GetAssetID() : FGuid();
-	outJson["Properties"]["ObjStaticMeshAsset"] = FGuidToJson(AssetID);
+    FGuid AssetID = mMeshAsset ? mMeshAsset->GetAssetID() : FGuid();
+    outJson["Properties"]["ObjStaticMeshAsset"] = FGuidToJson(AssetID);
 }
 
 void UStaticMeshComponent::DeserializeClass(const json::JSON& inJson)
@@ -54,12 +47,12 @@ void UStaticMeshComponent::DeserializeClass(const json::JSON& inJson)
         throw std::runtime_error("UStaticMeshComponent: ObjStaticMeshAsset property requires an object");
     }
 
-	FGuid AssetID = FGuidFromJson(PropertiesJson.at("ObjStaticMeshAsset"));
+    FGuid AssetID = FGuidFromJson(PropertiesJson.at("ObjStaticMeshAsset"));
 
-	if (AssetID.IsValid())
-	{
-		mMeshAsset = FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(AssetID, true);
-	}
+    if (AssetID.IsValid())
+    {
+        mMeshAsset = FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(AssetID, true);
+    }
 }
 
 //void UStaticMeshComponent::SetMeshAsset(const FName& InMeshAssetName)
@@ -74,7 +67,7 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
     {
         return;
     }
-    
+
     if (!FShowFlags::Get().IsEnabled(EShowFlag::Primitive))
     {
         return;
@@ -83,7 +76,8 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
     for (int32 SectionIndex = 0; SectionIndex < mMeshAsset->GetSections().Num(); ++SectionIndex)
     {
         const FStaticMeshSection& Section = mMeshAsset->GetSections()[SectionIndex];
-        TSharedPtr<FMaterialAsset> Material = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
+
+        TSharedPtr<FMaterialAsset> Material = mMaterialAssets[SectionIndex];
 
         const FVector4 MaterialColor = Material
             ? FVector4(
@@ -110,7 +104,7 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
         RenderInfo.StartIndex = Section.FirstIndex;
         RenderInfo.IndexCount = Section.IndexCount;
         RenderInfo.Texture = SectionTexture;
-        RenderInfo.UVOffset = mUVOffset;
+        RenderInfo.UVOffset = mUVOffsets[SectionIndex];
         RenderInfo.ePrimitive = EPrimitive::EP_StaticMesh;
         RenderInfo.Model = GetTransformMatrix().MakeMatrix();
         RenderInfo.Color = bUseVertexColor ? MaterialColor : Color;
@@ -123,10 +117,23 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
 
 FAABB UStaticMeshComponent::GetBoundingBox() const
 {
-	if (!mMeshAsset)
-	{
-		return FAABB();
-	}
+    if (!mMeshAsset)
+    {
+        return FAABB();
+    }
 
-	return mMeshAsset->GetLocalBoundingBox().ToWorld(GetTransformMatrix().MakeMatrix());
+    return mMeshAsset->GetLocalBoundingBox().ToWorld(GetTransformMatrix().MakeMatrix());
+}
+
+void UStaticMeshComponent::SetMesh(const TSharedPtr<FStaticMeshAsset>& InMesh)
+{
+    const auto& Sections = InMesh->GetSections();
+    mMaterialAssets.SetNum(Sections.Num());
+    mUVOffsets.SetNum(Sections.Num());
+    for (int32 i = 0; i < Sections.Num(); i++)
+    {
+        auto& Section = Sections[i];
+        mMaterialAssets[i] = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID);
+    }
+    mMeshAsset = InMesh;
 }

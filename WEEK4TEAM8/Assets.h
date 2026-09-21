@@ -104,7 +104,6 @@ public:
 
 	inline uint32 GetWidth() const { return Width; }
 	inline uint32 GetHeight() const { return Height; }
-
 	inline DXGI_FORMAT GetFormat() const { return Format; }
 
 protected:

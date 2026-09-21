@@ -356,6 +356,15 @@ FString FString::ToUpper() const
 	return result;
 }
 
+std::string FString::ToString() const
+{
+	if (IsEmpty() || CStr() == nullptr)
+	{
+		return std::string();
+	}
+	return std::string(CStr(), static_cast<size_t>(Len()));
+}
+
 FString& FString::operator+=(std::string_view str)
 {
 	mData.append(str);

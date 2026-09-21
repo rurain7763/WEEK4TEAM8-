@@ -35,6 +35,9 @@ void FAssetManager::RegisterAsset(const FName& AssetName, const TSharedPtr<FAsse
 
 void FAssetManager::RegisterAsset(const FGuid& AssetID, const FName& AssetName, const TSharedPtr<FAssetLoader>& AssetLoader, const TSharedPtr<FAssetSource>& AssetSource)
 {
+	FString NormalizedPath = NormalizeAssetPath(std::filesystem::path(AssetName.ToString().CStr()));
+	FName NormalizedKey(NormalizedPath);
+
 	if (NameToAssetID.Contains(AssetName))
 	{
 		return;

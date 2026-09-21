@@ -77,3 +77,19 @@ private:
 	TMap<FGuid, FAssetMetaInfo> AssetMetaInfos;
 	TMap<FGuid, TSharedPtr<FAsset>> LoadedAssets;
 };
+
+inline FString NormalizeAssetPath(const std::filesystem::path& InPath)
+{
+	std::string GenericPath = InPath.generic_string();
+
+	size_t AssetsIndex = GenericPath.find("Assets");
+	if (AssetsIndex != std::string::npos)
+	{
+		GenericPath = GenericPath.substr(AssetsIndex);
+	}
+
+	std::filesystem::path CleanPath(GenericPath);
+	CleanPath.replace_extension("");
+
+	return FString(CleanPath.generic_string());
+}
