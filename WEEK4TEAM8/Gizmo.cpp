@@ -184,7 +184,7 @@ void FGizmo::Tick(AActor* TargetActor, const FRect& ViewportRect, bool bViewport
     PrevMousePos = MousePosInScreen;
 }
 
-void FGizmo::Render(AActor* TargetActor, const FVector& CameraPosition, const FRect& ViewportRect, const FMatrix& ViewProjection)
+void FGizmo::Render(AActor* TargetActor, const FVector& CameraPosition, const FRect& ViewportRect, const FMatrix& ViewProjection, bool bIsOrtho, float OrthoDistance)
 {
     HandleScreenSegments.Empty();
 
@@ -202,7 +202,9 @@ void FGizmo::Render(AActor* TargetActor, const FVector& CameraPosition, const FR
 
     const FTransform Transform = TargetActor->GetTransform();
     const FVector CenterToCamera = CameraPosition - Transform.Location;
-    const float AxisLength = 0.1f * CenterToCamera.Length();
+
+    // 직교 화면이면 직교 상 거리에 비례한 크기 조절
+    const float AxisLength = bIsOrtho ? (0.08f * OrthoDistance) : (0.1f * CenterToCamera.Length());
     const int32 ScreenWidth = static_cast<int32>(ViewportRect.Width);
     const int32 ScreenHeight = static_cast<int32>(ViewportRect.Height);
     const FVector4 Clip = FVector4(Transform.Location, 1.f) * ViewProjection;

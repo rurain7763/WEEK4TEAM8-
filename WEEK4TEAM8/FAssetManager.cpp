@@ -31,6 +31,7 @@ void FAssetManager::RegisterAsset(const FName& AssetName, const TSharedPtr<FAsse
 
 	AssetMetaInfos.Add(MetaInfo.AssetID, MetaInfo);
 	NameToAssetID.Add(MetaInfo.AssetName, MetaInfo.AssetID);
+	RebuildStats();
 }
 
 void FAssetManager::RegisterAsset(const FGuid& AssetID, const FName& AssetName, const TSharedPtr<FAssetLoader>& AssetLoader, const TSharedPtr<FAssetSource>& AssetSource)
@@ -53,6 +54,7 @@ void FAssetManager::RegisterAsset(const FGuid& AssetID, const FName& AssetName, 
 
 	AssetMetaInfos.Add(MetaInfo.AssetID, MetaInfo);
 	NameToAssetID.Add(AssetName, MetaInfo.AssetID);
+	RebuildStats();
 }
 
 void FAssetManager::RegisterAsset(const TSharedPtr<FAsset>& Asset)
@@ -76,6 +78,7 @@ void FAssetManager::RegisterAsset(const TSharedPtr<FAsset>& Asset)
 	AssetMetaInfos.Add(AssetID, MetaInfo);
 	NameToAssetID.Add(AssetName, AssetID);
 	LoadedAssets.Add(AssetID, Asset);
+	RebuildStats();
 }
 
 void FAssetManager::UnregisterAsset(const FName& AssetName)
@@ -90,6 +93,7 @@ void FAssetManager::UnregisterAsset(const FName& AssetName)
 	UnloadAsset(AssetID);
 	AssetMetaInfos.Remove(AssetID);
 	NameToAssetID.Remove(AssetName);
+	RebuildStats();
 }
 
 void FAssetManager::UnloadAsset(const FName& AssetName)
@@ -99,6 +103,7 @@ void FAssetManager::UnloadAsset(const FName& AssetName)
 	{
 		UnloadAsset(*AssetIDPtr);
 	}
+	RebuildStats();
 }
 
 void FAssetManager::UnloadAsset(const FGuid& AssetID)
@@ -114,6 +119,7 @@ void FAssetManager::UnloadAsset(const FGuid& AssetID)
 		}
 		LoadedAssets.Remove(AssetID);
 	}
+	RebuildStats();
 }
 
 // 프로그램 시작 시에 호출하여 Directory 스캔하는 함수
@@ -174,6 +180,7 @@ TSharedPtr<FAsset> FAssetManager::LoadAsset(const FName& AssetName)
 {
 	FGuid* AssetIDPtr = NameToAssetID.Find(AssetName);
 	return AssetIDPtr ? LoadAsset(*AssetIDPtr) : nullptr;
+	RebuildStats();
 }
 
 TSharedPtr<FAsset> FAssetManager::LoadAsset(const FGuid& AssetID)
@@ -197,6 +204,7 @@ TSharedPtr<FAsset> FAssetManager::LoadAsset(const FGuid& AssetID)
 	if (asset)
 	{
 		LoadedAssets.Add(MetaInfoPtr->AssetID, asset);
+		RebuildStats();
 	}
 
 	return asset;
@@ -222,4 +230,44 @@ TSharedPtr<FAsset> FAssetManager::GetAsset(const FGuid& AssetID, bool loadIfNotL
 	}
 
 	return nullptr;
+}
+
+void FAssetManager::RebuildStats()
+{
+	CachedStats = {};
+
+	CachedStats.RegisteredCount = AssetMetaInfos.Num();
+	CachedStats.LoadedCount = LoadedAssets.Num();
+
+	for (const auto& Pair : AssetMetaInfos)
+	{
+		switch (Pair.second.AssetType)
+		{
+		case EAssetType::StaticMesh:
+			++CachedStats.RegisteredStaticMesh;
+			break;
+		case EAssetType::Texture2D:
+			++CachedStats.RegisteredTexture2D;
+			break;
+		case EAssetType::Material:
+			++CachedStats.RegisteredMaterial;
+			break;
+		}
+	}
+
+	for (const auto& Pair : LoadedAssets)
+	{
+		switch (Pair.second->GetAssetType())
+		{
+		case EAssetType::StaticMesh:
+			++CachedStats.LoadedStaticMesh;
+			break;
+		case EAssetType::Texture2D:
+			++CachedStats.LoadedTexture2D;
+			break;
+		case EAssetType::Material:
+			++CachedStats.LoadedMaterial;
+			break;
+		}
+	}
 }

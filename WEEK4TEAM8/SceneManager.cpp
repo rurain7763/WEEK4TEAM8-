@@ -62,9 +62,17 @@ void FSceneManager::OnNewAssetFile(const FAssetFileHeader& Header, const std::fi
 		Header.AssetType == EAssetType::Material ||
 		Header.AssetType == EAssetType::StaticMesh)
 	{
+
+		FAssetManager::Get().ScanDirectory("Assets", *mRenderer);
+
+		// 현재 자신이 있는 폴더만 refresh 하는 문제가 있어서 위와 같이 수정함.
+		// (mesh면 mesh 폴더만 refresh. texture 폴더는 안 하는 문제)
+		// guid 검사하여 이미 있는 건 Register pass 하기 때문에 등록 비용 거의 없음.
+		#if 0
 		FAssetManager::Get().ScanDirectory(
 			FilePath.parent_path(),
 			*mRenderer);
+		#endif
 	}
 	else
 	{
@@ -142,7 +150,11 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 		ImGui::DockSpaceOverViewport(dockspaceID, viewport, flags);
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 
-		if (ImGui::Begin("Viewport"))
+		const ImGuiWindowFlags ViewportWindowFlags =
+			ImGuiWindowFlags_NoScrollbar |
+			ImGuiWindowFlags_NoScrollWithMouse;
+
+		if (ImGui::Begin("Viewport", nullptr, ViewportWindowFlags))
 		{
 			const ImVec2 Origin = ImGui::GetCursorScreenPos();
 			const ImVec2 TotalSize = ImGui::GetContentRegionAvail();
@@ -158,6 +170,8 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 			for (int32 i = 0; i < guiReference.ViewportCount; ++i)
 			{
+				const int32 CurrentViewportIndex = guiReference.EditorLayout->bIsSplitView ? i : guiReference.EditorLayout->MaximizedViewportIndex;
+
 				FEditorViewport* EditorViewport = &guiReference.Viewports[i];
 
 				FRect DrawRect = EditorViewport->Window->Rect;
@@ -165,13 +179,89 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 				{
 					ImGui::SetCursorScreenPos(ImVec2(DrawRect.X, DrawRect.Y));
 
-					bool bHovered = ImGui::IsMouseHoveringRect(ImVec2(DrawRect.X, DrawRect.Y), ImVec2(DrawRect.X + DrawRect.Width, DrawRect.Y + DrawRect.Height));
+					bool bHovered = ImGui::IsMouseHoveringRect(ImVec2(DrawRect.X, DrawRect.Y), 
+									ImVec2(DrawRect.X + DrawRect.Width, DrawRect.Y + DrawRect.Height))
+								&& !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);		// 팝업창, 콤보 드롭다운 등 열리면 false
 					EditorViewport->Client->SetActive(bHovered);
 
 					const TSharedPtr<FRenderTarget2D>& RenderTarget = EditorViewport->Viewport->RenderTarget;
 					DrawList->AddImage((ImTextureID)(intptr_t)RenderTarget->SRV.Get(), ImVec2(DrawRect.X, DrawRect.Y), ImVec2(DrawRect.X + DrawRect.Width, DrawRect.Y + DrawRect.Height));
-					ImGui::Dummy(ImVec2(DrawRect.Width, DrawRect.Height));
 
+					ImGui::PushID(CurrentViewportIndex);
+
+					const float ViewportTypeWidth = 95.0f;
+					const float ViewModeWidth = 85.0f;
+					const float MaximizeButtonWidth = 28.0f;
+					const float SplitButtonWidth = 28.0f;
+
+					const float Spacing = ImGui::GetStyle().ItemSpacing.x;
+					const float MarginX = 8.0f;
+					const float MarginY = 4.0f;
+					const float ToolBarHeight = 28.0f;
+
+					const float ToolBarWidth = ViewportTypeWidth + ViewModeWidth + MaximizeButtonWidth + SplitButtonWidth + (Spacing * 3.0f) + MarginX;
+					const float StartCursorPos = DrawRect.X + DrawRect.Width - ToolBarWidth;
+					const float ItemHeight = 22.0f;
+
+					DrawList->AddRectFilled(ImVec2(DrawRect.X, DrawRect.Y), ImVec2(DrawRect.X + DrawRect.Width, DrawRect.Y + ToolBarHeight), IM_COL32(30, 30, 30, 180));
+
+					ImGui::SetCursorScreenPos(ImVec2(StartCursorPos, DrawRect.Y + MarginY));
+
+					ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 255, 255));
+					ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(15, 15, 15, 230));
+					ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(45, 45, 45, 240));
+					ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(60, 60, 60, 255));
+
+					ImGui::PushStyleColor(ImGuiCol_PopupBg, IM_COL32(20, 20, 20, 250)); 
+					ImGui::PushStyleColor(ImGuiCol_Header, IM_COL32(50, 50, 50, 255));
+					ImGui::PushStyleColor(ImGuiCol_HeaderHovered, IM_COL32(75, 75, 75, 255));
+
+					ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(15, 15, 15, 230));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(55, 55, 55, 240));
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(80, 80, 80, 255));
+
+					ImGui::SetNextItemWidth(100.0f);
+
+					const char* ViewportTypeNames[] = { "Perspective", "Top", "Front", "Side" };
+					int32 CurrentTypeIndex = static_cast<int32>(EditorViewport->Client->GetViewportType());
+
+					if (ImGui::Combo("##ViewportType", &CurrentTypeIndex, ViewportTypeNames, IM_ARRAYSIZE(ViewportTypeNames)))
+					{
+						EditorViewport->Client->SetViewportType(static_cast<EViewportType>(CurrentTypeIndex));
+					}
+
+					ImGui::SameLine();
+
+					ImGui::SetNextItemWidth(80.0f);
+
+					const char* ViewModeNames[] = { "Lit", "UnLit", "Wireframe" };
+					int32 CurrentModeIndex = static_cast<int32>(EditorViewport->Client->GetViewMode());
+
+					if (ImGui::Combo("##ViewMode", &CurrentModeIndex, ViewModeNames, IM_ARRAYSIZE(ViewModeNames)))
+					{
+						EditorViewport->Client->SetViewMode(static_cast<EViewModeIndex>(CurrentModeIndex));
+					}
+
+					ImGui::SameLine();
+
+					if (ImGui::Button("##Maximize", ImVec2(MaximizeButtonWidth, ItemHeight)))
+					{
+						guiReference.EditorLayout->MaximizedViewportIndex = CurrentViewportIndex;
+						guiReference.EditorLayout->bIsSplitView = false;
+					}
+					FEditorIconUtils::DrawMaximizeButtonIcon(DrawList);
+
+					ImGui::SameLine();
+
+					if (ImGui::Button("##Split", ImVec2(MaximizeButtonWidth, ItemHeight)))
+					{
+						guiReference.EditorLayout->bIsSplitView = true;
+					}
+					FEditorIconUtils::DrawSplitButtonIcon(DrawList);
+
+					ImGui::PopStyleColor(10);
+					ImGui::PopID();
+					ImGui::Dummy(ImVec2(DrawRect.Width, DrawRect.Height));
 				}
 			}
 
@@ -214,7 +304,7 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 		ImGui::End();
 
 		ConsoleWindow& console = ConsoleWindow::Get();
-		if (console.bShowStatFPS || console.bShowStatMemory)
+		if (console.bShowStatFPS || console.bShowStatMemory || console.bShowStatRender)
 		{
 			// Viewport 창 안쪽 좌상단에 붙는 입력을 받지 않는 오버레이 창
 			ImGui::SetNextWindowPos(ImVec2(mViewportX + 12.0f, mViewportY + 12.0f), ImGuiCond_Always);
@@ -231,20 +321,65 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 			ImGui::Begin("##StatOverlay", nullptr, overlayFlags);
 			if (console.bShowStatFPS)
 			{
-				ImGui::TextColored(ImVec4(0.35f, 1.0f, 0.35f, 1.0f), "FPS: %.1f", guiReference.FrameTimer->GetFPS());
+				if (console.bShowStatMemory || console.bShowStatRender)
+				{
+					ImGui::Separator();
+				}
+
+				ImGui::TextColored(ImVec4(0.35f, 1.0f, 0.35f, 1.0f), "FPS");
+				ImGui::Text("FPS: %.1f", guiReference.FrameTimer->GetFPS());
 				ImGui::Text("Frame: %.2f ms", guiReference.FrameTimer->GetDeltaTime() * 1000.0f);
 			}
 
 			if (console.bShowStatMemory)
 			{
-				if (console.bShowStatFPS)
+				if (console.bShowStatFPS || console.bShowStatRender)
 				{
 					ImGui::Separator();
 				}
 
 				ImGui::TextColored(ImVec4(0.35f, 0.8f, 1.0f, 1.0f), "Memory");
-				ImGui::Text("Allocations: %d", UEngineStatics::sTotalAllocationCount);
-				ImGui::Text("Allocated: %d bytes", UEngineStatics::sTotalAllocationBytes);
+				ImGui::Text("Total allocated memory count: %d", UEngineStatics::sTotalAllocationCount);
+				ImGui::Text("Total allocated memory size: %d bytes", UEngineStatics::sTotalAllocationBytes);
+
+				const FAssetStats Stats = guiReference.AssetManager->GetStats();
+
+				ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.35f, 1.0f), "Assets");
+				ImGui::Text("Registered: %u", Stats.RegisteredCount);
+				ImGui::Text("Loaded: %u", Stats.LoadedCount);
+
+				ImGui::Text("Registered Static Mesh: %u", Stats.RegisteredStaticMesh);
+				ImGui::Text("Loaded Static Mesh: %u", Stats.LoadedStaticMesh);
+				ImGui::Text("Registered Static Texture 2D: %u", Stats.RegisteredTexture2D);
+				ImGui::Text("Loaded Static Texture 2D: %u", Stats.LoadedTexture2D);
+				ImGui::Text("Registered Static Material: %u", Stats.RegisteredMaterial);
+				ImGui::Text("Loaded Static Material: %u", Stats.LoadedMaterial);
+			}
+
+			if (console.bShowStatRender)
+			{
+				if (console.bShowStatFPS || console.bShowStatMemory)
+				{
+					ImGui::Separator();
+				}
+				ImGui::TextColored(ImVec4(0.35f, 0.8f, 0.5f, 1.0f), "Render");
+				ImGui::Text("Draw Calls: %u", guiReference.GraphicsManager->GetRenderer()->GetDrawCallCount());
+
+				ImGui::Text("GPU Render: %.3f ms", guiReference.GraphicsManager->GetGpuRenderTime());
+
+				UINT PrimitiveCount = 0;
+				for (TObjectIterator<UPrimitiveComponent> It(true); It; ++It)
+				{
+					++PrimitiveCount;
+				}
+				ImGui::Text("Primitives: %u", PrimitiveCount);
+
+				UINT SpotLightCount = 0;
+				for (TObjectIterator<USpotLightComponent> It(false); It; ++It)
+				{
+					++SpotLightCount;
+				}
+				ImGui::Text("Spot Lights: %u", SpotLightCount);
 			}
 			ImGui::End();
 		}
@@ -277,7 +412,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	mPanelWidth = ImGui::GetWindowWidth();
 
 	ImGui::Text("Hello Jungle World!");
-	ImGui::Text("FPS: %.1f  dt: %.4f", guiReference.FrameTimer->GetFPS(), guiReference.FrameTimer->GetDeltaTime());
 
 	/* Spawn Actor */
 	// NOTE: This name array must be edited when adding new primitive types to EPrimitive enum.
@@ -291,7 +425,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 		"Circle",
 		"SpotLight",
 		"Explosion",
-		"StaticMesh"
 	};
 
 	int32 ActorTypeIndex = static_cast<int32>(mGuiInputField.PrimitiveType);
@@ -304,7 +437,7 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	const char* CurrentMeshName = mGuiInputField.SelectedStaticMesh
 		? mGuiInputField.SelectedStaticMesh->GetAssetPathFileName().CStr()
 		: "None";
-
+	
 	if (ImGui::Button("Spawn"))
 	{
 		for (int32 i = 0; i < mGuiInputField.SpawnCount; ++i)
@@ -449,17 +582,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	FCamera& camera = guiReference.ViewportClient->GetCamera();
 	URenderer* renderer = guiReference.GraphicsManager->GetRenderer();
 
-	const char* viewModeNames[] = { "Lit", "Unlit", "Wireframe" };
-
-	EViewModeIndex currentViewMode = guiReference.GraphicsManager->GetViewModeIndex();
-	int32 currentViewModeIndex = static_cast<int32>(currentViewMode);
-	// Combo는 선택이 바뀐 프레임에만 true를 돌려주고, 바뀐 값은 이미
-	// currentViewModeIndex에 들어 있다. 그 안에서 Checkbox를 그리면
-	// 한 프레임만 나타났다 사라져 클릭할 수 없다.
-	if (ImGui::Combo("View Mode", &currentViewModeIndex, viewModeNames, IM_ARRAYSIZE(viewModeNames)))
-	{
-		guiReference.GraphicsManager->SetViewModeIndex(static_cast<EViewModeIndex>(currentViewModeIndex));
-	}
 	if (ImGui::BeginCombo("##ShowFlags", "Show Flags"))
 	{
 		// 표시 옵션은 표를 그대로 훑어 체크박스를 만든다.
@@ -585,12 +707,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	ImGui::SetNextItemWidth(itemWidth);
 	ImGui::DragFloat("##CamRotZ", &camera.Transform.Rotation.Yaw, 0.1f, 180.0f);
 
-	/* Memory Info */
-	ImGui::SeparatorText("Memory Info");
-
-	ImGui::Text("Total allocated memory count: %d", UEngineStatics::sTotalAllocationCount);
-	ImGui::Text("Total allocated memory size: %d bytes", UEngineStatics::sTotalAllocationBytes);
-
 	/* Gizmo Control */
 	ImGui::SeparatorText("Gizmo Control");
 
@@ -618,20 +734,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	{
 		guiReference.ViewportClient->mGizmo.SetOperation(static_cast<EGIZMO_TYPE>((currentGizmoIndex + 1) % 3));
 	}
-
-	// 스플릿 뷰포트 여부를 GUI에서 설정할 수 있도록 체크박스 추가
-	ImGui::Checkbox("Split Viewport", &guiReference.EditorLayout->bIsSplitView);
-
-	// NOTE: 이테레이터 테스트 코드
-	int32 count = 0;
-	for (TObjectIterator<AActor> it(true); it; ++it)
-	{
-		AActor* actor = *it;
-		count++;
-	}
-
-	ImGui::Text("Actor Count: %d", count);
-
 	ImGui::End();
 }
 
@@ -811,12 +913,22 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 				});
 
 				const FString CurrentMeshPath = CurrentStaticMesh ? CurrentStaticMesh->GetAssetName().ToString() : "None";
-				if (ImGui::BeginCombo("Static Mesh", CurrentMeshPath.CStr()))
+				
+				// Path에서 확장자 빼고 파일명만 parsing 하여 보여주기
+				std::filesystem::path meshPath = std::filesystem::path(static_cast<std::string>(CurrentMeshPath)).stem();
+				FString simpleMeshName = meshPath.stem().string();
+
+				if (ImGui::BeginCombo("Static Mesh", simpleMeshName.CStr()))
 				{
 					for (const FString& assetName : StaticMeshAssetNames)
 					{
 						bool isSelected = (CurrentMeshPath == assetName);
-						if (ImGui::Selectable(assetName.CStr(), isSelected))
+						
+						// Path에서 확장자 빼고 파일명만 parsing 하여 보여주기
+						std::filesystem::path assetPath = std::filesystem::path(static_cast<std::string>(assetName)).stem();
+						FString simpleAssetName = assetPath.stem().string();
+
+						if (ImGui::Selectable(simpleAssetName.c_str(), isSelected))
 						{
 							StaticMeshComponent->SetMesh(guiReference.AssetManager->GetAssetAs<FStaticMeshAsset>(FName(assetName), true));
 						}
@@ -864,14 +976,25 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 				const auto& Materials = StaticMeshComponent->GetMaterials();
 				for (int32 i = 0; i < Materials.Num(); i++)
 				{
+					ImGui::PushID(i);
+
 					TSharedPtr<FMaterialAsset> currentMaterial = Materials[i];
 					FString currentMaterialName = currentMaterial ? currentMaterial->GetAssetName().ToString() : "None";
-					if (ImGui::BeginCombo("Material", currentMaterialName.CStr()))
-					{
+					
+					// Path에서 확장자 빼고 파일명만 parsing 하여 보여주기
+					std::filesystem::path materialPath = std::filesystem::path(static_cast<std::string>(currentMaterialName)).stem();
+					FString simpleMaterialName = materialPath.stem().string();
+					
+					if (ImGui::BeginCombo("Material", simpleMaterialName.CStr()))
+					{						
 						for (const FAssetMetaInfo& metaInfo : materialMetaInfos)
 						{
+							// Path에서 확장자 빼고 파일명만 parsing 하여 보여주기
+							std::filesystem::path metaPath = std::filesystem::path(metaInfo.AssetName.ToString().ToString()).stem();
+							FString simpleMetaPath = metaPath.stem().string();
+
 							bool isSelected = (currentMaterialName == metaInfo.AssetName.ToString());
-							if (ImGui::Selectable(metaInfo.AssetName.ToString().CStr(), isSelected))
+							if (ImGui::Selectable(simpleMetaPath.CStr(), isSelected))
 							{
 								TSharedPtr<FMaterialAsset> materialAsset =
 									guiReference.AssetManager->GetAssetAs<FMaterialAsset>(metaInfo.AssetID, true);
@@ -887,6 +1010,7 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 					{
 						StaticMeshComponent->SetUVOffset(i, UVOffset);
 					}
+					ImGui::PopID();
 				}
 
 				/*if (ImGui::BeginDragDropTarget())

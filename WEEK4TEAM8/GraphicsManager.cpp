@@ -45,6 +45,19 @@ FGraphicsManager::FGraphicsManager(HWND hWindow) :
 
 	mHighlightVertexBuffer = mRenderer->CreateVertexBuffer<FVertex>(nullptr, 1024, D3D11_USAGE_DYNAMIC); // 초기 용량 1024개, 필요하면 늘어난다
 	mHighlightIndexBuffer = mRenderer->CreateIndexBuffer(nullptr, 1024, D3D11_USAGE_DYNAMIC); // 초기 용량 1024개, 필요하면 늘어난다
+	
+	GpuQueries.SetNum(3);
+
+	for (FGpuTimerQuerySet& QuerySet : GpuQueries)
+	{
+		D3D11_QUERY_DESC QueryDesc{};
+		QueryDesc.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
+		mRenderer->GetDevice()->CreateQuery(&QueryDesc, &QuerySet.Disjoint);
+
+		QueryDesc.Query = D3D11_QUERY_TIMESTAMP;
+		mRenderer->GetDevice()->CreateQuery(&QueryDesc, &QuerySet.Begin);
+		mRenderer->GetDevice()->CreateQuery(&QueryDesc, &QuerySet.End);
+	}
 }
 
 FGraphicsManager::~FGraphicsManager()
@@ -59,16 +72,18 @@ FGraphicsManager::~FGraphicsManager()
 	delete mRenderer;
 }
 
-void FGraphicsManager::Prepare(const FCamera* mCamera, float viewportWidth, float viewportHeight, const FViewport& Viewport)
+void FGraphicsManager::Prepare(const FCamera* mCamera, float viewportWidth, float viewportHeight, const FViewport& Viewport, const EViewModeIndex InViewMode, const EViewportType InViewportType)
 {
+	mViewportType = InViewportType;
+	const bool bIsOrtho = (InViewportType != EViewportType::Perspective);
+
 	float d = mCamera->mOrthoDistance;
-	
 	mAspect = viewportWidth / viewportHeight;
 
 	FMatrix view = mCamera->GetViewMatrix();
 	FMatrix projection_u_p = mCamera->GetUnifiedProjectionMatrix(d, 1.0f);
 	FMatrix projection_u_o = mCamera->GetUnifiedProjectionMatrix(d, 0.0f);
-	FMatrix projection_u = mCamera->GetUnifiedProjectionMatrix(d, mProjectionRatio);
+	FMatrix projection_u = mCamera->GetUnifiedProjectionMatrix(d, bIsOrtho ? 0.0f : mProjectionRatio);
 
 	//mViewProjectionMatrix = view * mCamera->GetProjectionMatrix(mAspect, mCamera->mFovDegree, nearZ, farZ);
 	mViewMatrix = view;
@@ -77,6 +92,7 @@ void FGraphicsManager::Prepare(const FCamera* mCamera, float viewportWidth, floa
 
 	// 뷰 모드를 렌더러에 전달한다. BindPipeline이 드로우마다 이 값을 보고
 	// 솔리드/와이어프레임 래스터라이저를 고른다.
+	mViewModeIndex = InViewMode;
 	mRenderer->SetViewModeIndex(mViewModeIndex);
 
 	mRenderer->Prepare(view * projection_u);
@@ -220,9 +236,19 @@ void FGraphicsManager::Render()
 
 	if (FShowFlags::Get().IsEnabled(EShowFlag::Grid))
 	{
+		FMatrix GridWorldMatrix = FMatrix::Identity;
+
+		if (mViewportType == EViewportType::Front)
+		{
+			GridWorldMatrix = FMatrix::RotateY(90);
+		}
+		else if (mViewportType == EViewportType::Side)
+		{
+			GridWorldMatrix = FMatrix::RotateX(90);
+		}
 		// Match the grid's world-space half-width of 0.001.
 		mRenderer->RenderWorldAxis(mViewMatrix, mProjectionMatrix, FVector4(0.f, 0.f, 1.f, 1.f), FVector3(0.f, 0.f, 1.f), 0.002f);
-		mRenderer->RenderWorldGrid(mViewUnifiedProjectionMatrix, mCameraLocation, GridGap);
+		mRenderer->RenderWorldGrid(GridWorldMatrix * mViewUnifiedProjectionMatrix, mCameraLocation, GridGap);
 	}
 
 	for (const FRenderQuadInfo& QuadInfo : mRenderCollector.GetTransparentQuadInfos())
@@ -347,4 +373,76 @@ void FGraphicsManager::SetGridGap(int32 GridGap)
 	else
 		GridGap = 1;
 	this->GridGap = GridGap;
+}
+
+void FGraphicsManager::BeginGpuRenderTimer()
+{
+	bGpuTimerActive = false;
+
+	ID3D11DeviceContext* Context = mRenderer->GetDeviceContext();
+	FGpuTimerQuerySet& QuerySet = GpuQueries[GpuQueryIndex];
+
+	if (QuerySet.bIssued)
+	{
+		return; // 이전 결과 미회수
+	}
+
+	Context->Begin(QuerySet.Disjoint.Get());
+	Context->End(QuerySet.Begin.Get());
+
+	bGpuTimerActive = true;
+}
+
+void FGraphicsManager::EndGpuRenderTimer()
+{
+	if (!bGpuTimerActive)
+	{
+		return;
+	}
+
+	ID3D11DeviceContext* Context = mRenderer->GetDeviceContext();
+	FGpuTimerQuerySet& QuerySet = GpuQueries[GpuQueryIndex];
+
+	Context->End(QuerySet.End.Get());
+	Context->End(QuerySet.Disjoint.Get());
+
+	QuerySet.bIssued = true;
+
+	GpuQueryIndex = (GpuQueryIndex + 1) % GpuQueries.Num();
+}
+
+void FGraphicsManager::UpdateGpuRenderTime()
+{
+	ID3D11DeviceContext* Context = mRenderer->GetDeviceContext();
+	FGpuTimerQuerySet& QuerySet = GpuQueries[GpuQueryIndex];
+
+	if (!QuerySet.bIssued)
+	{
+		return;
+	}
+
+	D3D11_QUERY_DATA_TIMESTAMP_DISJOINT Disjoint{};
+	UINT64 BeginTimestamp = 0;
+	UINT64 EndTimestamp = 0;
+
+	if (Context->GetData(QuerySet.Disjoint.Get(), &Disjoint, sizeof(Disjoint), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK)
+	{
+		return; 
+	}
+
+	if (Context->GetData(QuerySet.Disjoint.Get(), &Disjoint, sizeof(Disjoint), 0) != S_OK ||
+		Context->GetData(QuerySet.Begin.Get(), &BeginTimestamp, sizeof(BeginTimestamp), 0) != S_OK ||
+		Context->GetData(QuerySet.End.Get(), &EndTimestamp, sizeof(EndTimestamp), 0) != S_OK)
+	{
+		return; // 아직 GPU가 해당 프레임을 끝내지 않음
+	}
+
+	if (!Disjoint.Disjoint)
+	{
+		GpuRenderTime =
+			static_cast<float>(EndTimestamp - BeginTimestamp) * 1000.0f /
+			static_cast<float>(Disjoint.Frequency);
+	}
+
+	QuerySet.bIssued = false;
 }

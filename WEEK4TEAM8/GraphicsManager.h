@@ -27,7 +27,7 @@ public:
 	~FGraphicsManager();
 
 	//void Prepare(const Camera* mCamera);
-	void Prepare(const FCamera* Camera,float viewportWidth, float viewportHeight, const FViewport& viewport);
+	void Prepare(const FCamera* Camera,float viewportWidth, float viewportHeight, const FViewport& viewport, const EViewModeIndex InViewMode, const EViewportType InViewportType);
 
 	void RenderHighLight(const TArray<UPrimitiveComponent*>& Primitives);
 	void Render();
@@ -63,6 +63,23 @@ public:
 	inline int32 GetGridGap() { return GridGap; }
 	void SetGridGap(int32 GridGap);
 
+	struct FGpuTimerQuerySet
+	{
+		Microsoft::WRL::ComPtr<ID3D11Query> Disjoint;
+		Microsoft::WRL::ComPtr<ID3D11Query> Begin;
+		Microsoft::WRL::ComPtr<ID3D11Query> End;
+		bool bIssued = false;
+	};
+
+	TArray<FGpuTimerQuerySet> GpuQueries;
+	uint32 GpuQueryIndex = 0;
+
+	float GpuRenderTime = 0.0f;
+	void BeginGpuRenderTimer();
+	void EndGpuRenderTimer();
+	void UpdateGpuRenderTime();
+	float GetGpuRenderTime() { return GpuRenderTime; }
+
 private:
 	struct FOutlineConstants
 	{
@@ -87,6 +104,7 @@ private:
 	float mCameraOrthoDistance = 10.0f;
 
 	EViewModeIndex mViewModeIndex = EViewModeIndex::VMI_Lit;
+	EViewportType mViewportType = EViewportType::Perspective;
 	bool mbPerspectiveProjection;
 	float mAspect;
 	float mProjectionRatio; // 0.0f ~ 1.0f, 0이면 직교, 1이면 원근, 그 사이면 혼합
@@ -108,4 +126,5 @@ private:
 	FRenderCollector mRenderCollector;
 
 	int32 GridGap = 1;
+	bool bGpuTimerActive = false;
 };
