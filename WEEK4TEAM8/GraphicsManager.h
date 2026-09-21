@@ -63,6 +63,23 @@ public:
 	inline int32 GetGridGap() { return GridGap; }
 	void SetGridGap(int32 GridGap);
 
+	struct FGpuTimerQuerySet
+	{
+		Microsoft::WRL::ComPtr<ID3D11Query> Disjoint;
+		Microsoft::WRL::ComPtr<ID3D11Query> Begin;
+		Microsoft::WRL::ComPtr<ID3D11Query> End;
+		bool bIssued = false;
+	};
+
+	TArray<FGpuTimerQuerySet> GpuQueries;
+	uint32 GpuQueryIndex = 0;
+
+	float GpuRenderTime = 0.0f;
+	void BeginGpuRenderTimer();
+	void EndGpuRenderTimer();
+	void UpdateGpuRenderTime();
+	float GetGpuRenderTime() { return GpuRenderTime; }
+
 private:
 	struct FOutlineConstants
 	{
@@ -109,4 +126,5 @@ private:
 	FRenderCollector mRenderCollector;
 
 	int32 GridGap = 1;
+	bool bGpuTimerActive = false;
 };
