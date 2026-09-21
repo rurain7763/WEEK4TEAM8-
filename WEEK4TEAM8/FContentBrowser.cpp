@@ -40,10 +40,8 @@ void FContentBrowser::RenderBottomBar()
 	const ImGuiWindowFlags BottomBarFlags =
 		ImGuiWindowFlags_NoDecoration |
 		ImGuiWindowFlags_NoMove |
-		ImGuiWindowFlags_NoResize |
 		ImGuiWindowFlags_NoSavedSettings |
-		ImGuiWindowFlags_NoDocking |
-		ImGuiWindowFlags_NoScrollbar;
+		ImGuiWindowFlags_NoDocking;
 
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6.0f, 3.0f));
