@@ -22,6 +22,8 @@ struct FObjectFactory
 		requires std::derived_from<TObject, UObject>
 	static TObject* ConstructObject(Args&& ...args);
 
+	static void DestroyObject(UObject* object);
+
 	template<typename TObject>
 		requires std::derived_from<TObject, UObject>
 	static TObject* ConstructUnInitializedObject();

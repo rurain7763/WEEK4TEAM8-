@@ -93,7 +93,7 @@ class FComponentVisualizerManager
 public:
 	FComponentVisualizerManager()
 	{
-		RegisterVisualizer(USpotLightComponent::GetClass(), MakeShared<FSpotLightComponentVisualizer>());
+		RegisterVisualizer(USpotLightComponent::GetStaticClass(), MakeShared<FSpotLightComponentVisualizer>());
 	}
 
 	void RegisterVisualizer(const FClassInfo* ComponentClass, TSharedPtr<FComponentVisualizer> Visualizer)

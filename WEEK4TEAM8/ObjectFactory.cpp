@@ -5,6 +5,7 @@
 #include "Actor.h"
 #include "PrimitiveComponent.h"
 #include "UAtlasAnimationComponent.h"
+#include "EngineStatics.h"
 
 UObject* FObjectFactory::ConstructUnInitializedObject(const FClassInfo* classInfo)
 {
@@ -13,12 +14,32 @@ UObject* FObjectFactory::ConstructUnInitializedObject(const FClassInfo* classInf
 		return nullptr;
 	}
 
-	UObject* instance = classInfo->CreateInstance();
-	if (instance)
+	UObject* Instance = classInfo->CreateInstance();
+	if (Instance)
 	{
-		instance->mClassInfo = classInfo;
+		Instance->UUID = UEngineStatics::GenerateUUID();
+
+		Instance->InternalIndex = UObject::GUObjectArray.Add(Instance);
+
+		const FClassInfo* ClassInfo = Instance->GetClass();
+		if (UObject::GUObjectMap.Contains(ClassInfo))
+		{
+			TArray<uint32>& ObjectIndices = UObject::GUObjectMap[ClassInfo];
+			Instance->ObjectMapIndex = ObjectIndices.Num();
+			ObjectIndices.Add(Instance->InternalIndex);
+		}
+		else
+		{
+			Instance->ObjectMapIndex = 0;
+
+			TArray<uint32> NewArray;
+			NewArray.Add(Instance->InternalIndex);
+
+			UObject::GUObjectMap.Add(ClassInfo, NewArray);
+		}
 	}
-	return instance;
+
+	return Instance;
 }
 
 UObject* FObjectFactory::LoadObject(const FClassInfo* classInfo, const json::JSON& inJson)
@@ -30,6 +51,31 @@ UObject* FObjectFactory::LoadObject(const FClassInfo* classInfo, const json::JSO
 		instance->DeserializeClass(inJson);
 	}
 	return instance;
+}
+
+void FObjectFactory::DestroyObject(UObject* Object)
+{
+	if (!Object)
+	{
+		return;
+	}
+
+	const FClassInfo* ClassInfo = Object->GetClass();
+	TArray<uint32>& ObjectIndices = UObject::GUObjectMap[ClassInfo];
+
+	UObject* LastObject = UObject::GUObjectArray[ObjectIndices.Last()];
+	LastObject->ObjectMapIndex = Object->ObjectMapIndex;
+	ObjectIndices[Object->ObjectMapIndex] = LastObject->InternalIndex;
+
+	ObjectIndices.RemoveLast();
+	if (ObjectIndices.Num() == 0)
+	{
+		UObject::GUObjectMap.Remove(ClassInfo);
+	}
+
+	UObject::GUObjectArray.RemoveAt(Object->InternalIndex);
+
+	delete Object;
 }
 
 AActor* FObjectFactory::SpawnPrimitiveActor(
@@ -74,18 +120,18 @@ bool FObjectFactory::RegisterClassInfo(FString className, const FClassInfo* clas
 #include "UStaticMeshComponent.h"
 
 TMap<FString, std::function<const FClassInfo* ()>> FObjectFactory::mClassInfoMap = {
-	{"UObject", &UObject::GetClass },
-	{"AActor", &AActor::GetClass },
-	{"UActorComponent", &UActorComponent::GetClass },
-	{"USceneComponent", &USceneComponent::GetClass },
-	{"UPrimitiveComponent", &UPrimitiveComponent::GetClass },
-	{"UCubeComponent", &UCubeComponent::GetClass },
-	{"USphereComponent", &USphereComponent::GetClass },
-	{"ASpotLight", &ASpotLight::GetClass },
-	{"USpotLightComponent", &USpotLightComponent::GetClass },
-	{"UPlaneComponent", &UPlaneComponent::GetClass },
-	{"UText3DComponent", &UText3DComponent::GetClass },
-	{"UAtlasAnimationComponent", &UAtlasAnimationComponent::GetClass },
-	{"UWorld", &UWorld::GetClass },
-	{"UStaticMeshComponent", &UStaticMeshComponent::GetClass},
+	{"UObject", &UObject::GetStaticClass },
+	{"AActor", &AActor::GetStaticClass },
+	{"UActorComponent", &UActorComponent::GetStaticClass },
+	{"USceneComponent", &USceneComponent::GetStaticClass },
+	{"UPrimitiveComponent", &UPrimitiveComponent::GetStaticClass },
+	{"UCubeComponent", &UCubeComponent::GetStaticClass },
+	{"USphereComponent", &USphereComponent::GetStaticClass },
+	{"ASpotLight", &ASpotLight::GetStaticClass },
+	{"USpotLightComponent", &USpotLightComponent::GetStaticClass },
+	{"UPlaneComponent", &UPlaneComponent::GetStaticClass },
+	{"UText3DComponent", &UText3DComponent::GetStaticClass },
+	{"UAtlasAnimationComponent", &UAtlasAnimationComponent::GetStaticClass },
+	{"UWorld", &UWorld::GetStaticClass },
+	{"UStaticMeshComponent", &UStaticMeshComponent::GetStaticClass},
 };

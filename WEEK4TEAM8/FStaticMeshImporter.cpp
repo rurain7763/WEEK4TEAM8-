@@ -8,30 +8,20 @@
 #include "FMaterialImporter.h"
 #include "AssetFileIOs.h"
 
-
 // .obj -> .uasset 변환
 bool FStaticMeshImporter::Import(const std::filesystem::path& InPath, const std::filesystem::path& OutPath, FAssetFileHeader& OutHead)
 {
-    FObjInfo ObjInfo;
-    FObjImporter Importer;
-    FMeshDescription MeshDescription;
+    FStaticMeshPayload Payload;
     FStaticMeshBuildData BuildData;
 
-    if (!Importer.ParseObj(FString(InPath.string()), ObjInfo))
+    if (!FStaticMeshFileIO::Load(InPath, Payload))
     {
-        UE_LOG_ERROR("Failed to Parse: %s", InPath.string().c_str());
+        UE_LOG_ERROR("Failed to load static mesh source: %s", InPath.string().c_str());
         return false;
     }
-    
-    if (!Importer.ConvertToMeshDescription(ObjInfo, MeshDescription))
+    if (!FStaticMeshBuilder::Build(Payload.MeshDescription, BuildData))
     {
-        UE_LOG_ERROR("Failed to Convert into Mesh :: %s", InPath.string().c_str());
-        return false;
-    }
-    
-    if (!FStaticMeshBuilder::Build(MeshDescription, BuildData))
-    {
-        UE_LOG_ERROR("Failed to Build Cooked data :: %s", InPath.string().c_str());
+        UE_LOG_ERROR("Failed to build cooked mesh data: %s", InPath.string().c_str());
         return false;
     }
     
@@ -41,8 +31,7 @@ bool FStaticMeshImporter::Import(const std::filesystem::path& InPath, const std:
 
     try
     {
-        // FMeshDescription MeshDescription;
-        for (FObjMaterialInfo Material : ObjInfo.Materials)
+        for (FObjMaterialInfo Material : Payload.Materials)
         {
             std::filesystem::path MaterialPath = OutPath.parent_path() / (OutPath.stem().string() + "_" + Material.Name.CStr() + ".uasset");
             FAssetFileHeader MaterialHeader;
