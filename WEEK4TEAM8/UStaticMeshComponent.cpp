@@ -11,24 +11,17 @@
 
 
 void UStaticMeshComponent::Initialize(const FString& InAssetPathFileName, FVector Location,
-    FRotator Rotation,  FVector Scale)
+    FRotator Rotation, FVector Scale)
 {
     USceneComponent::Initialize(Location, Rotation, Scale);
-
-    // OBJ
-    StaticMesh = FObjManager::LoadObjStaticMesh(InAssetPathFileName);
-    if (StaticMesh)
-    {
-        mMeshAsset = StaticMesh->GetStaticMeshAsset();
-    }
 }
 
 void UStaticMeshComponent::SerializeClass(json::JSON& outJson) const
 {
     USceneComponent::SerializeClass(outJson);
 
-	FGuid AssetID = mMeshAsset ? mMeshAsset->GetAssetID() : FGuid();
-	outJson["Properties"]["ObjStaticMeshAsset"] = FGuidToJson(AssetID);
+    FGuid AssetID = mMeshAsset ? mMeshAsset->GetAssetID() : FGuid();
+    outJson["Properties"]["ObjStaticMeshAsset"] = FGuidToJson(AssetID);
 }
 
 void UStaticMeshComponent::DeserializeClass(const json::JSON& inJson)
@@ -54,12 +47,12 @@ void UStaticMeshComponent::DeserializeClass(const json::JSON& inJson)
         throw std::runtime_error("UStaticMeshComponent: ObjStaticMeshAsset property requires an object");
     }
 
-	FGuid AssetID = FGuidFromJson(PropertiesJson.at("ObjStaticMeshAsset"));
+    FGuid AssetID = FGuidFromJson(PropertiesJson.at("ObjStaticMeshAsset"));
 
-	if (AssetID.IsValid())
-	{
-		mMeshAsset = FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(AssetID, true);
-	}
+    if (AssetID.IsValid())
+    {
+        mMeshAsset = FAssetManager::Get().GetAssetAs<FStaticMeshAsset>(AssetID, true);
+    }
 }
 
 //void UStaticMeshComponent::SetMeshAsset(const FName& InMeshAssetName)
@@ -74,7 +67,7 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
     {
         return;
     }
-    
+
     if (!FShowFlags::Get().IsEnabled(EShowFlag::Primitive))
     {
         return;
@@ -96,19 +89,6 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
 
         TSharedPtr<FTexture2DAsset> SectionTexture = Material ? Material->GetDiffuseTexture() : nullptr;
 
-        // OBJ 직접 로드 경로는 FObjManager가 UStaticMesh에 보관한
-        // material-name 기반 diffuse texture를 fallback으로 사용한다.
-        if (!SectionTexture && StaticMesh)
-        {
-            SectionTexture = StaticMesh->GetDiffuseTexture(Section.MaterialName);
-        }
-
-        // Component에서 명시적으로 지정한 texture는 최종 fallback이다.
-        if (!SectionTexture)
-        {
-            SectionTexture = mTextureAsset;
-        }
-
         FRenderInfo RenderInfo;
         RenderInfo.VertexBuffer = mMeshAsset->GetVertexBuffer();
         RenderInfo.IndexBuffer = mMeshAsset->GetIndexBuffer();
@@ -128,12 +108,12 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
 
 FAABB UStaticMeshComponent::GetBoundingBox() const
 {
-	if (!mMeshAsset)
-	{
-		return FAABB();
-	}
+    if (!mMeshAsset)
+    {
+        return FAABB();
+    }
 
-	return mMeshAsset->GetLocalBoundingBox().ToWorld(GetTransformMatrix().MakeMatrix());
+    return mMeshAsset->GetLocalBoundingBox().ToWorld(GetTransformMatrix().MakeMatrix());
 }
 
 void UStaticMeshComponent::SetMesh(const TSharedPtr<FStaticMeshAsset>& InMesh)

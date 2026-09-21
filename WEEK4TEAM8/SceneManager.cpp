@@ -252,11 +252,13 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 		ImGui::PopStyleVar();
 	}
 
-#if !IS_OBJ_VIEWER
+#if IS_OBJ_VIEWER
+	ConsoleWindow::Get().Process(mPanelWidth);
+	mContentBrowser.Render();
+#else
 	updateControlPanelGUI(guiReference);
 	updatePropertyWindowGUI(guiReference);
 	updateObjectListPanelGUI(guiReference);
-#else
 	ConsoleWindow::Get().Process(mPanelWidth);
 	mContentBrowser.Render();
 #endif
