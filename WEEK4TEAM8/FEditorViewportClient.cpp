@@ -123,10 +123,12 @@ void FEditorViewportClient::Update(float deltaTime, float perspectiveRatio, FRen
 			}
 		}
 		//입력이 있으면 마우스 휠은 카메라 이동속도 조절
+		// 최저 속도, 최대 속도가 너무 극단적이어서 (아예 안 움직이거나 너무 빠름)
+		// 수치 조정만 했습니다. (0.1f, 100.0f) -> (1.0f, 50.0f)
 		else
 		{
 			mCamera.Speed *= FMath::Pow(1.2f, Input.MouseWheelDelta);
-			mCamera.Speed = FMath::Clamp(mCamera.Speed, 0.1f, 100.0f);
+			mCamera.Speed = FMath::Clamp(mCamera.Speed, 1.0f, 50.0f);
 		}
 	}
 
