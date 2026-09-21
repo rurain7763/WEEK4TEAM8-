@@ -209,6 +209,12 @@ void FEngineLoop::Tick(bool bPumpMessages)
 	const float NearZ = 0.1f;
 	const float FarZ = 2000.0f;
 	const int32 ViewportCount = mEditorLayout.bIsSplitView ? 4 : 1;
+
+	mGraphicsManager->UpdateGpuRenderTime();
+	if (ConsoleWindow::Get().bShowStatRender)
+	{
+		mGraphicsManager->BeginGpuRenderTimer();
+	}
 	
 	for (int32 i = 0; i < ViewportCount; ++i)
 	{
@@ -300,6 +306,8 @@ void FEngineLoop::Tick(bool bPumpMessages)
 			CurrentViewport->Client->mGizmo.Render(SelectedActor, CurrentViewport->Client->mCamera.Transform.Location, ViewProjection);
 		}
 	}
+
+	mGraphicsManager->EndGpuRenderTimer();
 
 	FGuiReference GuiReference;
 	GuiReference.EditorCamera = &mMainViewport.Client->GetCamera();

@@ -232,6 +232,8 @@ void URenderer::Prepare(const FMatrix& ViewProjectionMatrix)
 	LinePipeline->UpdateConstantBuffer(0, CameraConstants);
 	PrimitivePipeline->UpdateConstantBuffer(1, ViewProjectionMatrix);
 	QuadPipeline->UpdateConstantBuffer(1, ViewProjectionMatrix);
+
+	DrawCallCount = 0;
 }
 
 TSharedPtr<FIndexBuffer> URenderer::CreateIndexBuffer(const uint32* Indices, UINT Count, D3D11_USAGE Usage)
@@ -453,6 +455,7 @@ void URenderer::Render(const TSharedPtr<FRenderPipeline>& Pipeline, UINT NumVert
 	UINT Stride = 0;
 	DeviceContext->IASetVertexBuffers(0, 1, &NullVB, &Stride, &Offset);
 	DeviceContext->Draw(NumVertices, 0);
+	DrawCallCount++;
 }
 
 void URenderer::RenderLines(const TArray<FRenderLineInfo>& Lines) const
@@ -470,6 +473,7 @@ void URenderer::RenderLines(const TArray<FRenderLineInfo>& Lines) const
 		UINT OffsetIndex = 0;
 		DeviceContext->IASetVertexBuffers(0, 0, NULL, NULL, &OffsetIndex);
 		DeviceContext->DrawInstanced(6, BatchSize, 0, 0);
+		DrawCallCount++;
 
 		Remaining -= BatchSize;
 		Offset += BatchSize;
@@ -503,6 +507,7 @@ void URenderer::RenderQuad(const FRenderQuadInfo& Info) const
 	UINT Stride = 0;
 	DeviceContext->IASetVertexBuffers(0, 1, &NullVB, &Stride, &Offset);
 	DeviceContext->Draw(6, 0);
+	DrawCallCount++;
 }
 
 void URenderer::RenderPrimitive(const TSharedPtr<FRenderPipeline>& Pipeline, Microsoft::WRL::ComPtr<ID3D11Buffer> Buffer, UINT NumVertices) const
@@ -512,6 +517,7 @@ void URenderer::RenderPrimitive(const TSharedPtr<FRenderPipeline>& Pipeline, Mic
 	UINT Offset = 0;
 	DeviceContext->IASetVertexBuffers(0, 1, Buffer.GetAddressOf(), &Pipeline->Stride, &Offset);
 	DeviceContext->Draw(NumVertices, 0);
+	DrawCallCount++;
 }
 
 void URenderer::RenderPrimitive(Microsoft::WRL::ComPtr<ID3D11Buffer> Buffer, UINT NumVertices, const FMatrix& Model) const
