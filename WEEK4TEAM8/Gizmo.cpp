@@ -66,13 +66,10 @@ void FGizmo::Tick(AActor* TargetActor, const FRect& ViewportRect, bool bViewport
 
     const FInputState& Input = WindowApplication.Input;
 
-    FVector2 MousePosInScreen = Map(
-        FVector2(Input.CursorX, Input.CursorY),
-        FVector2(ViewportRect.X, ViewportRect.Y),
-        FVector2(ViewportRect.X + ViewportRect.Width, ViewportRect.Y + ViewportRect.Height),
-        FVector2(0.f, 0.f),
-        FVector2(Renderer.GetWidth(), Renderer.GetHeight())
-    );
+	FVector2 MousePosInScreen = {
+		static_cast<float>(Input.CursorX - ViewportRect.X),
+		static_cast<float>(Input.CursorY - ViewportRect.Y)
+	};
 
     const bool bAllowMouse = bViewportHovered;
     bool bDragStarted = false;
@@ -126,8 +123,8 @@ void FGizmo::Tick(AActor* TargetActor, const FRect& ViewportRect, bool bViewport
 
         // Ray
         FMatrix ViewProjectionInverse = ViewProjection.Inverse();
-        FVector NearPoint = ScreenToWorld(ProjectedPoint, ViewProjectionInverse, Renderer.GetWidth(), Renderer.GetHeight(), 0.1f);
-        FVector FarPoint = ScreenToWorld(ProjectedPoint, ViewProjectionInverse, Renderer.GetWidth(), Renderer.GetHeight(), 1.0f);
+        FVector NearPoint = ScreenToWorld(ProjectedPoint, ViewProjectionInverse, ViewportRect.Width, ViewportRect.Height, 0.1f);
+        FVector FarPoint = ScreenToWorld(ProjectedPoint, ViewProjectionInverse, ViewportRect.Width, ViewportRect.Height, 1.0f);
 
         FRay Ray;
         Ray.Origin = NearPoint;
@@ -187,7 +184,7 @@ void FGizmo::Tick(AActor* TargetActor, const FRect& ViewportRect, bool bViewport
     PrevMousePos = MousePosInScreen;
 }
 
-void FGizmo::Render(AActor* TargetActor, const FVector& CameraPosition, const FMatrix& ViewProjection)
+void FGizmo::Render(AActor* TargetActor, const FVector& CameraPosition, const FRect& ViewportRect, const FMatrix& ViewProjection)
 {
     HandleScreenSegments.Empty();
 
@@ -206,8 +203,8 @@ void FGizmo::Render(AActor* TargetActor, const FVector& CameraPosition, const FM
     const FTransform Transform = TargetActor->GetTransform();
     const FVector CenterToCamera = CameraPosition - Transform.Location;
     const float AxisLength = 0.1f * CenterToCamera.Length();
-    const int32 ScreenWidth = static_cast<int32>(Renderer.GetWidth());
-    const int32 ScreenHeight = static_cast<int32>(Renderer.GetHeight());
+    const int32 ScreenWidth = static_cast<int32>(ViewportRect.Width);
+    const int32 ScreenHeight = static_cast<int32>(ViewportRect.Height);
     const FVector4 Clip = FVector4(Transform.Location, 1.f) * ViewProjection;
     const bool bDrawGizmo = !(Clip.w <= 0.00001f || Clip.z < 0.f || Clip.z > Clip.w || Clip.x < -Clip.w || Clip.x > Clip.w || Clip.y < -Clip.w || Clip.y > Clip.w);
 	

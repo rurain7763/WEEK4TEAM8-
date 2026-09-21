@@ -240,7 +240,7 @@ void FEngineLoop::Tick(bool bPumpMessages)
 			float Height = 0.f;
 			TextBuilder.CalculateSize(L"Hello, World!\nThis is a test.", Width, Height);
 
-			FVector2 TextLocation = FVector2(mGraphicsManager->GetRenderer()->GetWidth() * 0.5f, mGraphicsManager->GetRenderer()->GetHeight() * 0.5f);
+			FVector2 TextLocation = FVector2(CurrentViewport->Window->Rect.Width * 0.5f, CurrentViewport->Window->Rect.Height * 0.5f);
 			TextBuilder.Build(L"Hello, World!\nThis is a test.", Width, Height, [&](const FRect& TextRect, const FRect& SubUVRect) {
 				if (TextRect.Width <= 0.f || TextRect.Height <= 0.f)
 				{
@@ -250,7 +250,7 @@ void FEngineLoop::Tick(bool bPumpMessages)
 				FRenderQuad2DInfo Quad2DInfo;
 				Quad2DInfo.Position = FVector2(TextRect.X, TextRect.Y) + TextLocation;
 				Quad2DInfo.Size = { TextRect.Width, TextRect.Height };
-				Quad2DInfo.Color = { 1.f, 1.f, 1.f, 1.f };
+				Quad2DInfo.Color = { 1.f, 0.f, 1.f, 1.f };
 				Quad2DInfo.TextureSRV = FontAtlasAsset->GetSRV();
 				Quad2DInfo.SubUV = { SubUVRect.X, SubUVRect.Y, SubUVRect.Width, SubUVRect.Height };
 				Quad2DInfo.BlendMode = ERenderBlendMode::Transparent;
@@ -326,7 +326,7 @@ void FEngineLoop::Tick(bool bPumpMessages)
 			mGraphicsManager->RenderHighLight(HighlightedComponents);
 			mGraphicsManager->Render();
 
-			CurrentViewport->Client->mGizmo.Render(SelectedActor, CurrentViewport->Client->mCamera.Transform.Location, ViewProjection);
+			CurrentViewport->Client->mGizmo.Render(SelectedActor, CurrentViewport->Client->mCamera.Transform.Location, CurrentViewport->Window->Rect, ViewProjection);
 		}
 	}
 

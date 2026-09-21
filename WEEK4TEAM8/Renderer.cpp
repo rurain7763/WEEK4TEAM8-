@@ -422,6 +422,8 @@ void URenderer::BindFrameBuffer()
 	DeviceContext->OMSetRenderTargets(1, &FrameBufferRTV, nullptr);
 	DeviceContext->RSSetViewports(1, &ViewportInfo);
 
+	Projection2D = FMatrix::Ortho(0.f, Width, Height, 0.f, 0.0f, 1.0f);
+
 	BindedRenderTarget = nullptr;
 	BindedDepthStencil = nullptr;
 }
@@ -448,6 +450,8 @@ void URenderer::BindRenderTarget(const TSharedPtr<FRenderTarget2D>& RenderTarget
 	Viewport.MaxDepth = 1.0f;
 
 	DeviceContext->RSSetViewports(1, &Viewport);
+
+	Projection2D = FMatrix::Ortho(0.f, RenderTarget->Width, RenderTarget->Height, 0.f, 0.0f, 1.0f);
 
 	BindedRenderTarget = RenderTarget;
 	BindedDepthStencil = DepthStencil;
