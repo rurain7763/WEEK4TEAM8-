@@ -27,7 +27,7 @@ public:
 	~FGraphicsManager();
 
 	//void Prepare(const Camera* mCamera);
-	void Prepare(const FCamera* Camera,float viewportWidth, float viewportHeight, const FViewport& viewport);
+	void Prepare(const FCamera* Camera,float viewportWidth, float viewportHeight, const FViewport& viewport, const EViewModeIndex InViewMode, const EViewportType InViewportType);
 
 	void RenderHighLight(const TArray<UPrimitiveComponent*>& Primitives);
 	void Render();
@@ -87,6 +87,7 @@ private:
 	float mCameraOrthoDistance = 10.0f;
 
 	EViewModeIndex mViewModeIndex = EViewModeIndex::VMI_Lit;
+	EViewportType mViewportType = EViewportType::Perspective;
 	bool mbPerspectiveProjection;
 	float mAspect;
 	float mProjectionRatio; // 0.0f ~ 1.0f, 0이면 직교, 1이면 원근, 그 사이면 혼합
