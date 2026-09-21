@@ -187,6 +187,8 @@ ConsoleWindow::ConsoleWindow()
 	//Commands.push_back("CLASSIFY");
 	Commands.push_back("STAT FPS");
 	Commands.push_back("STAT MEMORY");
+	Commands.push_back("STAT RENDER");
+	Commands.push_back("STAT ALL");
 	Commands.push_back("STAT NONE");
 	AutoScroll = true;
 	ScrollToBottom = false;
@@ -343,10 +345,21 @@ void ConsoleWindow::ExecCommand(const char* command_line)
 	{
 		bShowStatMemory = true;
 	}
+	else if (Stricmp(command_line, "STAT RENDER") == 0)
+	{
+		bShowStatRender = true;
+	}
+	else if (Stricmp(command_line, "STAT ALL") == 0)
+	{
+		bShowStatFPS = true;
+		bShowStatMemory = true;
+		bShowStatRender = true;
+	}
 	else if (Stricmp(command_line, "STAT NONE") == 0)
 	{
 		bShowStatFPS = false;
 		bShowStatMemory = false;
+		bShowStatRender = false;
 	}
 	else
 	{

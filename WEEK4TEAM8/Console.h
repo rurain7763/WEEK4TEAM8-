@@ -23,6 +23,7 @@ public:
 
 	bool bShowStatFPS = false;
 	bool bShowStatMemory = false;
+	bool bShowStatRender = false;
 
 	void Process(float panelWidth);
 	static ConsoleWindow& Get() {
