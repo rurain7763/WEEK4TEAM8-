@@ -76,6 +76,30 @@ void FContentBrowser::RenderBottomBar()
 	ImGui::PopStyleVar(2);
 }
 
+// Static Mesh 같은 경로, 같은 이름 파일 다시 import 하면
+// 이름 뒤에 _2, _3 붙여서 반환하는 helper
+static std::filesystem::path ResolveImportPath(const std::filesystem::path& InPath)
+{
+	// 같은 이름이 존재하지 않으면 그냥 그 경로로 진행
+	if (!std::filesystem::exists(InPath))
+	{
+		return InPath;
+	}
+
+	// 같은 이름이 존재하는 경우 Suffix 1씩 늘려가며 check
+	int32 Suffix = 1;
+	std::filesystem::path Candidate;
+
+	do
+	{
+		Candidate = InPath.parent_path() / (InPath.stem().string() + "_" + std::to_string(Suffix) + InPath.extension().string());
+		++Suffix;
+
+	} while (std::filesystem::exists(Candidate));
+
+	return Candidate;
+}
+
 void FContentBrowser::RenderDrawer()
 {
 	const ImGuiViewport* Viewport = ImGui::GetMainViewport();
@@ -105,6 +129,9 @@ void FContentBrowser::RenderDrawer()
 			{
 				std::filesystem::path NewFilePath = CurrentDirectory / TargetPath.filename();
 				NewFilePath.replace_extension(".uasset");   // CurrentDirectory 대신 원본 옆에 저장
+				
+				// 경로 중복되는지 확인
+				NewFilePath = ResolveImportPath(NewFilePath);
 
 				if (FTexture2DImporter::Import(TargetPath, NewFilePath, Header))
 				{
@@ -127,6 +154,9 @@ void FContentBrowser::RenderDrawer()
 			{
 				std::filesystem::path NewFilePath = CurrentDirectory / TargetPath.filename();
 				NewFilePath.replace_extension(".uasset");   // CurrentDirectory 대신 원본 옆에 저장
+
+				// 경로 중복되는지 확인
+				NewFilePath = ResolveImportPath(NewFilePath);
 
 				if (FStaticMeshImporter::Import(TargetPath, NewFilePath, Header))
 				{
@@ -500,3 +530,4 @@ void FContentBrowser::RefreshCache()
 	}
 	catch (...) {}
 }
+
