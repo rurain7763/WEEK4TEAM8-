@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <format>
-#include <filesystem>
 
 #include "FileManager.h"
 #include "NativeFileDialog.h"
@@ -37,7 +36,6 @@
 #include "LaunchEngineLoop.h"
 #include "FAssetManager.h"
 #include "FLogManager.h"
-#include "FObjManager.h"
 
 FSceneManager::FSceneManager()
 {
@@ -60,8 +58,6 @@ FSceneManager::~FSceneManager()
 void FSceneManager::OnNewAssetFile(const FAssetFileHeader& Header, const std::filesystem::path& FilePath)
 {
 	FAssetManager& AssetManager = FAssetManager::Get();
-	FString CleanName = NormalizeAssetPath(FilePath);
-	FName AssetName(CleanName.c_str());
 
 	if (Header.AssetType == EAssetType::Texture2D ||
 		Header.AssetType == EAssetType::Material ||
@@ -81,7 +77,8 @@ void FSceneManager::OnDeleteAssetFile(const std::filesystem::path& FilePath)
 {
 	FAssetManager& AssetManager = FAssetManager::Get();
 
-	AssetManager.UnregisterAsset(FName(FilePath.string()));
+	std::string CanonicalPath = std::filesystem::weakly_canonical(FilePath).string();
+	AssetManager.UnregisterAsset(FName(CanonicalPath.c_str()));
 }
 
 void FSceneManager::Tick(float deltaTime)
@@ -102,8 +99,6 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 	ImGui_ImplDX11_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
-
-	mContentBrowser.SetAssetManager(guiReference.AssetManager);
 
 	{
 		// Docking
@@ -310,20 +305,20 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	}
 
 	const char* CurrentMeshName = mGuiInputField.SelectedStaticMesh
-    ? mGuiInputField.SelectedStaticMesh->GetAssetPathFileName().CStr()
-    : "None";
+		? mGuiInputField.SelectedStaticMesh->GetAssetPathFileName().CStr()
+		: "None";
 
 	if (ImGui::BeginCombo("Static Mesh", CurrentMeshName))
 	{
-    for (TObjectIterator<UStaticMesh> It; It; ++It)
-    {
-        UStaticMesh* Candidate = *It;
-        if (ImGui::Selectable(Candidate->GetAssetPathFileName().CStr()))
-        {
-            mGuiInputField.SelectedStaticMesh = Candidate; // SetStaticMesh 대신 스테이징
-        }
-    }
-    ImGui::EndCombo();
+		for (TObjectIterator<UStaticMesh> It; It; ++It)
+		{
+			UStaticMesh* Candidate = *It;
+			if (ImGui::Selectable(Candidate->GetAssetPathFileName().CStr()))
+			{
+				mGuiInputField.SelectedStaticMesh = Candidate; // SetStaticMesh 대신 스테이징
+			}
+		}
+		ImGui::EndCombo();
 	}
 	if (ImGui::Button("Spawn"))
 	{
@@ -672,14 +667,14 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 		{
 			mSelectedActor->SetLocation(translationInput);
 		}
-		
+
 		if (ImGui::DragFloat3("Rotation", &rotationInput.x, 0.1f))
 		{
 			mSelectedActor->SetRotation({
 				rotationInput.y, // Pitch
 				rotationInput.z, // Yaw
 				rotationInput.x  // Roll
-			});
+				});
 		}
 
 		if (ImGui::DragFloat3("Scale", &scaleInput.x, 0.1f, MIN_SCALE, FLT_MAX, "%.3f", ImGuiSliderFlags_AlwaysClamp))
@@ -729,38 +724,7 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 			}
 			else if (component->IsA< UAtlasAnimationComponent>())
 			{
-				if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload(AssetPayloadTags::StaticMesh))
-				{
-					const char* DroppedPathCStr = static_cast<const char*>(Payload->Data);
-					std::filesystem::path DroppedPath(DroppedPathCStr);
-					FString DroppedStem = DroppedPath.stem().string();
-
-					UStaticMesh* MatchedMesh = nullptr;
-
-					for (TObjectIterator<UStaticMesh> It; It; ++It)
-					{
-						UStaticMesh* CandidateMesh = *It;
-						std::string CandidatePathStr = CandidateMesh->GetAssetPathFileName().c_str();
-
-						if (CandidatePathStr == DroppedPath.string() || std::filesystem::path(CandidatePathStr).stem().string() == DroppedStem)
-						{
-							MatchedMesh = CandidateMesh;
-							break;
-						}
-					}
-
-					if (!MatchedMesh)
-					{
-						MatchedMesh = FObjManager::LoadObjStaticMesh(DroppedPathCStr);
-					}
-					if (MatchedMesh)
-					{
-						StaticMeshComponent->SetStaticMesh(MatchedMesh);
-					}
-				}
-				ImGui::EndDragDropTarget();
-			}
-		}
+				UAtlasAnimationComponent* atlasAnimationComponent = component->Cast<UAtlasAnimationComponent>();
 
 				TArray<FString> spriteAtlasAssetNames;
 				guiReference.AssetManager->ForEachMetaInfo([&spriteAtlasAssetNames](const FAssetMetaInfo& metaInfo) {
@@ -829,18 +793,17 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 				UStaticMeshComponent* StaticMeshComponent = component->Cast<UStaticMeshComponent>();
 
 				TSharedPtr<FStaticMeshAsset> CurrentStaticMesh = StaticMeshComponent->GetMesh();
-				TSharedPtr<FTexture2DAsset> CurrentTexture = StaticMeshComponent->GetTexture();
 
 				TArray<FString> StaticMeshAssetNames;
-				TArray<FString> TextureAssetNames;
-				guiReference.AssetManager->ForEachMetaInfo([&StaticMeshAssetNames, &TextureAssetNames](const FAssetMetaInfo& metaInfo) {
+				TArray<FAssetMetaInfo> materialMetaInfos;
+				guiReference.AssetManager->ForEachMetaInfo([&StaticMeshAssetNames, &materialMetaInfos](const FAssetMetaInfo& metaInfo) {
 					if (metaInfo.AssetType == EAssetType::StaticMesh)
 					{
 						StaticMeshAssetNames.Add(metaInfo.AssetName.ToString());
 					}
-					else if (metaInfo.AssetType == EAssetType::Texture2D)
+					else if (metaInfo.AssetType == EAssetType::Material)
 					{
-						TextureAssetNames.Add(metaInfo.AssetName.ToString());
+						materialMetaInfos.Add(metaInfo);
 					}
 				});
 
@@ -861,45 +824,75 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 						}
 					}
 
-				ImGui::EndCombo();
-			}
-		}
-
-		USceneComponent* rootComponent = mSelectedActor->GetRootComponent();
 					ImGui::EndCombo();
 				}
 
-				TArray<FAssetMetaInfo> materialMetaInfos;
-				guiReference.AssetManager->ForEachMetaInfo([&materialMetaInfos](const FAssetMetaInfo& metaInfo) {
-					if (metaInfo.AssetType != EAssetType::Material) return;
-					materialMetaInfos.Add(metaInfo);
-				});
-			
-				// 현재 가진 Material이 있으면 그것을, 없으면 None을 콤보박스 이름으로
-				TSharedPtr<FMaterialAsset> currentMaterial = StaticMeshComponent->GetMaterial();
-				FString currentMaterialName = currentMaterial ? currentMaterial->GetAssetName().ToString() : "None";
-
-				if (ImGui::BeginCombo("Material", currentMaterialName.CStr()))
-
-					if (TextureAsset)
-					{
-						bool isSelected = (currentMaterialName == metaInfo.AssetName.ToString());
-						if (ImGui::Selectable(metaInfo.AssetName.ToString().CStr(), isSelected))
-						{
-							TSharedPtr<FMaterialAsset> materialAsset =
-								guiReference.AssetManager->GetAssetAs<FMaterialAsset>(metaInfo.AssetID, true);
-							StaticMeshComponent->SetMaterial(materialAsset);
-						}
-						if (isSelected) ImGui::SetItemDefaultFocus();
-					}
-					ImGui::EndCombo();
-				}
-
-				FVector2 UVOffset = StaticMeshComponent->GetUVOffset();
-				if (ImGui::DragFloat2("UV Offset", &UVOffset.X, 0.01f))
+				if (ImGui::BeginDragDropTarget())
 				{
-					StaticMeshComponent->SetUVOffset(UVOffset);
+					if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload(AssetPayloadTags::StaticMesh))
+					{
+						const char* DroppedPathCStr = static_cast<const char*>(Payload->Data);
+						std::filesystem::path DroppedPath(DroppedPathCStr);
+
+						std::string CanonicalKey = std::filesystem::weakly_canonical(DroppedPath).string();
+						FName AssetKey(CanonicalKey.c_str());
+
+						TSharedPtr<FStaticMeshAsset> MatchedMeshAsset = guiReference.AssetManager->GetAssetAs<FStaticMeshAsset>(AssetKey, true);
+
+						if (!MatchedMeshAsset)
+						{
+							MatchedMeshAsset = guiReference.AssetManager->GetAssetAs<FStaticMeshAsset>(FName(DroppedPath.string().c_str()), true);
+						}
+
+						if (MatchedMeshAsset != nullptr)
+						{ 
+							StaticMeshComponent->SetMesh(MatchedMeshAsset);
+							UE_LOG("Success: StaticMesh applied: %s", DroppedPathCStr);
+						}
+						else
+						{
+							UE_LOG_ERROR("Failed to load StaticMesh asset: %s", DroppedPathCStr);
+						}
+					}
+					ImGui::EndDragDropTarget();
 				}
+
+				// 현재 가진 Material이 있으면 그것을, 없으면 None을 콤보박스 이름으로
+				const auto& Materials = StaticMeshComponent->GetMaterials();
+				for (int32 i = 0; i < Materials.Num(); i++)
+				{
+					TSharedPtr<FMaterialAsset> currentMaterial = Materials[i];
+					FString currentMaterialName = currentMaterial ? currentMaterial->GetAssetName().ToString() : "None";
+					if (ImGui::BeginCombo("Material", currentMaterialName.CStr()))
+					{
+						for (const FAssetMetaInfo& metaInfo : materialMetaInfos)
+						{
+							bool isSelected = (currentMaterialName == metaInfo.AssetName.ToString());
+							if (ImGui::Selectable(metaInfo.AssetName.ToString().CStr(), isSelected))
+							{
+								TSharedPtr<FMaterialAsset> materialAsset =
+									guiReference.AssetManager->GetAssetAs<FMaterialAsset>(metaInfo.AssetID, true);
+								StaticMeshComponent->SetMaterial(i, materialAsset);
+							}
+							if (isSelected) ImGui::SetItemDefaultFocus();
+						}
+						ImGui::EndCombo();
+					}
+
+					FVector2 UVOffset = StaticMeshComponent->GetUVOffset(i);
+					if (ImGui::DragFloat2("UV Offset", &UVOffset.X, 0.01f))
+					{
+						StaticMeshComponent->SetUVOffset(i, UVOffset);
+					}
+				}
+
+				/*if (ImGui::BeginDragDropTarget())
+				{
+					if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload(AssetPayloadTags::StaticMesh))
+					{
+
+					}
+				}*/
 			}
 		}
 	}
@@ -1119,7 +1112,7 @@ void FSceneManager::LoadScene(FCamera* Camera, const std::filesystem::path& scen
 	UEngineStatics::SetNextUUID(nextUUID);
 
 	const json::JSON worldJson = sceneJson.at("World");
-	
+
 	UWorld* newWorld = FObjectFactory::LoadObject<UWorld>(worldJson);
 
 	json::JSON PerspectiveCameraJson = sceneJson.at("PerspectiveCamera");
