@@ -108,3 +108,31 @@ private:
 	TSharedPtr<FFontAtlas> mFontAtlas;
 	float mUnitFactor = 1.0f;
 };
+
+#if 0 // NOTE: 스크린에 텍스트를 렌더링하는 예제입니다. (월드는 UText3DComponent를 참조하세요.)
+TSharedPtr<FFontAtlasAsset> FontAtlasAsset = FAssetManager::Get().GetAssetAs<FFontAtlasAsset>(FName("TestFontAtlas"), true);
+FTextBuilder TextBuilder(FontAtlasAsset->GetFontAtlas());
+TextBuilder.SetCoordinateSpace(ECoordinateSpace::Screen);
+
+float Width = 0.f;
+float Height = 0.f;
+TextBuilder.CalculateSize(L"Hello, World!\nThis is a test.", Width, Height);
+
+FVector2 TextLocation = FVector2(CurrentViewport->Window->Rect.Width * 0.5f, CurrentViewport->Window->Rect.Height * 0.5f);
+TextBuilder.Build(L"Hello, World!\nThis is a test.", Width, Height, [&](const FRect& TextRect, const FRect& SubUVRect) {
+	if (TextRect.Width <= 0.f || TextRect.Height <= 0.f)
+	{
+		return;
+	}
+
+	FRenderQuad2DInfo Quad2DInfo;
+	Quad2DInfo.Position = FVector2(TextRect.X, TextRect.Y) + TextLocation;
+	Quad2DInfo.Size = { TextRect.Width, TextRect.Height };
+	Quad2DInfo.Color = { 1.f, 0.f, 1.f, 1.f };
+	Quad2DInfo.TextureSRV = FontAtlasAsset->GetSRV();
+	Quad2DInfo.SubUV = { SubUVRect.X, SubUVRect.Y, SubUVRect.Width, SubUVRect.Height };
+	Quad2DInfo.BlendMode = ERenderBlendMode::Transparent;
+
+	RenderCollector.AddQuad2DInfo(Quad2DInfo);
+});
+#endif
