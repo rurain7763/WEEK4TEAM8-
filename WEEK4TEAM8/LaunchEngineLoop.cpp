@@ -221,6 +221,8 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		mGraphicsManager->BeginGpuRenderTimer();
 	}
 	
+	mGraphicsManager->GetRenderer()->ResetDrawCallCount();
+	
 	for (int32 i = 0; i < ViewportCount; ++i)
 	{
 		int32 CurrentIndex = bIsSplit ? i : ActiveIndex;
@@ -317,7 +319,7 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		{
 			CurrentViewport->Viewport->Resize(*mGraphicsManager->GetRenderer(), ViewportRect.Width, ViewportRect.Height);
 			mGraphicsManager->Prepare(&CurrentViewport->Client->mCamera, ViewportRect.Width, ViewportRect.Height, *CurrentViewport->Viewport, CurrentViewport->Client->GetViewMode(), CurrentViewport->Client->GetViewportType());
-			mGraphicsManager->RenderHighLight(HighlightedComponents);
+
 			mGraphicsManager->Render();
 
 			CurrentViewport->Client->mGizmo.Render(SelectedActor, CurrentViewport->Client->mCamera.Transform.Location, CurrentViewport->Window->Rect, ViewProjection, CurrentViewport->Client->IsOrtho(), CurrentViewport->Client->GetCamera().mOrthoDistance);

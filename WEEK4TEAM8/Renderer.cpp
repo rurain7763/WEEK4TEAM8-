@@ -242,7 +242,6 @@ void URenderer::Prepare(const FMatrix& ViewProjectionMatrix)
 	PrimitivePipeline->UpdateConstantBuffer(1, ViewProjectionMatrix);
 	QuadPipeline->UpdateConstantBuffer(1, ViewProjectionMatrix);
 
-	DrawCallCount = 0;
 }
 
 TSharedPtr<FIndexBuffer> URenderer::CreateIndexBuffer(const uint32* Indices, UINT Count, D3D11_USAGE Usage)
