@@ -50,7 +50,7 @@ bool FGizmo::IsMouseOverHandle() const
 	return bIsHoveredAxis; 
 }
 
-void FGizmo::Tick(AActor* TargetActor, const FRect& ViewportRect, bool bViewportHovered, const FMatrix& ViewProjection)
+void FGizmo::Tick(AActor* TargetActor, const FRect& ViewportRect, bool bViewportHovered, const FMatrix& InvViewProjection)
 {
     if (!TargetActor)
     {
@@ -122,9 +122,8 @@ void FGizmo::Tick(AActor* TargetActor, const FRect& ViewportRect, bool bViewport
         FVector2 ProjectedPoint = HandleScreenStart + HandleScreenDirection * ProjectionLength;
 
         // Ray
-        FMatrix ViewProjectionInverse = ViewProjection.Inverse();
-        FVector NearPoint = ScreenToWorld(ProjectedPoint, ViewProjectionInverse, ViewportRect.Width, ViewportRect.Height, 0.1f);
-        FVector FarPoint = ScreenToWorld(ProjectedPoint, ViewProjectionInverse, ViewportRect.Width, ViewportRect.Height, 1.0f);
+        FVector NearPoint = ScreenToWorld(ProjectedPoint, InvViewProjection, ViewportRect.Width, ViewportRect.Height, 0.1f);
+        FVector FarPoint = ScreenToWorld(ProjectedPoint, InvViewProjection, ViewportRect.Width, ViewportRect.Height, 1.0f);
 
         FRay Ray;
         Ray.Origin = NearPoint;
