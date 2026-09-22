@@ -4,7 +4,7 @@
 
 class ConsoleWindow final {
 public:
-	bool bIsOpened = true;
+	bool bIsDrawerOpen = false;
 	bool bShowLog = true;
 	bool bShowWarn = true;
 	bool bShowError = true;
@@ -25,11 +25,15 @@ public:
 	bool bShowStatMemory = false;
 	bool bShowStatRender = false;
 
-	void Process(float panelWidth);
+	void Process(float BottomBarHeight);
 	static ConsoleWindow& Get() {
 		static ConsoleWindow Instance;
 		return Instance;
 	}
+
+	inline void ToggleDrawer() { bIsDrawerOpen = !bIsDrawerOpen; }
+	inline void SetIsDrawerOpen(bool InIsDrawerOpen) { bIsDrawerOpen = InIsDrawerOpen; }
+
 	void Init(int MaxLines) {
 		if (MaxLines > MaxLine) return;
 		MaxLine = MaxLines;
@@ -47,4 +51,6 @@ private:
 	}
 	int TextEditCallback(ImGuiInputTextCallbackData* data);
 	void ExecCommand(const char* command_line);
+
+	float mDrawerHeight = 350.0f;
 };

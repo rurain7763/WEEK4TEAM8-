@@ -42,6 +42,8 @@ public:
 	void RegisterAsset(const TSharedPtr<FAsset>& Asset);
 	void UnregisterAsset(const FName& AssetName);
 
+	void PurgeStaleAssetsInDirectory(const std::filesystem::path& Directory);
+
 	// 프로그램 시작 시에 호출하여 Directory 스캔하는 함수
 	void ScanDirectory(const std::filesystem::path& RootDir, URenderer& Renderer);
 
