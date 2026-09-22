@@ -33,6 +33,8 @@ private:
     UStaticMeshComponent* mViewerComponent = nullptr;  
     URenderer* mRenderer = nullptr;
 
+    bool bOpenedFromObj = false;
+
     bool BuildRuntimeMaterials(const std::filesystem::path& ObjPath,
         const FStaticMeshPayload& Payload, FStaticMeshBuildData& InOutBuildData);
 };

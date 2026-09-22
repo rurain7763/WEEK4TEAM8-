@@ -28,7 +28,7 @@ public:
     EGIZMO_TYPE GetOperation() const;
 
     void Tick(AActor* TargetActor, const FRect& ViewportRect, bool bViewportHovered, const FMatrix& ViewProjection);
-    void Render(AActor* TargetActor, const FVector& CameraPosition, const FMatrix& ViewProjection, bool bIsOrtho = false, float OrthoDistance = 10.0f);
+    void Render(AActor* TargetActor, const FVector& CameraPosition, const FRect& ViewportRect, const FMatrix& ViewProjection, bool bIsOrtho = false, float OrthoDistance = 10.0f);
     bool IsMouseOverHandle() const;
     bool IsDragging() const { return bIsSelected; }
     void Reset();

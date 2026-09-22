@@ -10,7 +10,7 @@
 #include "MathUtility.h"
 #include "Json/json.hpp"
 #include "JsonUtil.h"
-
+#include "FTextBuilder.h"
 
 class UPlaneComponent : public UPrimitiveComponent
 {
@@ -279,45 +279,17 @@ public:
 			return;
 		}
 
-		const TSharedPtr<FFontAtlas>& fontAtlas = mFontAtlasAsset->GetFontAtlas();
-		if (!fontAtlas)
+		const TSharedPtr<FFontAtlas>& FontAtlas = mFontAtlasAsset->GetFontAtlas();
+		if (!FontAtlas)
 		{
 			return;
 		}
 
-		// Calculate the total size of the text in world units
-		const float WorldLineHeight = fontAtlas->LineHeight() * WorldUnitPerPixel;
-		const float WorldAscender = fontAtlas->Ascender() * WorldUnitPerPixel;
-		const float WorldDescender = fontAtlas->Descender() * WorldUnitPerPixel;
+		FTextBuilder TextBuilder(FontAtlas, WorldUnitPerPixel);
 
 		float TotalWidth = 0.0f;
 		float TotalHeight = 0.0f;
-		uint32 LineCount = 1;
-
-		float CurrentLineWidth = 0.0f;
-		for (wchar_t C : mText)
-		{
-			if (C == L'\n')
-			{
-				TotalWidth = FPlatformMath::Max(TotalWidth, CurrentLineWidth);
-				LineCount++;
-				CurrentLineWidth = 0.0f;
-				continue;
-			}
-
-			if (!fontAtlas->HasGlyph(C))
-			{
-				fontAtlas->AddGlyph(C);
-			}
-
-			const FFontGlyph& Glyph = fontAtlas->GetGlyph(C);
-
-			float WorldAdvanceX = Glyph.AdvanceX * WorldUnitPerPixel;
-
-			CurrentLineWidth += WorldAdvanceX;
-		}
-		TotalWidth = FPlatformMath::Max(TotalWidth, CurrentLineWidth);
-		TotalHeight = (WorldAscender - WorldDescender) + (LineCount - 1) * WorldLineHeight;
+		TextBuilder.CalculateSize(mText, TotalWidth, TotalHeight);
 
 		// Append the text quads to the output array
 		const FTransform OwnerTransform = mOwner->GetTransform();
@@ -348,47 +320,28 @@ public:
 			//PivotTransform.Location += RenderCollector.Camera->GetUpVector();
 		}
 
-		FVector TextLocation = FVector(0.f, -TotalWidth * 0.5f, TotalHeight * 0.5f - WorldAscender);
-		for (wchar_t C : mText)
-		{
-			if (C == L'\n')
+		const FMatrix PivotMatrix = PivotTransform.MakeMatrix();
+
+		TextBuilder.Build(mText, TotalWidth, TotalHeight, [&](const FRect& Rect, const FRect& UV) {
+			// 공백 등은 Builder에서 advance만 적용하고, 쿼드는 생략한다.
+			if (Rect.Width <= 0.f || Rect.Height <= 0.f)
 			{
-				TextLocation.y = -TotalWidth * 0.5f;
-				TextLocation.z -= WorldLineHeight;
-				continue;
+				return;
 			}
 
-			if (!fontAtlas->HasGlyph(C))
-			{
-				continue;
-			}
-
-			const FFontGlyph& Glyph = fontAtlas->GetGlyph(C);
-
-			float WorldWidth = Glyph.Width * WorldUnitPerPixel;
-			float WorldHeight = Glyph.Height * WorldUnitPerPixel;
-			float WorldAdvance = Glyph.AdvanceX * WorldUnitPerPixel;
-			float WorldBearingX = Glyph.BearingX * WorldUnitPerPixel;
-			float WorldBearingY = Glyph.BearingY * WorldUnitPerPixel;
-
-			FVector GlyphCenter(TextLocation.x, TextLocation.y + WorldBearingX + WorldWidth * 0.5f, TextLocation.z + WorldBearingY - WorldHeight * 0.5f);
-			FMatrix TextModel = FMatrix::Scale(FVector3(1.0f, WorldWidth, WorldHeight)) * FMatrix::Translation(GlyphCenter);
-
-			TextModel *= PivotTransform.MakeMatrix();
+			const FVector GlyphCenter(0.f, Rect.X, Rect.Y);
 
 			FRenderQuadInfo QuadInfo;
-			QuadInfo.Model = TextModel;
+			QuadInfo.Model = FMatrix::Scale(FVector3(1.f, Rect.Width, Rect.Height)) * FMatrix::Translation(GlyphCenter) * PivotMatrix;
 			QuadInfo.Color = mColor;
 			QuadInfo.TextureSRV = mFontAtlasAsset->GetSRV();
-			QuadInfo.SubUV = Glyph.SubUV;
+			QuadInfo.SubUV = FVector4(UV.X, UV.Y, UV.Width, UV.Height);
 			QuadInfo.BlendMode = ERenderBlendMode::Transparent;
 			QuadInfo.EnableDepthTest = mEnableDepthTest;
 			QuadInfo.EnableDepthWrite = mEnableDepthWrite;
 
 			RenderCollector.AddQuadInfo(QuadInfo);
-
-			TextLocation.y += WorldAdvance;
-		}
+		});
 	}
 
 	inline void SetBillboard(bool billboard) { mbBillboard = billboard; }

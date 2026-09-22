@@ -8,6 +8,20 @@
 
 class URenderer;
 
+struct FAssetStats
+{
+	uint32 RegisteredCount = 0;
+	uint32 LoadedCount = 0;
+
+	uint32 RegisteredStaticMesh = 0;
+	uint32 RegisteredTexture2D = 0;
+	uint32 RegisteredMaterial = 0;
+
+	uint32 LoadedStaticMesh = 0;
+	uint32 LoadedTexture2D = 0;
+	uint32 LoadedMaterial = 0;
+};
+
 struct FAssetMetaInfo
 {
 	FGuid AssetID;
@@ -74,10 +88,15 @@ public:
 		}
 	}
 
+	FAssetStats GetStats() const { return CachedStats; }
+	void RebuildStats();
+
 private:
 	TMap<FName, FGuid> NameToAssetID;
 	TMap<FGuid, FAssetMetaInfo> AssetMetaInfos;
 	TMap<FGuid, TSharedPtr<FAsset>> LoadedAssets;
+
+	mutable FAssetStats CachedStats;
 };
 
 inline FString NormalizeAssetPath(const std::filesystem::path& InPath)

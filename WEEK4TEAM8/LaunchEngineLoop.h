@@ -76,14 +76,6 @@ struct FEditorLayout
 		HorizontalRatio = HSplitter->SplitterRatio;
 		VerticalRatio = VSplitter[0]->SplitterRatio;
 	}
-
-	void GetViewportRects(FRect& LT, FRect& RT, FRect& LB, FRect& RB)
-	{
-		LT = ViewportWindows[0]->Rect;
-		RT = ViewportWindows[1]->Rect;
-		LB = ViewportWindows[2]->Rect;
-		RB = ViewportWindows[3]->Rect;
-	}
 };
 
 struct FEditorViewport

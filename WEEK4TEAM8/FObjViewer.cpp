@@ -36,9 +36,9 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 		ImGui::Text("Triangles: %u", meshAsset->GetIndices().Num() / 3);
 	}
 
-	ImGui::SeparatorText("Transform");
 	if (mViewerActor)
 	{
+		ImGui::SeparatorText("Transform");
 		const FTransform& originalTransform = mViewerActor->GetTransform();
 
 		FVector translationInput = originalTransform.Location;
@@ -55,24 +55,22 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 		}
 		if (ImGui::DragFloat3("Rotation", &rotationInput.x, 0.1f))
 		{
-			mViewerActor->SetRotation({rotationInput.y,  rotationInput.z,  rotationInput.x });
+			mViewerActor->SetRotation({ rotationInput.y,  rotationInput.z,  rotationInput.x });
 		}
 		if (ImGui::DragFloat3("Scale", &scaleInput.x, 0.1f, MIN_SCALE, FLT_MAX, "%.3f", ImGuiSliderFlags_AlwaysClamp))
 		{
 			mViewerActor->SetScale(scaleInput);
 		}
-	}
 
-	if (ImGui::Button("Reset Transform") && mViewerActor)
-	{
-		mViewerActor->SetLocation(FVector(0.0f, 0.0f, 0.0f));
-		mViewerActor->SetRotation(FRotator(0.0f, 0.0f, 0.0f));
-		mViewerActor->SetScale(FVector(1.0f, 1.0f, 1.0f));
-	}
+		if (ImGui::Button("Reset Transform") && mViewerActor)
+		{
+			mViewerActor->SetLocation(FVector(0.0f, 0.0f, 0.0f));
+			mViewerActor->SetRotation(FRotator(0.0f, 0.0f, 0.0f));
+			mViewerActor->SetScale(FVector(1.0f, 1.0f, 1.0f));
+		}
 
-	ImGui::SeparatorText("Appearance");
-	if (mViewerComponent)
-	{
+
+		ImGui::SeparatorText("Appearance");
 		bool bUseVertexColor = mViewerComponent->GetUseVertexColor();
 		if (ImGui::Checkbox("Use Vertex Color", &bUseVertexColor))
 		{
@@ -86,54 +84,48 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 			mViewerComponent->SetColor(Color);
 		}
 
-	}
-
-	ImGui::SeparatorText("Materials");
-
-	if (mViewerComponent && mViewerComponent->GetMesh())
-	{
-		const TSharedPtr<FStaticMeshAsset>& MeshAsset = mViewerComponent->GetMesh();
-
-		for (int32 SectionIndex = 0; SectionIndex < MeshAsset->GetSections().Num(); ++SectionIndex)
+		ImGui::SeparatorText("Actions");
+		if (ImGui::Button("Clear View") && mViewerActor)
 		{
-			const FStaticMeshSection& Section = MeshAsset->GetSections()[SectionIndex];
-			TSharedPtr<FMaterialAsset> Material = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
-
-			ImGui::Text("Section %d", SectionIndex);
-
-			if (!Material)
+			mSceneManager->ResetSelectedActor();
+			mSceneManager->GetCurrentWorld()->RemoveActor(mViewerActor->UUID);
+			mViewerActor = nullptr;
+		}
+	
+		if (bOpenedFromObj && !mLoadedFilePath.IsEmpty())
+		{
+			if (ImGui::Button("Export UAsset"))
 			{
-				ImGui::TextDisabled("Material: None");
-				continue;
+				std::filesystem::path TargetPath;
+				FAssetFileHeader Header;
+
+				if (FNativeFileDialog::SaveFileDialog(kDefaultOBJPath, { FFileFilter{ L"UAsset Files", L"*.uasset;" } }, L"", TargetPath))
+				{
+					if (FStaticMeshImporter::Export(std::filesystem::path(mLoadedFilePath.CStr()), TargetPath,
+						Header, mViewerActor->GetTransform(), mViewerComponent->GetColor(), mViewerComponent->GetUseVertexColor()))
+					{
+						FAssetManager::Get().ScanDirectory("Assets", *mRenderer);
+
+					}
+				}
 			}
-
-			ImGui::Text("Material: %s", Material->GetAssetName().ToString().CStr());
-
-			TSharedPtr<FTexture2DAsset> Texture = Material->GetDiffuseTexture();
-			if (!Texture)
-			{
-				ImGui::TextDisabled("Diffuse Texture: None");
-				continue;
-			}
-
-			ImGui::Text("Diffuse Texture: %s", Texture->GetAssetName().ToString().CStr());
-
-			ImGui::Image( reinterpret_cast<ImTextureID>(Texture->GetSRV().Get()),ImVec2(96.0f, 96.0f));
 		}
 	}
 
-	ImGui::SeparatorText("File");
+
+	ImGui::SeparatorText("File Open");
 	if (ImGui::Button("Open OBJ"))
 	{
-		std::filesystem::path targetPath;
+		std::filesystem::path TargetPath;
 
 		try
 		{
 			if (FNativeFileDialog::OpenFileDialog(kDefaultOBJPath,
-				{ FFileFilter{ L"OBJ Files", L"*.obj" } }, L"obj", targetPath))
+				{ FFileFilter{ L"OBJ Files", L"*.obj" } }, L"obj", TargetPath))
 			{
-				OpenObj(targetPath);
-				UE_LOG("Successed to load: %s", targetPath.string().c_str());
+				OpenObj(TargetPath);
+				UE_LOG("Successed to load: %s", TargetPath.string().c_str());
+				bOpenedFromObj = true;
 			}
 		}
 		catch (const std::exception& e)
@@ -153,6 +145,7 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 			{
 				OpenStaticMeshAsset(targetPath);
 				UE_LOG("Successed to load: %s", targetPath.string().c_str());
+				bOpenedFromObj = false;
 			}
 		}
 		catch (const std::exception& e)
@@ -174,6 +167,42 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 	if (ImGui::Combo("View Mode", &viewMode, viewModes, IM_ARRAYSIZE(viewModes)))
 	{
 		InGraphicsManager.SetViewModeIndex(static_cast<EViewModeIndex>(viewMode));
+	}
+
+	if (mViewerActor)
+	{
+		ImGui::SeparatorText("Materials");
+		if (mViewerComponent && mViewerComponent->GetMesh())
+		{
+			const TSharedPtr<FStaticMeshAsset>& MeshAsset = mViewerComponent->GetMesh();
+
+			for (int32 SectionIndex = 0; SectionIndex < MeshAsset->GetSections().Num(); ++SectionIndex)
+			{
+				const FStaticMeshSection& Section = MeshAsset->GetSections()[SectionIndex];
+				TSharedPtr<FMaterialAsset> Material = FAssetManager::Get().GetAssetAs<FMaterialAsset>(Section.MaterialAssetID, true);
+
+				ImGui::Text("Section %d", SectionIndex);
+
+				if (!Material)
+				{
+					ImGui::TextDisabled("Material: None");
+					continue;
+				}
+
+				ImGui::Text("Material: %s", Material->GetAssetName().ToString().CStr());
+
+				TSharedPtr<FTexture2DAsset> Texture = Material->GetDiffuseTexture();
+				if (!Texture)
+				{
+					ImGui::TextDisabled("Diffuse Texture: None");
+					continue;
+				}
+
+				ImGui::Text("Diffuse Texture: %s", Texture->GetAssetName().ToString().CStr());
+
+				ImGui::Image(reinterpret_cast<ImTextureID>(Texture->GetSRV().Get()), ImVec2(96.0f, 96.0f));
+			}
+		}
 	}
 
 	ImGui::End();

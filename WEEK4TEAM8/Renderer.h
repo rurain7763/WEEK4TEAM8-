@@ -53,6 +53,19 @@ struct FTriangle2DConstants
 	float Rotation;
 };
 
+struct FQuad2DConstants
+{
+	FMatrix Projection;
+	FVector4 Color;
+	FVector2 Position;
+	FVector2 Size;
+	FVector4 SubUV;
+	float Rotation;
+	int32 HasTexture;
+	int32 GrayscaleMode;
+	int32 Padding;
+};
+
 struct FWorldAxisConstants
 {
 	FMatrix View;
@@ -61,7 +74,7 @@ struct FWorldAxisConstants
 	FVector Axis;
 	float Thickness;
 	FVector2 ViewportSize;
-	float Padding[2] = {};
+	float Padding[2];
 };
 
 struct FWorldGridConstants
@@ -470,6 +483,7 @@ public:
 	void RenderPrimitiveIndexed(const FRenderInfo& RenderInfo, uint32 StencilRef = 0) const;
 	void RenderPrimitiveIndexed(const TSharedPtr<FRenderPipeline>& Pipeline, const FRenderInfo& RenderInfo, uint32 StencilRef = 0) const;
 
+	void RenderQuad2D(const FRenderQuad2DInfo& Info) const;
 	void RenderLine2D(const FVector2& Start, const FVector2& End, const FVector4& Color, float Thickness = 1.0f) const;
 	void RenderCircle2D(const FVector2& Center, const FVector4& Color, float Radius = 1.0f) const;
 	void RenderTriangle2D(const FVector2& Center, const FVector4& Color, float Size = 1.0f, float Rotation = 0.0f) const;
@@ -493,6 +507,8 @@ public:
 	FORCEINLINE TSharedPtr<FRenderTarget2D> GetBindedRenderTarget() const { return BindedRenderTarget; }
 	FORCEINLINE TSharedPtr<FDepthStencil> GetBindedDepthStencil() const { return BindedDepthStencil; }
 
+	mutable uint64 DrawCallCount = 0;
+	uint64 GetDrawCallCount() const { return DrawCallCount; }
 private:
 	void CreateDeviceAndSwapChain(HWND hWindow);
 	void ReleaseDeviceAndSwapChain();
@@ -532,6 +548,7 @@ private:
 	TSharedPtr<FRenderPipeline> WorldAxisPipeline;
 	TSharedPtr<FRenderPipeline> WorldGridPipeline;
 	TSharedPtr<FRenderPipeline> QuadPipeline;
+	TSharedPtr<FRenderPipeline> Quad2DPipeline;
 
 	UINT Width, Height;
     FLOAT ClearColor[4] = { 0.025f, 0.025f, 0.025f, 1.0f };

@@ -34,7 +34,7 @@
 #include "UStaticMeshComponent.h"
 #include "LaunchEngineLoop.h"
 #include "FAssetManager.h"
-#include "FLogManager.h"
+#include "FTextBuilder.h"
 
 FSceneManager::FSceneManager()
 {
@@ -358,7 +358,7 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 		ImGui::PopStyleVar(2);
 
 		ConsoleWindow& console = ConsoleWindow::Get();
-		if (console.bShowStatFPS || console.bShowStatMemory)
+		if (console.bShowStatFPS || console.bShowStatMemory || console.bShowStatRender)
 		{
 			// Viewport 창 안쪽 좌상단에 붙는 입력을 받지 않는 오버레이 창
 			ImGui::SetNextWindowPos(ImVec2(mViewportX + 12.0f, mViewportY + 12.0f), ImGuiCond_Always);
@@ -375,20 +375,65 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 			ImGui::Begin("##StatOverlay", nullptr, overlayFlags);
 			if (console.bShowStatFPS)
 			{
-				ImGui::TextColored(ImVec4(0.35f, 1.0f, 0.35f, 1.0f), "FPS: %.1f", guiReference.FrameTimer->GetFPS());
+				if (console.bShowStatMemory || console.bShowStatRender)
+				{
+					ImGui::Separator();
+				}
+
+				ImGui::TextColored(ImVec4(0.35f, 1.0f, 0.35f, 1.0f), "FPS");
+				ImGui::Text("FPS: %.1f", guiReference.FrameTimer->GetFPS());
 				ImGui::Text("Frame: %.2f ms", guiReference.FrameTimer->GetDeltaTime() * 1000.0f);
 			}
 
 			if (console.bShowStatMemory)
 			{
-				if (console.bShowStatFPS)
+				if (console.bShowStatFPS || console.bShowStatRender)
 				{
 					ImGui::Separator();
 				}
 
 				ImGui::TextColored(ImVec4(0.35f, 0.8f, 1.0f, 1.0f), "Memory");
-				ImGui::Text("Allocations: %d", UEngineStatics::sTotalAllocationCount);
-				ImGui::Text("Allocated: %d bytes", UEngineStatics::sTotalAllocationBytes);
+				ImGui::Text("Total allocated memory count: %d", UEngineStatics::sTotalAllocationCount);
+				ImGui::Text("Total allocated memory size: %d bytes", UEngineStatics::sTotalAllocationBytes);
+
+				const FAssetStats Stats = guiReference.AssetManager->GetStats();
+
+				ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.35f, 1.0f), "Assets");
+				ImGui::Text("Registered: %u", Stats.RegisteredCount);
+				ImGui::Text("Loaded: %u", Stats.LoadedCount);
+
+				ImGui::Text("Registered Static Mesh: %u", Stats.RegisteredStaticMesh);
+				ImGui::Text("Loaded Static Mesh: %u", Stats.LoadedStaticMesh);
+				ImGui::Text("Registered Static Texture 2D: %u", Stats.RegisteredTexture2D);
+				ImGui::Text("Loaded Static Texture 2D: %u", Stats.LoadedTexture2D);
+				ImGui::Text("Registered Static Material: %u", Stats.RegisteredMaterial);
+				ImGui::Text("Loaded Static Material: %u", Stats.LoadedMaterial);
+			}
+
+			if (console.bShowStatRender)
+			{
+				if (console.bShowStatFPS || console.bShowStatMemory)
+				{
+					ImGui::Separator();
+				}
+				ImGui::TextColored(ImVec4(0.35f, 0.8f, 0.5f, 1.0f), "Render");
+				ImGui::Text("Draw Calls: %u", guiReference.GraphicsManager->GetRenderer()->GetDrawCallCount());
+
+				ImGui::Text("GPU Render: %.3f ms", guiReference.GraphicsManager->GetGpuRenderTime());
+
+				UINT PrimitiveCount = 0;
+				for (TObjectIterator<UPrimitiveComponent> It(true); It; ++It)
+				{
+					++PrimitiveCount;
+				}
+				ImGui::Text("Primitives: %u", PrimitiveCount);
+
+				UINT SpotLightCount = 0;
+				for (TObjectIterator<USpotLightComponent> It(false); It; ++It)
+				{
+					++SpotLightCount;
+				}
+				ImGui::Text("Spot Lights: %u", SpotLightCount);
 			}
 			ImGui::End();
 		}
@@ -422,7 +467,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	mPanelWidth = ImGui::GetWindowWidth();
 
 	ImGui::Text("Hello Jungle World!");
-	ImGui::Text("FPS: %.1f  dt: %.4f", guiReference.FrameTimer->GetFPS(), guiReference.FrameTimer->GetDeltaTime());
 
 	/* Spawn Actor */
 	// NOTE: This name array must be edited when adding new primitive types to EPrimitive enum.
@@ -717,12 +761,6 @@ void FSceneManager::updateControlPanelGUI(const FGuiReference& guiReference)
 	ImGui::SameLine();
 	ImGui::SetNextItemWidth(itemWidth);
 	ImGui::DragFloat("##CamRotZ", &camera.Transform.Rotation.Yaw, 0.1f, 180.0f);
-
-	/* Memory Info */
-	ImGui::SeparatorText("Memory Info");
-
-	ImGui::Text("Total allocated memory count: %d", UEngineStatics::sTotalAllocationCount);
-	ImGui::Text("Total allocated memory size: %d bytes", UEngineStatics::sTotalAllocationBytes);
 
 	/* Gizmo Control */
 	ImGui::SeparatorText("Gizmo Control");
