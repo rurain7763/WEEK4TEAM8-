@@ -281,4 +281,5 @@ editor.ini
 *.vcxproj.filters
 
 !Assets/**
-!Vendor/lib/**
+!BuiltInAssets/**
+!Vendor/lib/**!BuiltInAssets/**
