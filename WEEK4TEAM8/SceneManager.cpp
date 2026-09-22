@@ -85,12 +85,18 @@ void FSceneManager::OnDeleteAssetFile(const std::filesystem::path& FilePath)
 {
 	FAssetManager& AssetManager = FAssetManager::Get();
 
-	std::string CanonicalPath = std::filesystem::weakly_canonical(FilePath).string();
+	std::string CanonicalPath = FilePath.lexically_normal().generic_string();
 	AssetManager.UnregisterAsset(FName(CanonicalPath.c_str()));
 }
 
 void FSceneManager::RefreshContentBrowser(const std::filesystem::path& TargetDirectory)
 {
+	if (!std::filesystem::exists(TargetDirectory) || !std::filesystem::is_directory(TargetDirectory))
+	{
+		UE_LOG_WARN("Current directory not found: '%s', Reverting to RootDirectory.", TargetDirectory);
+		return;
+	}
+
 	FAssetManager& AssetManager = FAssetManager::Get();
 
 	AssetManager.PurgeStaleAssetsInDirectory(TargetDirectory);
@@ -285,6 +291,8 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 				float HorizontalRatio, VerticalRatio;
 				guiReference.EditorLayout->GetSplitRatios(HorizontalRatio, VerticalRatio);
 
+				bool bOnSplitBarCursor = false;
+
 				const float SplitThickness = 1.0f;
 				const float SplitHandleThickness = 8.0f;
 
@@ -293,6 +301,11 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 				ImGui::SetCursorScreenPos(ImVec2(SplitX - SplitHandleThickness * 0.5f, mViewportY));
 				ImGui::InvisibleButton("##SplitVertical", ImVec2(SplitHandleThickness, mViewportHeight));
+
+				if (ImGui::IsItemHovered())
+				{
+					bOnSplitBarCursor = true;
+				}
 				if (ImGui::IsItemActive())
 				{
 					VerticalRatio = (IO.MousePos.x - mViewportX) / mViewportWidth;
@@ -301,6 +314,10 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 				ImGui::SetCursorScreenPos(ImVec2(mViewportX, SplitY - SplitHandleThickness * 0.5f));
 				ImGui::InvisibleButton("##SplitHorizontal", ImVec2(mViewportWidth, SplitHandleThickness));
+				if (ImGui::IsItemHovered())
+				{
+					bOnSplitBarCursor = true;
+				}
 				if (ImGui::IsItemActive())
 				{
 					HorizontalRatio = (IO.MousePos.y - mViewportY) / mViewportHeight;
@@ -314,6 +331,10 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 				DrawList->AddLine(ImVec2(mViewportX, SplitY), ImVec2(mViewportX + mViewportWidth, SplitY), ImColor(0.8f, 0.8f, 0.8f, 1.0f), SplitThickness);
 
 				guiReference.EditorLayout->SetSplitRatios(HorizontalRatio, VerticalRatio);
+				if (bOnSplitBarCursor)
+					GEngineLoop.SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+				else
+					GEngineLoop.SetMouseCursor(ImGuiMouseCursor_Arrow);
 			}
 		}
 		ImGui::End();
@@ -1002,29 +1023,20 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 
 				if (ImGui::BeginDragDropTarget())
 				{
-					if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload(AssetPayloadTags::StaticMesh))
+					if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("ASSET_GUID"))
 					{
-						const char* DroppedPathCStr = static_cast<const char*>(Payload->Data);
-						std::filesystem::path DroppedPath(DroppedPathCStr);
+						const FGuid* DataGuid = static_cast<const FGuid*>(Payload->Data);
 
-						std::string CanonicalKey = std::filesystem::weakly_canonical(DroppedPath).string();
-						FName AssetKey(CanonicalKey.c_str());
-
-						TSharedPtr<FStaticMeshAsset> MatchedMeshAsset = guiReference.AssetManager->GetAssetAs<FStaticMeshAsset>(AssetKey, true);
-
-						if (!MatchedMeshAsset)
-						{
-							MatchedMeshAsset = guiReference.AssetManager->GetAssetAs<FStaticMeshAsset>(FName(DroppedPath.string().c_str()), true);
-						}
+						TSharedPtr<FStaticMeshAsset> MatchedMeshAsset = guiReference.AssetManager->GetAssetAs<FStaticMeshAsset>(*DataGuid, true);
 
 						if (MatchedMeshAsset != nullptr)
 						{ 
 							StaticMeshComponent->SetMesh(MatchedMeshAsset);
-							UE_LOG("Success: StaticMesh applied: %s", DroppedPathCStr);
+							UE_LOG("Success: StaticMesh applied: %s", MatchedMeshAsset->GetAssetName().ToString().c_str());
 						}
 						else
 						{
-							UE_LOG_ERROR("Failed to load StaticMesh asset: %s", DroppedPathCStr);
+							UE_LOG_ERROR("Failed to load StaticMesh Guid: %s", DataGuid->ToString().c_str());
 						}
 					}
 					ImGui::EndDragDropTarget();
@@ -1061,6 +1073,27 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 							if (isSelected) ImGui::SetItemDefaultFocus();
 						}
 						ImGui::EndCombo();
+					}
+
+					if (ImGui::BeginDragDropTarget())
+					{
+						if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("ASSET_GUID"))
+						{
+							const FGuid* DataGuid = static_cast<const FGuid*>(Payload->Data);
+
+							TSharedPtr<FMaterialAsset> MatchedMaterialAsset = guiReference.AssetManager->GetAssetAs<FMaterialAsset>(*DataGuid, true);
+
+							if (MatchedMaterialAsset != nullptr)
+							{
+								StaticMeshComponent->SetMaterial(i, MatchedMaterialAsset);
+								UE_LOG("Success: StaticMesh applied: %s", MatchedMaterialAsset->GetAssetName().ToString().c_str());
+							}
+							else
+							{
+								UE_LOG_ERROR("Failed to load StaticMesh Guid: %s", DataGuid->ToString().c_str());
+							}
+						}
+						ImGui::EndDragDropTarget();
 					}
 
 					FVector2 UVOffset = StaticMeshComponent->GetUVOffset(i);

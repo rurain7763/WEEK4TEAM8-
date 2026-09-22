@@ -20,7 +20,7 @@ bool FMaterialImporter::Import(const FObjMaterialInfo& MaterialInfo, const std::
         {
             // 1차 검색 : Textures 폴더에서 찾기
            // std::filesystem::path TexturePath = InPath.parent_path() / "Textures" / MaterialInfo.DiffuseTexturePath.CStr();
-            const std::filesystem::path TexturePath = std::filesystem::weakly_canonical(InPath / MaterialInfo.DiffuseTexturePath.CStr());
+            const std::filesystem::path TexturePath = (InPath / MaterialInfo.DiffuseTexturePath.CStr()).lexically_normal().generic_string();
 
             // InPath는 원본 OBJ의 폴더
             // 텍스처 원본은 여기서 읽고, uasset은 Material과 같은 프로젝트 Assets 폴더에 저장

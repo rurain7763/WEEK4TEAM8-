@@ -66,7 +66,16 @@ void FContentBrowser::RenderDrawer(const float BottomBarHeight)
 	// 프로그램 외부에서 .uasset을 수정/삭제한 경우 파일 캐쉬 갱신
 	if (bFoucusGained)
 	{
+		std::error_code ec;
+
 		EventHandler->RefreshContentBrowser(CurrentDirectory);
+
+		if (!std::filesystem::exists(CurrentDirectory, ec) || !std::filesystem::is_directory(CurrentDirectory))
+		{
+			UE_LOG_WARN("Current directory not found: '%s', Reverting to RootDirectory.", CurrentDirectory);
+			CurrentDirectory = CurrentDirectory.parent_path();
+			RefreshCache();
+		}
 	}
 
 	const ImGuiViewport* Viewport = ImGui::GetMainViewport();
@@ -273,7 +282,7 @@ void FContentBrowser::RenderDrawer(const float BottomBarHeight)
 							bool bDrawn = false;
 							if (AssetManager)
 							{
-								std::string CanonicalKey = std::filesystem::weakly_canonical(Path).string();
+								std::string CanonicalKey = Path.lexically_normal().generic_string();
 								FName AssetKey(CanonicalKey.c_str());
 
 								TSharedPtr<FTexture2DAsset> TextureAsset = AssetManager->GetAssetAs<FTexture2DAsset>(FName(AssetKey), true);
@@ -309,17 +318,27 @@ void FContentBrowser::RenderDrawer(const float BottomBarHeight)
 
 					if (!bIsDirectory && ImGui::BeginDragDropSource())
 					{
-						std::string FullPath = Path.string();
+						/*std::string FullPath = Path.string();
+						std::filesystem::path Test = std::filesystem::weakly_canonical(Path);*/
+						std::string FullPath = Path.lexically_normal().generic_string();
+
+						const auto& MetaInfo = FAssetManager::Get().GetMetaInfo(FName(FullPath));
 
 						if (AssetType == EAssetType::StaticMesh)
 						{
-							ImGui::SetDragDropPayload(AssetPayloadTags::StaticMesh, FullPath.c_str(), (FullPath.length() + 1) * sizeof(char));
+							//ImGui::SetDragDropPayload(AssetPayloadTags::StaticMesh, FullPath.c_str(), (FullPath.length() + 1) * sizeof(char));
+							ImGui::SetDragDropPayload("ASSET_GUID", &MetaInfo.AssetID, sizeof(FGuid));
 							ImGui::Text("Mesh: %s", DisplayName.c_str());
 						}
 						else if (AssetType == EAssetType::Texture2D)
 						{
-							ImGui::SetDragDropPayload(AssetPayloadTags::Texture2D, FullPath.c_str(), (FullPath.length() + 1) * sizeof(char));
+							ImGui::SetDragDropPayload("ASSET_GUID", &MetaInfo.AssetID, sizeof(FGuid));
 							ImGui::Text("Texture2D: %s", DisplayName.c_str());
+						}
+						else if (AssetType == EAssetType::Material)
+						{
+							ImGui::SetDragDropPayload("ASSET_GUID", &MetaInfo.AssetID, sizeof(FGuid));
+							ImGui::Text("Material: %s", DisplayName.c_str());
 						}
 
 						ImGui::EndDragDropSource();
@@ -463,6 +482,19 @@ void FContentBrowser::RefreshCache()
 {
 	CachedItems.Empty();
 
+	std::error_code ec;
+
+	if (!std::filesystem::exists(CurrentDirectory, ec) || !std::filesystem::is_directory(CurrentDirectory))
+	{
+		UE_LOG_WARN("Current directory not found: '%s', Reverting to RootDirectory.", CurrentDirectory);
+		CurrentDirectory = RootDirectory;
+
+		if (!std::filesystem::exists(RootDirectory, ec))
+		{
+			std::filesystem::create_directories(RootDirectory, ec);
+		}
+	}
+
 	try
 	{
 		for (const auto& Entry : std::filesystem::directory_iterator(CurrentDirectory))
@@ -498,5 +530,8 @@ void FContentBrowser::RefreshCache()
 			CachedItems.Add(Item);
 		}
 	}
-	catch (...) {}
+	catch (const std::exception& e)
+	{
+		UE_LOG_ERROR("Failed to iterate directory: %s", e.what());
+	}
 }

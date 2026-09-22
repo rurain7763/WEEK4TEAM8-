@@ -126,7 +126,7 @@ void FAssetManager::PurgeStaleAssetsInDirectory(const std::filesystem::path& Dir
 {
 	TArray<FName> StaleAssetKeys;
 
-	std::filesystem::path CanonicalDir = std::filesystem::weakly_canonical(Directory);
+	std::filesystem::path LexDir = Directory.lexically_normal().generic_string();
 
 	ForEachMetaInfo([&](const FAssetMetaInfo& MetaInfo)
 		{
@@ -135,11 +135,11 @@ void FAssetManager::PurgeStaleAssetsInDirectory(const std::filesystem::path& Dir
 				std::filesystem::path FilePath(MetaInfo.AssetName.ToString().c_str());
 
 				std::error_code ec;
-				std::filesystem::path CanonicalFilePath = std::filesystem::weakly_canonical(FilePath, ec);
+				std::filesystem::path CanonicalFilePath = FilePath.lexically_normal().generic_string();
 
 				if (ec) return;
 				
-				auto Relative = std::filesystem::relative(CanonicalFilePath, CanonicalDir, ec);
+				auto Relative = std::filesystem::relative(CanonicalFilePath, LexDir, ec);
 				if (!ec && !Relative.empty() && Relative.native()[0] != '.')
 				{
 					if (!std::filesystem::exists(CanonicalFilePath))
@@ -167,7 +167,9 @@ void FAssetManager::ScanDirectory(const std::filesystem::path& RootDir, URendere
 		if (Entry.is_directory() || Entry.path().extension() != ".uasset") continue;
 
 		// 이름 중복 해결을 위해 전체 경로
-		FName AssetName(std::filesystem::weakly_canonical(Entry.path()).string());
+		//FName AssetName(std::filesystem::weakly_canonical(Entry.path()).string());
+		FString tmp = Entry.path().lexically_normal().generic_string();
+		FName AssetName(tmp);
 		FAssetFileHeader Header;
 		
 		try

@@ -110,6 +110,8 @@ public:
 	FEditorViewport& GetMainViewport() { return mViewports[MainViewportIndex]; }
 	const FEditorViewport GetMainViewport() const { return mViewports[MainViewportIndex]; }
 
+	void SetMouseCursor(ImGuiMouseCursor InMouseCursor) { mMouseCursor = InMouseCursor; }
+
 private:
 	void InitAssetManager();
 	
@@ -120,6 +122,8 @@ private:
 	// Todo: Make as pointer
 	FFrameTimer* FrameTimer;
 	bool GInTick = false;
+
+	ImGuiMouseCursor mMouseCursor = ImGuiMouseCursor_Arrow;
 
 	FEditorLayout mEditorLayout;
 	FEditorViewport mViewports[4]; // 0 : MainView 1, 2, 3 : Other

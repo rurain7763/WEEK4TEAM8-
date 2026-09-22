@@ -281,8 +281,7 @@ bool FObjViewer::BuildRuntimeMaterials(const std::filesystem::path& ObjPath,
 		if (Material.DiffuseTexturePath.Len() != 0)
 		{
 			const std::filesystem::path TexturePath =
-				std::filesystem::weakly_canonical(
-					ObjDirectory / Material.DiffuseTexturePath.CStr());
+				(ObjDirectory / Material.DiffuseTexturePath.CStr()).lexically_normal().generic_string();
 
 			const FName TextureAssetName(TexturePath.string());
 

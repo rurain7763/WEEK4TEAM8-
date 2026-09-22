@@ -29,6 +29,11 @@ struct FGuid
 	{
 		return !(*this == Other);
 	}
+
+	FString ToString() const
+	{
+		return std::format("%d-%d-%d-%d", A, B, C, D);
+	}
 	
 	static FGuid NewGuid();
 };

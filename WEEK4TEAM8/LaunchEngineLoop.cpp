@@ -172,7 +172,7 @@ void FEngineLoop::InitAssetManager()
 	// mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("ExplosionTexture"), TextureLoader, ExplosionTextureSource);
 	#endif
 
-	FName ExplosionTextureName(std::filesystem::weakly_canonical("Assets/Textures/ExplosionAtlas.uasset").string());
+	FName ExplosionTextureName(FName("Assets/Textures/ExplosionAtlas.uasset"));
 	TSharedPtr<FTexture2DAsset> ExplosionTexture2DAsset = mAssetManager->GetAssetAs<FTexture2DAsset>(ExplosionTextureName, true);
 
 	TSharedPtr<FSpriteAtlasAsset> ExplosionSpriteAtlasAsset = MakeShared<FSpriteAtlasAsset>(FGuid::NewGuid(), FName("ExplosionSpriteAtlas"), *renderer, ExplosionTexture2DAsset, 6, 6);
@@ -356,10 +356,11 @@ void FEngineLoop::Tick(bool bPumpMessages)
 	}
 
 	mSceneManager->UpdateGUI(GuiReference);
-
 #if IS_OBJ_VIEWER
 	mObjViewer.UpdateObjGUI(*mGraphicsManager);
 #endif
+	// 나중에 Ui 매니저에서 관리하도록 분리 필요
+	ImGui::SetMouseCursor(mMouseCursor);
 
 	FRect ViewportRect;
 	ViewportRect.X = mSceneManager->GetViewportX();

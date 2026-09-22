@@ -91,6 +91,26 @@ public:
 	FAssetStats GetStats() const { return CachedStats; }
 	void RebuildStats();
 
+	inline const FAssetMetaInfo& GetMetaInfo(const FGuid& InGuid)
+	{
+		if (!AssetMetaInfos.Contains(InGuid))
+		{
+			throw std::runtime_error("No invalid guid");
+		}
+
+		return AssetMetaInfos[InGuid];
+	}
+
+	inline const FAssetMetaInfo& GetMetaInfo(const FName& InName)
+	{
+		if (!NameToAssetID.Contains(InName))
+		{
+			throw std::runtime_error("No invalid name");
+		}
+
+		return GetMetaInfo(NameToAssetID[InName]);
+	}
+
 private:
 	TMap<FName, FGuid> NameToAssetID;
 	TMap<FGuid, FAssetMetaInfo> AssetMetaInfos;
