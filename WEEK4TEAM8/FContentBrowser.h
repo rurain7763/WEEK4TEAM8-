@@ -58,6 +58,8 @@ public:
 
 	void RefreshContentBrowser(const std::filesystem::path& TargetDirectory);
 	const std::filesystem::path GetCurrentDirectory() const { return CurrentDirectory; }
+
+	const float GetDrawerHeight() { return DrawerHeight; }
 private:
 	void RenderDrawer(const float BottomBarHeight);
 	void RenderFolderNode(const std::filesystem::path& DirectoryPath);
