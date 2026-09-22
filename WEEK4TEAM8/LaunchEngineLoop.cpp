@@ -262,7 +262,10 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		// 그대로 두면 씬을 클릭해도 선택이 되지 않는다. 카메라/기즈모와 같은 기준을 쓴다.
 		const FInputState& Input = WindowApplication.Input;
 
-		if (CurrentViewport->Client->IsActive() && Input.WasPressed(VK_LBUTTON) && !CurrentViewport->Client->mGizmo.IsDragging() && !CurrentViewport->Client->mGizmo.IsMouseOverHandle())
+		// 드래그 중 마우스 피킹이 실행되어 선택된 액터가 풀리는 것 방지
+		bool bIsAssetDragging = (ImGui::GetDragDropPayload != nullptr);
+
+		if (CurrentViewport->Client->IsActive() && Input.WasPressed(VK_LBUTTON) && !CurrentViewport->Client->mGizmo.IsDragging() && !CurrentViewport->Client->mGizmo.IsMouseOverHandle() && bIsAssetDragging)
 		{
 			AActor* HitActor = CurrentViewport->Client->PerformMousePicking(CurrentViewport->Window->Rect, CurrentRatio, RenderCollector);
 			if (HitActor)

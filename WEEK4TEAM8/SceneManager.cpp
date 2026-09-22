@@ -139,9 +139,6 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 			// 왼쪽 패널 2%
 			ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.2f, &left, &center);
 
-			// 나머지 영역 아래쪽에 콘솔 30%
-			//ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.3f, &bottom, &center);
-
 			ImGuiID leftTop;
 			ImGuiID leftRest;
 			ImGui::DockBuilderSplitNode(left, ImGuiDir_Up, 0.4f, &leftTop, &leftRest);
@@ -151,7 +148,6 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 			ImGui::DockBuilderSplitNode(leftRest, ImGuiDir_Up, 0.5f, &leftMiddle, &leftBottom);
 
 			ImGui::DockBuilderDockWindow("Viewport", center);
-			//ImGui::DockBuilderDockWindow("Console Window", bottom);
 			ImGui::DockBuilderDockWindow("Jungle Control Panel", leftTop);
 			ImGui::DockBuilderDockWindow("Jungle Property Window", leftMiddle);
 			ImGui::DockBuilderDockWindow("Object List Panel", leftBottom);
@@ -180,6 +176,12 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 			ImGuiIO& IO = ImGui::GetIO();
 
+			const ImGuiViewport* MainVP = ImGui::GetMainViewport();
+
+			const float DrawerBoundary = MainVP->WorkPos.y + MainVP->WorkSize.y - mContentBrowser.GetDrawerHeight() - mBottomBarHeight;
+
+			bool bIsMouseOnDrawerBoundary = (IO.MousePos.y >= DrawerBoundary) && mContentBrowser.IsDrawerOpen();
+
 			for (int32 i = 0; i < guiReference.ViewportCount; ++i)
 			{
 				const int32 CurrentViewportIndex = guiReference.EditorLayout->bIsSplitView ? i : guiReference.EditorLayout->MaximizedViewportIndex;
@@ -193,7 +195,8 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 					bool bHovered = ImGui::IsMouseHoveringRect(ImVec2(DrawRect.X, DrawRect.Y), 
 									ImVec2(DrawRect.X + DrawRect.Width, DrawRect.Y + DrawRect.Height))
-								&& !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);		// 팝업창, 콤보 드롭다운 등 열리면 false
+								&& !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId)		// 팝업창, 콤보 드롭다운 등 열리면 false
+								&& !bIsMouseOnDrawerBoundary;								// 콘텐츠 브라우저 영역에서 피킹 X
 					EditorViewport->Client->SetActive(bHovered);
 
 					const TSharedPtr<FRenderTarget2D>& RenderTarget = EditorViewport->Viewport->RenderTarget;
