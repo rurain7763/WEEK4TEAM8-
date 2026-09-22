@@ -69,16 +69,6 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 			mViewerActor->SetScale(FVector(1.0f, 1.0f, 1.0f));
 		}
 
-
-		ImGui::SeparatorText("Appearance");
-
-		FVector4 Color = mViewerComponent->GetColor();
-
-		if (ImGui::ColorEdit4("Color", &Color.x))
-		{
-			mViewerComponent->SetColor(Color);
-		}
-
 		ImGui::SeparatorText("Actions");
 		if (ImGui::Button("Clear View") && mViewerActor)
 		{
@@ -154,14 +144,6 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 	if (ImGui::Checkbox("Grid", &bGrid))
 	{
 		FShowFlags::Get().SetEnabled(EShowFlag::Grid, bGrid);
-	}
-
-	const char* viewModes[] = { "Lit", "Unlit", "Wireframe" };
-	int viewMode = static_cast<int>(InGraphicsManager.GetViewModeIndex());
-
-	if (ImGui::Combo("View Mode", &viewMode, viewModes, IM_ARRAYSIZE(viewModes)))
-	{
-		InGraphicsManager.SetViewModeIndex(static_cast<EViewModeIndex>(viewMode));
 	}
 
 	if (mViewerActor)
