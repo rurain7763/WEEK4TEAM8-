@@ -409,6 +409,8 @@ void FGraphicsManager::EndGpuRenderTimer()
 	QuerySet.bIssued = true;
 
 	GpuQueryIndex = (GpuQueryIndex + 1) % GpuQueries.Num();
+
+	bGpuTimerActive = false;
 }
 
 void FGraphicsManager::UpdateGpuRenderTime()

@@ -20,14 +20,17 @@ bool FMaterialImporter::Import(const FObjMaterialInfo& MaterialInfo, const std::
         {
             // 1차 검색 : Textures 폴더에서 찾기
            // std::filesystem::path TexturePath = InPath.parent_path() / "Textures" / MaterialInfo.DiffuseTexturePath.CStr();
-            std::filesystem::path TexturePath = std::filesystem::weakly_canonical(InPath / MaterialInfo.DiffuseTexturePath.CStr());
-            std::optional<std::filesystem::path> TextureUAssetPath = FTexture2DImporter::GetorImport(TexturePath);
+            const std::filesystem::path TexturePath = std::filesystem::weakly_canonical(InPath / MaterialInfo.DiffuseTexturePath.CStr());
+
+            // InPath는 원본 OBJ의 폴더
+            // 텍스처 원본은 여기서 읽고, uasset은 Material과 같은 프로젝트 Assets 폴더에 저장
+            std::optional<std::filesystem::path> TextureUAssetPath = FTexture2DImporter::GetorImport(TexturePath, OutPath.parent_path());
             
             // 2차 검색 : mtl과 같은 폴더 (Mashes)에서 찾기
             if (!TextureUAssetPath)
             {
-                std::filesystem::path FallPath = InPath / MaterialInfo.DiffuseTexturePath.CStr();
-                TextureUAssetPath = FTexture2DImporter::GetorImport(FallPath);
+                const std::filesystem::path FallPath = InPath / MaterialInfo.DiffuseTexturePath.CStr();
+                TextureUAssetPath = FTexture2DImporter::GetorImport(FallPath, OutPath.parent_path());
                 
             }
             

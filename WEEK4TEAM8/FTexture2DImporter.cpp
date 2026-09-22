@@ -57,3 +57,20 @@ std::optional<std::filesystem::path> FTexture2DImporter::GetorImport(const std::
     else
         return std::nullopt;
 }
+
+std::optional<std::filesystem::path> FTexture2DImporter::GetorImport(
+    const std::filesystem::path& InPath,
+    const std::filesystem::path& OutDirectory)
+{
+    std::filesystem::path CheckPath = OutDirectory / InPath.filename();
+    CheckPath.replace_extension(".uasset");
+
+    if (std::filesystem::exists(CheckPath))
+        return CheckPath;
+
+    FAssetFileHeader OutHeader;
+    if (Import(InPath, CheckPath, OutHeader))
+        return CheckPath;
+
+    return std::nullopt;
+}
