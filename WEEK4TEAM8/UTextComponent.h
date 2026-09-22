@@ -218,10 +218,7 @@ public:
 		Super::CreateEditorComponents();
 
 		UPlaneComponent* PlaneComponent = FObjectFactory::ConstructObject<UPlaneComponent>(FVector(0, 0, 1), FRotator(0, 0, 0), FVector(1, 1, 1));
-		
-		FName SpotLightIconName(FName("Assets/Textures/Icon_SpotLight.uasset"));
-		PlaneComponent->SetTexture(FAssetManager::Get().GetAssetAs<FTexture2DAsset>(SpotLightIconName, true));
-
+		PlaneComponent->SetTexture(FAssetManager::Get().GetAssetAs<FTexture2DAsset>(BuiltInAssetID::SpotLightIcon, true));
 		PlaneComponent->SetBillboard(true);
 		PlaneComponent->SetBlendState(ERenderBlendMode::Transparent);
 		PlaneComponent->SetBillboard(true);
@@ -265,6 +262,13 @@ public:
 		}
 	}
 
+	void Tick(float DeltaTime) override
+	{
+		// NOTE: Text3DComponent의 위치와 회전을 부모 액터에 맞춘다. 현재 Hierarchy 매트릭스 구현이 없으므로 부모 액터의 위치와 회전만 가져와서 적용한다.
+		FTransform ParentTransform = mOwner->GetTransform();
+		SetRelativeLocation(ParentTransform.Location + FVector(0.f, 0.f, 1.f));
+	}
+
 	void Render(FRenderCollector& RenderCollector) override
 	{
 		// Show Flags에서 끄면 쿼드를 아예 만들지 않는다.
@@ -291,33 +295,24 @@ public:
 		float TotalHeight = 0.0f;
 		TextBuilder.CalculateSize(mText, TotalWidth, TotalHeight);
 
-		// Append the text quads to the output array
 		const FTransform OwnerTransform = mOwner->GetTransform();
 		FTransform PivotTransform = GetTransformMatrix();
 
-		UPrimitiveComponent* Primitive =
-			mOwner->GetRootComponent()->Cast<UPrimitiveComponent>();
-
+		UPrimitiveComponent* Primitive = mOwner->GetRootComponent()->Cast<UPrimitiveComponent>();
 		if (Primitive)
 		{
 			const FAABB Bounds = Primitive->GetBoundingBox();
 
 			PivotTransform.Location = FVector(
-				(Bounds.Min.x + Bounds.Max.x) * 0.5f,
-				(Bounds.Min.y + Bounds.Max.y) * 0.5f,
+				PivotTransform.Location.x,
+				PivotTransform.Location.y,
 				Bounds.Max.z + 0.2f
 			);
 		}
-		else
-		{
-			PivotTransform.Location = mOwner->GetTransform().Location + FVector(0.f, 0.f, 1.f);
-		}
 
-		//PivotTransform.Location = OwnerTransform.Location;
 		if (mbBillboard && RenderCollector.Camera)
 		{
 			PivotTransform.Rotation = RenderCollector.Camera->Transform.Rotation;
-			//PivotTransform.Location += RenderCollector.Camera->GetUpVector();
 		}
 
 		const FMatrix PivotMatrix = PivotTransform.MakeMatrix();

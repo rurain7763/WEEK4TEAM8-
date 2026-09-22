@@ -71,11 +71,6 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 
 
 		ImGui::SeparatorText("Appearance");
-		bool bUseVertexColor = mViewerComponent->GetUseVertexColor();
-		if (ImGui::Checkbox("Use Vertex Color", &bUseVertexColor))
-		{
-			mViewerComponent->SetUseVertexColor(bUseVertexColor);
-		}
 
 		FVector4 Color = mViewerComponent->GetColor();
 
@@ -102,7 +97,7 @@ void FObjViewer::UpdateObjGUI(FGraphicsManager& InGraphicsManager)
 				if (FNativeFileDialog::SaveFileDialog(kDefaultOBJPath, { FFileFilter{ L"UAsset Files", L"*.uasset;" } }, L"", TargetPath))
 				{
 					if (FStaticMeshImporter::Export(std::filesystem::path(mLoadedFilePath.CStr()), TargetPath,
-						Header, mViewerActor->GetTransform(), mViewerComponent->GetColor(), mViewerComponent->GetUseVertexColor()))
+						Header, mViewerActor->GetTransform(), mViewerComponent->GetColor()))
 					{
 						FAssetManager::Get().ScanDirectory("Assets", *mRenderer);
 

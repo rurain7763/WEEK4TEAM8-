@@ -62,7 +62,7 @@ bool FStaticMeshImporter::Import(const std::filesystem::path& InPath, const std:
 }   
 
 bool FStaticMeshImporter::Export(const std::filesystem::path& InPath, const std::filesystem::path& OutPath, 
-    FAssetFileHeader& OutHead, const FTransform& Transform, const FVector4& OverrideColor, bool bUseVertexColor)
+    FAssetFileHeader& OutHead, const FTransform& Transform, const FVector4& OverrideColor)
 {
     FStaticMeshPayload Payload;
     FStaticMeshBuildData BuildData;
@@ -85,11 +85,6 @@ bool FStaticMeshImporter::Export(const std::filesystem::path& InPath, const std:
         Vertex.Pos = BakeMatrix.TransformPosition(Vertex.Pos);
         Vertex.Normal = NormalMatrix.TransformVector(Vertex.Normal);
         Vertex.Normal.Normalize();
-
-        if (!bUseVertexColor)
-        {
-            Vertex.Color = OverrideColor;
-        }
     }
 
 
