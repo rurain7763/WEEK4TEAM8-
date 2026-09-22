@@ -19,8 +19,7 @@ public:
         const std::filesystem::path& OutPath,
         FAssetFileHeader& OutHead,
         const FTransform& Transform,
-        const FVector4& OverrideColor,
-        bool bUseVertexColor
+        const FVector4& OverrideColor
     );
 
     // .uasset 반환 or 변환 후 반환

@@ -27,10 +27,9 @@ struct FRenderInfo
 	uint32 IndexCount = 0;
 	TSharedPtr<FTexture2DAsset> Texture;
 	FVector2 UVOffset = { 0.f, 0.f };
-	EPrimitive ePrimitive;
 	FMatrix Model;
 	uint32 ObjectInternalIndex;
-	FVector4 Color;
+	FVector4 Color = { 1.f, 1.f, 1.f, 1.f };
 	bool UseVertexColor = true;
 };
 

@@ -156,27 +156,19 @@ void FEngineLoop::InitAssetManager()
 
 	// ScanDirectory로 파일 자동 스캔하여 uasset 등록하므로 아래 줄과 중복되어 삭제해도 되나,
 	// 참고하고 있는 곳이 있어서 ScanDirectory와 동일한 파일명 규칙으로 수정해 둠.
-
 	TSharedPtr<FFileAssetSource> SpotLightIconAssetSource = MakeShared<FFileAssetSource>("Assets/Textures/Icon_SpotLight.png");
-	mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("Icon_SpotLight"), TextureLoader, SpotLightIconAssetSource);
-	#if 0
-	// TSharedPtr<FFileAssetSource> FileAssetSource = MakeShared<FFileAssetSource>("Assets/Textures/Test.jpg");
-	// mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("TestTexture"), TextureLoader, FileAssetSource);
+	mAssetManager->RegisterAsset(BuiltInAssetID::SpotLightIcon, FName("Icon_SpotLight"), TextureLoader, SpotLightIconAssetSource);
 
-	TSharedPtr<FFileAssetSource> ExplosionTextureSource = MakeShared<FFileAssetSource>("Assets/Textures/ExplosionAtlas.png");
-	mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("ExplosionAtlas"), TextureLoader, ExplosionTextureSource);
-	// TSharedPtr<FFileAssetSource> SpotLightIconAssetSource = MakeShared<FFileAssetSource>("Assets/Textures/Icon_SpotLight.png");
-	// mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("SpotLightIcon"), TextureLoader, SpotLightIconAssetSource);
-
-	// TSharedPtr<FFileAssetSource> ExplosionTextureSource = MakeShared<FFileAssetSource>("Assets/Textures/ExplosionAtlas.png");
-	// mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("ExplosionTexture"), TextureLoader, ExplosionTextureSource);
-	#endif
-
-	FName ExplosionTextureName(std::filesystem::weakly_canonical("Assets/Textures/ExplosionAtlas.uasset").string());
-	TSharedPtr<FTexture2DAsset> ExplosionTexture2DAsset = mAssetManager->GetAssetAs<FTexture2DAsset>(ExplosionTextureName, true);
-
-	TSharedPtr<FSpriteAtlasAsset> ExplosionSpriteAtlasAsset = MakeShared<FSpriteAtlasAsset>(FGuid::NewGuid(), FName("ExplosionSpriteAtlas"), *renderer, ExplosionTexture2DAsset, 6, 6);
-	mAssetManager->RegisterAsset(ExplosionSpriteAtlasAsset);
+	{
+		// NOTE: 이 부분은 임시로 ExplosionSpriteAtlas를 고정 Guid로 등록하는 코드이므로, 후에 스프라이트 아틀라스 에셋을 만드는 기능이 나오면 제거해야할 코드임.
+		FName ExplosionTextureName(std::filesystem::weakly_canonical("Assets/Textures/ExplosionAtlas.uasset").string());
+		TSharedPtr<FTexture2DAsset> ExplosionTexture2DAsset = mAssetManager->GetAssetAs<FTexture2DAsset>(ExplosionTextureName, true);
+		if (ExplosionTexture2DAsset)
+		{
+			TSharedPtr<FSpriteAtlasAsset> ExplosionSpriteAtlasAsset = MakeShared<FSpriteAtlasAsset>(BuiltInAssetID::ExplosionSpriteAtlas, FName("ExplosionSpriteAtlas"), *renderer, ExplosionTexture2DAsset, 6, 6);
+			mAssetManager->RegisterAsset(ExplosionSpriteAtlasAsset);
+		}
+	}
 
 	TSharedPtr<FFileAssetSource> FontAssetSource = MakeShared<FFileAssetSource>("Assets/Fonts/BMKkubulimTTF.ttf");
 	mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("TestFont"), FontLoader, FontAssetSource);

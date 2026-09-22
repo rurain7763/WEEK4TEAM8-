@@ -63,12 +63,28 @@ void UStaticMeshComponent::DeserializeClass(const json::JSON& inJson)
 
 	for (int32 i = 0; i < MaterialAssetIDs.Num(); ++i)
 	{
+		if (i >= mMaterialAssets.Num())
+		{
+            break;
+		}
+
 		mMaterialAssets[i] = FAssetManager::Get().GetAssetAs<FMaterialAsset>(MaterialAssetIDs[i], true);
 	}
 
+	TArray<FVector2> UVOffsets;
 	if (PropertiesJson.hasKey("UVOffsets"))
 	{
-		JsonUtils::FromJson(PropertiesJson.at("UVOffsets"), mUVOffsets);
+		JsonUtils::FromJson(PropertiesJson.at("UVOffsets"), UVOffsets);
+	}
+
+	for (int32 i = 0; i < UVOffsets.Num(); ++i)
+	{
+		if (i >= mUVOffsets.Num())
+		{
+			break;
+		}
+
+		mUVOffsets[i] = UVOffsets[i];
 	}
 }
 
@@ -116,10 +132,9 @@ void UStaticMeshComponent::Render(FRenderCollector& RenderCollector)
         RenderInfo.IndexCount = Section.IndexCount;
         RenderInfo.Texture = SectionTexture;
         RenderInfo.UVOffset = mUVOffsets[SectionIndex];
-        RenderInfo.ePrimitive = EPrimitive::EP_StaticMesh;
         RenderInfo.Model = GetTransformMatrix().MakeMatrix();
-        RenderInfo.Color = bUseVertexColor ? MaterialColor : Color;
-        RenderInfo.UseVertexColor = bUseVertexColor;
+        RenderInfo.Color = Material ? MaterialColor : Color;
+        RenderInfo.UseVertexColor = Material == nullptr;
         RenderInfo.ObjectInternalIndex = mOwner->InternalIndex;
 
         RenderCollector.RenderInfos.Add(RenderInfo);
@@ -138,6 +153,14 @@ FAABB UStaticMeshComponent::GetBoundingBox() const
 
 void UStaticMeshComponent::SetMesh(const TSharedPtr<FStaticMeshAsset>& InMesh)
 {
+    if (!InMesh)
+    {
+		mMeshAsset = nullptr;
+		mMaterialAssets.Empty();
+		mUVOffsets.Empty();
+		return;
+    }
+
     const auto& Sections = InMesh->GetSections();
     mMaterialAssets.SetNum(Sections.Num());
     mUVOffsets.SetNum(Sections.Num());

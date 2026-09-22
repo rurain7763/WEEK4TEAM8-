@@ -49,8 +49,6 @@ public:
 	const TSharedPtr<FMaterialAsset>& GetMaterial(int32 index) const { return mMaterialAssets[index]; }
 	inline const TArray<TSharedPtr<FMaterialAsset>>& GetMaterials() const { return mMaterialAssets; }
 
-	void SetUseVertexColor(bool bInUseVertexColor) { bUseVertexColor = bInUseVertexColor; }
-	bool GetUseVertexColor() const { return bUseVertexColor; }
 	void SetColor(const FVector4& InColor) { Color = InColor; }
 	const FVector4& GetColor() const { return Color; }
 
@@ -63,7 +61,6 @@ public:
 	UStaticMesh* StaticMesh = nullptr;
 
 private:
-	bool bUseVertexColor = true;
 	FVector4 Color = FVector4(1.f, 1.f, 1.f, 1.f);
 	TSharedPtr<FStaticMeshAsset> mMeshAsset;
 	TArray<TSharedPtr<FMaterialAsset>> mMaterialAssets;
