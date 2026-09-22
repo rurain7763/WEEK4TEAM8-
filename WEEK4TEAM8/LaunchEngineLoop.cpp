@@ -246,6 +246,7 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		CurrentViewport->Client->Update(deltaTime, CurrentRatio, RenderCollector);
 
 		FMatrix ViewProjection = Camera.GetViewMatrix() * Camera.GetUnifiedProjectionMatrix(Camera.mOrthoDistance, CurrentRatio);
+		FMatrix InvViewProjection = Camera.GetInverseUnifiedProjectionMatrix(Camera.mOrthoDistance, CurrentRatio) * Camera.GetViewMatrix().AffineInverse();
 
 		mSceneManager->Render(deltaTime, RenderCollector);
 
@@ -310,7 +311,7 @@ void FEngineLoop::Tick(bool bPumpMessages)
 				}
 			}
 
-			CurrentViewport->Client->mGizmo.Tick(SelectedActor, CurrentViewport->Window->Rect, CurrentViewport->Client->IsActive(), ViewProjection);
+			CurrentViewport->Client->mGizmo.Tick(SelectedActor, CurrentViewport->Window->Rect, CurrentViewport->Client->IsActive(), InvViewProjection);
 		}
 
 		//Render Threads
