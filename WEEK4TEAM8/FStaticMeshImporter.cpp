@@ -34,7 +34,7 @@ bool FStaticMeshImporter::Import(const std::filesystem::path& InPath, const std:
     {
         for (FObjMaterialInfo Material : Payload.Materials)
         {
-            std::filesystem::path MaterialPath = OutPath.parent_path() / (OutPath.stem().string() + "_" + Material.Name.CStr() + ".uasset");
+            std::filesystem::path MaterialPath = OutPath.parent_path() / (OutPath.stem().string() + "_" + Material.Name.CStr() + "_material" + ".uasset");
             FAssetFileHeader MaterialHeader;
             FMaterialImporter::Import(Material, InPath.parent_path(), MaterialPath, MaterialHeader);
             
@@ -96,7 +96,7 @@ bool FStaticMeshImporter::Export(const std::filesystem::path& InPath, const std:
     {
         for (FObjMaterialInfo Material : Payload.Materials)
         {
-            std::filesystem::path MaterialPath = OutPath.parent_path() / (OutPath.stem().string() + "_" + Material.Name.CStr() + ".uasset");
+            std::filesystem::path MaterialPath = OutPath.parent_path() / (OutPath.stem().string() + "_" + Material.Name.CStr() + "_material" +".uasset");
             FAssetFileHeader MaterialHeader;
             FMaterialImporter::Import(Material, InPath.parent_path(), MaterialPath, MaterialHeader);
 

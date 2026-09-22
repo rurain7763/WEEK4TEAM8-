@@ -1007,10 +1007,16 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 						std::filesystem::path assetPath = std::filesystem::path(static_cast<std::string>(assetName)).stem();
 						FString simpleAssetName = assetPath.stem().string();
 
-						if (ImGui::Selectable(simpleAssetName.c_str(), isSelected))
+						FString UniqueLabel = simpleAssetName.ToString() + "##" + assetName.ToString();
+
+						if (ImGui::Selectable(UniqueLabel.c_str(), isSelected))
 						{
 							StaticMeshComponent->SetMesh(guiReference.AssetManager->GetAssetAs<FStaticMeshAsset>(FName(assetName), true));
 						}
+						if (ImGui::IsItemHovered())
+						{
+							ImGui::SetTooltip("%s", assetName.CStr());
+						}	
 
 						if (isSelected)
 						{
@@ -1064,12 +1070,21 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 							FString simpleMetaPath = metaPath.stem().string();
 
 							bool isSelected = (currentMaterialName == metaInfo.AssetName.ToString());
-							if (ImGui::Selectable(simpleMetaPath.CStr(), isSelected))
+							FString UniqueLabel = simpleMetaPath.ToString() + "##" + metaInfo.AssetID.ToString().ToString();
+
+							if (ImGui::Selectable(UniqueLabel.CStr(), isSelected))
 							{
 								TSharedPtr<FMaterialAsset> materialAsset =
 									guiReference.AssetManager->GetAssetAs<FMaterialAsset>(metaInfo.AssetID, true);
 								StaticMeshComponent->SetMaterial(i, materialAsset);
 							}
+
+							// 호버링 중에 전체 경로 툴팁 뜨도록
+							if (ImGui::IsItemHovered())
+							{
+								ImGui::SetTooltip("%s", metaInfo.AssetName.ToString().CStr());   
+							}
+
 							if (isSelected) ImGui::SetItemDefaultFocus();
 						}
 						ImGui::EndCombo();
