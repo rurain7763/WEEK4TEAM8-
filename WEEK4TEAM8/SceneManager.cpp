@@ -442,7 +442,7 @@ void FSceneManager::UpdateGUI(const FGuiReference& guiReference)
 
 #if IS_OBJ_VIEWER
 	ConsoleWindow::Get().Process(mBottomBarHeight);
-	mContentBrowser.Render();
+	mContentBrowser.Render(mBottomBarHeight);
 #else
 	updateControlPanelGUI(guiReference);
 	updatePropertyWindowGUI(guiReference);
