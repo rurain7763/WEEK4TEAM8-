@@ -155,8 +155,6 @@ void FEngineLoop::InitAssetManager()
 	TSharedPtr<FTexture2DAssetLoader> TextureLoader = MakeShared<FTexture2DAssetLoader>(*renderer);
 	TSharedPtr<FFontAssetLoader> FontLoader = MakeShared<FFontAssetLoader>(*mFontManager);
 
-	// ScanDirectory로 파일 자동 스캔하여 uasset 등록하므로 아래 줄과 중복되어 삭제해도 되나,
-	// 참고하고 있는 곳이 있어서 ScanDirectory와 동일한 파일명 규칙으로 수정해 둠.
 	{
 		// NOTE: 이 부분은 임시로 ExplosionSpriteAtlas를 고정 Guid로 등록하는 코드이므로, 후에 스프라이트 아틀라스 에셋을 만드는 기능이 나오면 제거해야할 코드임.
 		TSharedPtr<FTexture2DAsset> ExplosionTexture2DAsset = mAssetManager->GetAssetAs<FTexture2DAsset>(BuiltInAssetID::ExplosionTexture, true);
@@ -166,6 +164,9 @@ void FEngineLoop::InitAssetManager()
 			mAssetManager->RegisterAsset(ExplosionSpriteAtlasAsset);
 		}
 	}
+
+	// ScanDirectory로 파일 자동 스캔하여 uasset 등록하므로 아래 줄과 중복되어 삭제해도 되나,
+	// 참고하고 있는 곳이 있어서 ScanDirectory와 동일한 파일명 규칙으로 수정해 둠.
 
 	TSharedPtr<FFileAssetSource> FontAssetSource = MakeShared<FFileAssetSource>("Assets/Fonts/BMKkubulimTTF.ttf");
 	mAssetManager->RegisterAsset(FGuid::NewGuid(), FName("TestFont"), FontLoader, FontAssetSource);
@@ -245,6 +246,7 @@ void FEngineLoop::Tick(bool bPumpMessages)
 		CurrentViewport->Client->Update(deltaTime, CurrentRatio, RenderCollector);
 
 		FMatrix ViewProjection = Camera.GetViewMatrix() * Camera.GetUnifiedProjectionMatrix(Camera.mOrthoDistance, CurrentRatio);
+		FMatrix InvViewProjection = Camera.GetInverseUnifiedProjectionMatrix(Camera.mOrthoDistance, CurrentRatio) * Camera.GetViewMatrix().AffineInverse();
 
 		mSceneManager->Render(deltaTime, RenderCollector);
 
@@ -309,14 +311,14 @@ void FEngineLoop::Tick(bool bPumpMessages)
 				}
 			}
 
-			CurrentViewport->Client->mGizmo.Tick(SelectedActor, CurrentViewport->Window->Rect, CurrentViewport->Client->IsActive(), ViewProjection);
+			CurrentViewport->Client->mGizmo.Tick(SelectedActor, CurrentViewport->Window->Rect, CurrentViewport->Client->IsActive(), InvViewProjection);
 		}
 
 		//Render Threads
 		{
 			CurrentViewport->Viewport->Resize(*mGraphicsManager->GetRenderer(), ViewportRect.Width, ViewportRect.Height);
 			mGraphicsManager->Prepare(&CurrentViewport->Client->mCamera, ViewportRect.Width, ViewportRect.Height, *CurrentViewport->Viewport, CurrentViewport->Client->GetViewMode(), CurrentViewport->Client->GetViewportType());
-
+			mGraphicsManager->RenderHighLight(HighlightedComponents);
 			mGraphicsManager->Render();
 
 			CurrentViewport->Client->mGizmo.Render(SelectedActor, CurrentViewport->Client->mCamera.Transform.Location, CurrentViewport->Window->Rect, ViewProjection, CurrentViewport->Client->IsOrtho(), CurrentViewport->Client->GetCamera().mOrthoDistance);
