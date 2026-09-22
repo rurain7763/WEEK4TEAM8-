@@ -1,5 +1,0 @@
-newmtl TestTexture
-
-Kd 1.0 1.0 1.0
-
-map_Kd ../Textures/Test.jpg
