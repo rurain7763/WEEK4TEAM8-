@@ -1023,20 +1023,24 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 
 				if (ImGui::BeginDragDropTarget())
 				{
-					if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("ASSET_GUID"))
+					if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("ASSET_GUID_MESH"))
 					{
 						const FGuid* DataGuid = static_cast<const FGuid*>(Payload->Data);
-
-						TSharedPtr<FStaticMeshAsset> MatchedMeshAsset = guiReference.AssetManager->GetAssetAs<FStaticMeshAsset>(*DataGuid, true);
-
-						if (MatchedMeshAsset != nullptr)
-						{ 
-							StaticMeshComponent->SetMesh(MatchedMeshAsset);
-							UE_LOG("Success: StaticMesh applied: %s", MatchedMeshAsset->GetAssetName().ToString().c_str());
-						}
-						else
+						FAssetMetaInfo LoadedMetaInfo = guiReference.AssetManager->GetMetaInfo(*DataGuid);
+						if (LoadedMetaInfo.AssetType == EAssetType::StaticMesh)
 						{
-							UE_LOG_ERROR("Failed to load StaticMesh Guid: %s", DataGuid->ToString().c_str());
+
+							TSharedPtr<FStaticMeshAsset> MatchedMeshAsset = guiReference.AssetManager->GetAssetAs<FStaticMeshAsset>(*DataGuid, true);
+
+							if (MatchedMeshAsset != nullptr)
+							{
+								StaticMeshComponent->SetMesh(MatchedMeshAsset);
+								UE_LOG("Success: StaticMesh applied: %s", MatchedMeshAsset->GetAssetName().ToString().c_str());
+							}
+							else
+							{
+								UE_LOG_ERROR("Failed to load StaticMesh Guid: %s", DataGuid->ToString().c_str());
+							}
 						}
 					}
 					ImGui::EndDragDropTarget();
@@ -1077,20 +1081,23 @@ void FSceneManager::updatePropertyWindowGUI(const FGuiReference& guiReference)
 
 					if (ImGui::BeginDragDropTarget())
 					{
-						if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("ASSET_GUID"))
+						if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("ASSET_GUID_MATERIAL"))
 						{
 							const FGuid* DataGuid = static_cast<const FGuid*>(Payload->Data);
-
-							TSharedPtr<FMaterialAsset> MatchedMaterialAsset = guiReference.AssetManager->GetAssetAs<FMaterialAsset>(*DataGuid, true);
-
-							if (MatchedMaterialAsset != nullptr)
+							FAssetMetaInfo LoadedMetaInfo = guiReference.AssetManager->GetMetaInfo(*DataGuid);
+							if (LoadedMetaInfo.AssetType == EAssetType::Material)
 							{
-								StaticMeshComponent->SetMaterial(i, MatchedMaterialAsset);
-								UE_LOG("Success: StaticMesh applied: %s", MatchedMaterialAsset->GetAssetName().ToString().c_str());
-							}
-							else
-							{
-								UE_LOG_ERROR("Failed to load StaticMesh Guid: %s", DataGuid->ToString().c_str());
+								TSharedPtr<FMaterialAsset> MatchedMaterialAsset = guiReference.AssetManager->GetAssetAs<FMaterialAsset>(*DataGuid, true);
+
+								if (MatchedMaterialAsset != nullptr)
+								{
+									StaticMeshComponent->SetMaterial(i, MatchedMaterialAsset);
+									UE_LOG("Success: StaticMesh applied: %s", MatchedMaterialAsset->GetAssetName().ToString().c_str());
+								}
+								else
+								{
+									UE_LOG_ERROR("Failed to load StaticMesh Guid: %s", DataGuid->ToString().c_str());
+								}
 							}
 						}
 						ImGui::EndDragDropTarget();
